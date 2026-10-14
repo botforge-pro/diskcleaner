@@ -1,7 +1,6 @@
 package simulator
 
 import (
-	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -10,7 +9,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/botforge-pro/diskcleaner/internal/process"
 	"github.com/botforge-pro/diskcleaner/internal/report"
+	"github.com/botforge-pro/diskcleaner/internal/settings"
 )
 
 const (
@@ -27,15 +28,15 @@ type Step struct {
 
 func Default(home string) Step {
 	return Step{
-		Devices:   env("DISKCLEANER_SIMULATOR_DEVICES", filepath.Join(home, "Library/Developer/CoreSimulator/Devices")),
-		Processes: env("DISKCLEANER_SIMULATOR_PROCESSES", `xcodebuild|simctl|/Simulator\.app/|/DeviceHub\.app/`),
-		Running:   pgrep,
+		Devices:   settings.Env("DISKCLEANER_SIMULATOR_DEVICES", filepath.Join(home, "Library/Developer/CoreSimulator/Devices")),
+		Processes: settings.Env("DISKCLEANER_SIMULATOR_PROCESSES", `xcodebuild|simctl|/Simulator\.app/|/DeviceHub\.app/`),
+		Running:   process.Running,
 		State:     plutilState,
 	}
 }
 
 func (s Step) Run(r *report.Report) {
-	if !s.directory(r, s.Devices) {
+	if !r.Directory(s.Devices) {
 		return
 	}
 	devices, err := filepath.EvalSymlinks(s.Devices)
@@ -46,7 +47,7 @@ func (s Step) Run(r *report.Report) {
 	fmt.Fprintf(r.Out, "SIMULATOR %s\n", devices)
 	defer fmt.Fprintln(r.Out)
 
-	if s.running(r, s.Processes) {
+	if r.Busy(s.Running, s.Processes) {
 		r.Skip("%s: Simulator, DeviceHub, simctl or an Xcode build is running", devices)
 		return
 	}
@@ -59,7 +60,7 @@ func (s Step) Run(r *report.Report) {
 			continue
 		}
 		device := filepath.Join(devices, entry.Name())
-		if !s.directory(r, filepath.Join(device, "data")) {
+		if !r.Directory(filepath.Join(device, "data")) {
 			continue
 		}
 		for _, cache := range s.caches(r, device) {
@@ -104,22 +105,6 @@ func (s Step) caches(r *report.Report, device string) []string {
 	return caches
 }
 
-func (s Step) directory(r *report.Report, path string) bool {
-	info, err := os.Stat(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return false
-	}
-	if err != nil {
-		r.Fail("stat %s: %v", path, err)
-		return false
-	}
-	if !info.IsDir() {
-		r.Fail("%s: not a directory", path)
-		return false
-	}
-	return true
-}
-
 func (s Step) idle(r *report.Report, device string) bool {
 	plist := filepath.Join(device, "device.plist")
 	state, err := s.State(plist)
@@ -131,31 +116,11 @@ func (s Step) idle(r *report.Report, device string) bool {
 		r.Skip("%s: the simulator is not shut down (state %s)", device, state)
 		return false
 	}
-	if s.running(r, device+"/") {
+	if r.Busy(s.Running, device+"/") {
 		r.Skip("%s: a process of this simulator is running", device)
 		return false
 	}
 	return true
-}
-
-func (s Step) running(r *report.Report, pattern string) bool {
-	running, err := s.Running(pattern)
-	if err != nil {
-		r.Fail("pgrep -f '%s': %v", pattern, err)
-		return true
-	}
-	return running
-}
-
-func pgrep(pattern string) (bool, error) {
-	output, err := exec.Command("pgrep", "-f", pattern).CombinedOutput()
-	if err == nil {
-		return true, nil
-	}
-	if exit, ok := err.(*exec.ExitError); ok && exit.ExitCode() == 1 {
-		return false, nil
-	}
-	return false, fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
 }
 
 func plutilState(plist string) (string, error) {
@@ -164,11 +129,4 @@ func plutilState(plist string) (string, error) {
 		return "", fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
 	}
 	return strings.TrimSpace(string(output)), nil
-}
-
-func env(name, fallback string) string {
-	if value := os.Getenv(name); value != "" {
-		return value
-	}
-	return fallback
 }

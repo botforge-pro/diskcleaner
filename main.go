@@ -9,14 +9,19 @@ import (
 
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/botforge-pro/diskcleaner/internal/simulator"
+	"github.com/botforge-pro/diskcleaner/internal/xcode"
 )
 
 const usage = `Usage: diskcleaner <command>
 
 Commands:
-  version                                  print the installed version
-  run simulator-caches [--dry-run] [--report FILE]
-                                           remove Core ML caches of shut-down iOS simulators
+  version                    print the installed version
+  run STEP [--dry-run] [--report FILE]
+                             run one cleanup step
+
+Steps:
+  simulator-caches           Core ML caches of shut-down iOS simulators
+  xcode-derived-data         Xcode DerivedData
 `
 
 type step interface {
@@ -28,13 +33,15 @@ func main() {
 }
 
 func steps(name string) (step, bool) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, false
+	}
 	switch name {
 	case "simulator-caches":
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return nil, false
-		}
 		return simulator.Default(home), true
+	case "xcode-derived-data":
+		return xcode.Default(home), true
 	}
 	return nil, false
 }

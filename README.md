@@ -18,11 +18,13 @@ that directory is on your `PATH`.
 ## Usage
 
 ```sh
-diskcleaner version                                # print the installed version
-diskcleaner run simulator-caches --dry-run         # list what would be removed
-diskcleaner run simulator-caches                   # remove it
-diskcleaner run simulator-caches --report FILE     # also write the totals to FILE
+diskcleaner version                    # print the installed version
+diskcleaner run STEP --dry-run         # list what STEP would remove
+diskcleaner run STEP                   # remove it
+diskcleaner run STEP --report FILE     # also write the totals to FILE
 ```
+
+The steps are `simulator-caches` and `xcode-derived-data`, described below.
 
 Each removal is printed as `REMOVE` with its size (`WOULD REMOVE` in a dry run),
 a path kept on purpose as `SKIPPED` with the reason, and a failure as `FAILED`;
@@ -51,6 +53,21 @@ it can then fail with an E5RT error.
 `DISKCLEANER_SIMULATOR_DEVICES` replaces the devices directory and
 `DISKCLEANER_SIMULATOR_PROCESSES` the `pgrep -f` pattern of the programs that
 make it skip all simulators.
+
+### xcode-derived-data
+
+Removes every directory in `~/Library/Developer/Xcode/DerivedData`: the build
+output, indexes and module caches Xcode keeps there. The next build recreates
+them, including the incremental build cache, so it is slower than usual. Files
+and symbolic links directly in DerivedData stay. If DerivedData itself is a
+symbolic link, the directories in its target are removed and the link stays.
+
+It is skipped while Xcode, `xcodebuild` or the build service `XCBBuildService`
+is running. A build started after that check is not detected.
+
+`DISKCLEANER_XCODE_DERIVED_DATA` replaces the DerivedData directory and
+`DISKCLEANER_XCODE_PROCESSES` the `pgrep -f` pattern of the programs that make
+it skip.
 
 ## Lines of Code
 

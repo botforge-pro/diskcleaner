@@ -32,6 +32,31 @@ func (r *Report) Skip(format string, args ...any) {
 	fmt.Fprintf(r.Err, "SKIPPED       %s\n", fmt.Sprintf(format, args...))
 }
 
+func (r *Report) Directory(path string) bool {
+	info, err := os.Stat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return false
+	}
+	if err != nil {
+		r.Fail("stat %s: %v", path, err)
+		return false
+	}
+	if !info.IsDir() {
+		r.Fail("%s: not a directory", path)
+		return false
+	}
+	return true
+}
+
+func (r *Report) Busy(running func(pattern string) (bool, error), pattern string) bool {
+	busy, err := running(pattern)
+	if err != nil {
+		r.Fail("pgrep -f '%s': %v", pattern, err)
+		return true
+	}
+	return busy
+}
+
 func (r *Report) Remove(path string) {
 	sizeKB, err := DiskUsageKB(path)
 	if err != nil {

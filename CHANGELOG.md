@@ -5,6 +5,19 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.2.0] - 2026-10-14
+
+### Added
+
+- `diskcleaner run xcode-derived-data` deletes every folder in Xcode's
+  DerivedData (`~/Library/Developer/Xcode/DerivedData`): build output, indexes
+  and module caches. The next build in Xcode creates them again, which makes
+  that build slower. The command does nothing if Xcode or an Xcode build is
+  running when it starts; a build started while it is deleting is not noticed.
+  If DerivedData is a symbolic link, the folders in the directory it points to
+  are deleted and the link stays. `--dry-run` and `--report FILE` work as for
+  `simulator-caches`.
+
 ## [0.1.0] - 2026-10-14
 
 The first release of diskcleaner, a macOS command-line tool for freeing disk
@@ -33,4 +46,5 @@ this release removes one kind of them. Install it with a Go toolchain:
   status 1.
 - `diskcleaner version` prints the installed version.
 
+[0.2.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.2.0
 [0.1.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.1.0

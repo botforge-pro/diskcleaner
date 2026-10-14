@@ -7,16 +7,21 @@ is 0.x, commands and output may still change.
 
 ## [0.2.0] - 2026-10-14
 
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.2.0`; nothing
+else changes for existing users.
+
 ### Added
 
 - `diskcleaner run xcode-derived-data` deletes every folder in Xcode's
-  DerivedData (`~/Library/Developer/Xcode/DerivedData`): build output, indexes
-  and module caches. The next build in Xcode creates them again, which makes
-  that build slower. The command does nothing if Xcode or an Xcode build is
-  running when it starts; a build started while it is deleting is not noticed.
-  If DerivedData is a symbolic link, the folders in the directory it points to
-  are deleted and the link stays. `--dry-run` and `--report FILE` work as for
-  `simulator-caches`.
+  DerivedData (`~/Library/Developer/Xcode/DerivedData`), where Xcode keeps the
+  results of building and analysing projects. Files directly in that folder are
+  kept. The next build in Xcode creates the folders again, which makes that build
+  slower. If Xcode or a command-line `xcodebuild` is running when the command
+  starts, it deletes nothing and prints the reason as a `SKIPPED` line; a skip is
+  not a failure and the exit status stays 0. Quit Xcode first: a build started
+  while the command is deleting is not noticed. If DerivedData is a symbolic link, the folders in the directory it
+  points to are deleted and the link stays. `--dry-run` and `--report FILE` work
+  as for `simulator-caches`; `count N` is the number of deleted folders.
 
 ## [0.1.0] - 2026-10-14
 

@@ -1,6 +1,7 @@
 # diskcleaner
 
-Read Wikilayer wiki 1025 via MCP before the first action.
+Read the Wikilayer wiki 1025, https://wikilayer.org/smee-again/codestyle, via
+MCP before the first action.
 
 ## Who it is for
 

@@ -1,5 +1,6 @@
 STATICCHECK_VERSION := v0.8.2
-STATICCHECK := $(shell go env GOPATH)/bin/staticcheck
+GO_BIN := $(or $(shell go env GOBIN),$(shell go env GOPATH)/bin)
+STATICCHECK := $(GO_BIN)/staticcheck
 
 .PHONY: tools format lint test-build test build install
 
@@ -21,7 +22,7 @@ test-build:
 	go test -run '^$$' ./...
 
 test:
-	go test -count=1 ./...
+	go test -count=1 -run '$(TEST)' ./...
 
 build:
 	go build -o diskcleaner .

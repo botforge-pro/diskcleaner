@@ -78,7 +78,8 @@ packages downloads them again. If the cache is a symbolic link, only the link
 is removed, not what it points to.
 
 It is skipped while `swift build`, `swift package`, `swift test`, `swift run` or
-`xcodebuild` is running. A build started after that check is not detected.
+`xcodebuild` is running. A build started after that check is not detected, and
+neither is a build run from the Xcode app itself.
 
 `DISKCLEANER_SWIFTPM_CACHE` replaces the cache directory and
 `DISKCLEANER_SWIFT_PROCESSES` the `pgrep -f` pattern of the programs that make

@@ -19,10 +19,11 @@ else changes for existing users.
   package command (`swift build`, `swift package`, `swift test`, `swift run`) or
   `xcodebuild` is running when the command starts, it deletes nothing and prints
   the reason as a `SKIPPED` line; a skip is not a failure and the exit status
-  stays 0. A build started while the command is deleting is not noticed. If the
+  stays 0. A build started while the command is deleting is not noticed, and
+  neither is a build run from the Xcode app itself, so close Xcode first. If the
   cache folder is a symbolic link, only the link is deleted, not the folder it
-  points to. `--dry-run` and `--report FILE` work as for the other steps; `count`
-  is 1 when the cache was deleted.
+  points to. `--dry-run` and `--report FILE` work as described under 0.1.0; in
+  the report, `count` is 1 when the cache was deleted and 0 otherwise.
 
 ## [0.2.0] - 2026-10-14
 

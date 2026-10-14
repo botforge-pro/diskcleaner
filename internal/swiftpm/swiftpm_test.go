@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 
 	"github.com/botforge-pro/diskcleaner/internal/report"
@@ -48,6 +49,20 @@ func TestDryRunRemovesNothing(t *testing.T) {
 	assert.Equal(t, 1, r.Count)
 }
 
+func TestDefaultPatternMatchesSwiftAndXcodeBuilds(t *testing.T) {
+	t.Setenv("DISKCLEANER_SWIFT_PROCESSES", "")
+	pattern := regexp.MustCompile(Default(t.TempDir()).Processes)
+
+	for _, command := range []string{
+		"/usr/bin/swift-build --package-path app",
+		"/usr/bin/swift-run app",
+		"/Applications/Xcode-beta.app/Contents/MacOS/Xcode",
+	} {
+		assert.True(t, pattern.MatchString(command), command)
+	}
+	assert.False(t, pattern.MatchString("/Applications/Xcode.app/Contents/Developer/usr/bin/git status"))
+}
+
 func TestSkipsWhileSwiftBuilds(t *testing.T) {
 	cache := newCache(t)
 	busy := func(string) (bool, error) { return true, nil }
@@ -56,7 +71,7 @@ func TestSkipsWhileSwiftBuilds(t *testing.T) {
 
 	assert.DirExists(t, cache)
 	assert.Zero(t, r.Count)
-	assert.Contains(t, stderr, "SKIPPED       "+cache+": a Swift package build or xcodebuild is running")
+	assert.Contains(t, stderr, "SKIPPED       "+cache+": a Swift package build, xcodebuild or Xcode is running")
 }
 
 func TestProcessCheckErrorSkipsAndFails(t *testing.T) {

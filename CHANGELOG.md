@@ -5,6 +5,22 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.3.1] - 2026-10-15
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.3.1`.
+
+### Fixed
+
+- `diskcleaner run swiftpm-cache` no longer deletes the Swift Package Manager
+  cache while the Xcode app is open: 0.3.0 noticed only command-line builds, so
+  a build started in Xcode could lose the packages it was reading. Now the
+  command also skips while Xcode or its build service (`XCBBuildService`) is
+  running, so quit Xcode before running it. The `SKIPPED` line now reads
+  `a Swift package build, xcodebuild or Xcode is running`.
+- `diskcleaner run swiftpm-cache` and `diskcleaner run xcode-derived-data` now
+  recognise Xcode installed under another name, such as `Xcode-beta.app` or
+  `Xcode_26.1.app`; 0.3.0 recognised only `Xcode.app`.
+
 ## [0.3.0] - 2026-10-14
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.3.0`; nothing
@@ -71,6 +87,7 @@ this release removes one kind of them. Install it with a Go toolchain:
   status 1.
 - `diskcleaner version` prints the installed version.
 
+[0.3.1]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.3.1
 [0.3.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.3.0
 [0.2.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.2.0
 [0.1.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.1.0

@@ -18,7 +18,7 @@ type Step struct {
 func Default(home string) Step {
 	return Step{
 		Cache:     settings.Env("DISKCLEANER_SWIFTPM_CACHE", filepath.Join(home, "Library/Caches/org.swift.swiftpm")),
-		Processes: settings.Env("DISKCLEANER_SWIFT_PROCESSES", "swift-build|swift-package|swift-test|swift-run|xcodebuild"),
+		Processes: settings.Env("DISKCLEANER_SWIFT_PROCESSES", "swift-build|swift-package|swift-test|swift-run|"+process.Xcode),
 		Running:   process.Running,
 	}
 }
@@ -31,7 +31,7 @@ func (s Step) Run(r *report.Report) {
 	defer fmt.Fprintln(r.Out)
 
 	if r.Busy(s.Running, s.Processes) {
-		r.Skip("%s: a Swift package build or xcodebuild is running", s.Cache)
+		r.Skip("%s: a Swift package build, xcodebuild or Xcode is running", s.Cache)
 		return
 	}
 	r.Remove(s.Cache)

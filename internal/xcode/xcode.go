@@ -19,7 +19,7 @@ type Step struct {
 func Default(home string) Step {
 	return Step{
 		DerivedData: settings.Env("DISKCLEANER_XCODE_DERIVED_DATA", filepath.Join(home, "Library/Developer/Xcode/DerivedData")),
-		Processes:   settings.Env("DISKCLEANER_XCODE_PROCESSES", `xcodebuild|XCBBuildService|/Xcode\.app/Contents/MacOS/Xcode`),
+		Processes:   settings.Env("DISKCLEANER_XCODE_PROCESSES", process.Xcode),
 		Running:     process.Running,
 	}
 }

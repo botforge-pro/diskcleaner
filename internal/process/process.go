@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+const Xcode = `xcodebuild|XCBBuildService|/Xcode[^/]*\.app/Contents/MacOS/Xcode`
+
 func Running(pattern string) (bool, error) {
 	output, err := exec.Command("pgrep", "-f", pattern).CombinedOutput()
 	if err == nil {

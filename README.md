@@ -63,8 +63,9 @@ them, including the incremental build cache, so it is slower than usual. Files
 and symbolic links directly in DerivedData stay. If DerivedData itself is a
 symbolic link, the directories in its target are removed and the link stays.
 
-It is skipped while Xcode, `xcodebuild` or the build service `XCBBuildService`
-is running. A build started after that check is not detected.
+It is skipped while Xcode (any `Xcode*.app`, such as `Xcode-beta.app`),
+`xcodebuild` or the build service `XCBBuildService` is running. A build started
+after that check is not detected.
 
 `DISKCLEANER_XCODE_DERIVED_DATA` replaces the DerivedData directory and
 `DISKCLEANER_XCODE_PROCESSES` the `pgrep -f` pattern of the programs that make
@@ -77,9 +78,9 @@ the clones and downloads of package dependencies. The next build that resolves
 packages downloads them again. If the cache is a symbolic link, only the link
 is removed, not what it points to.
 
-It is skipped while `swift build`, `swift package`, `swift test`, `swift run` or
-`xcodebuild` is running. A build started after that check is not detected, and
-neither is a build run from the Xcode app itself.
+It is skipped while `swift build`, `swift package`, `swift test`, `swift run`,
+`xcodebuild`, Xcode (any `Xcode*.app`) or its build service `XCBBuildService`
+is running. A build started after that check is not detected.
 
 `DISKCLEANER_SWIFTPM_CACHE` replaces the cache directory and
 `DISKCLEANER_SWIFT_PROCESSES` the `pgrep -f` pattern of the programs that make

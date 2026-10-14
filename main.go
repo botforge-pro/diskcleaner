@@ -9,6 +9,7 @@ import (
 
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/botforge-pro/diskcleaner/internal/simulator"
+	"github.com/botforge-pro/diskcleaner/internal/swiftpm"
 	"github.com/botforge-pro/diskcleaner/internal/xcode"
 )
 
@@ -22,6 +23,7 @@ Commands:
 Steps:
   simulator-caches           Core ML caches of shut-down iOS simulators
   xcode-derived-data         Xcode DerivedData
+  swiftpm-cache              the Swift Package Manager cache
 `
 
 type step interface {
@@ -42,6 +44,8 @@ func steps(name string) (step, bool) {
 		return simulator.Default(home), true
 	case "xcode-derived-data":
 		return xcode.Default(home), true
+	case "swiftpm-cache":
+		return swiftpm.Default(home), true
 	}
 	return nil, false
 }

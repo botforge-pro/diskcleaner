@@ -5,6 +5,25 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.3.0] - 2026-10-14
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.3.0`; nothing
+else changes for existing users.
+
+### Added
+
+- `diskcleaner run swiftpm-cache` deletes the Swift Package Manager cache
+  (`~/Library/Caches/org.swift.swiftpm`), where Swift keeps downloaded copies of
+  the packages your projects depend on. The next build downloads the packages it
+  needs again, which makes it slower and needs a network connection. If a Swift
+  package command (`swift build`, `swift package`, `swift test`, `swift run`) or
+  `xcodebuild` is running when the command starts, it deletes nothing and prints
+  the reason as a `SKIPPED` line; a skip is not a failure and the exit status
+  stays 0. A build started while the command is deleting is not noticed. If the
+  cache folder is a symbolic link, only the link is deleted, not the folder it
+  points to. `--dry-run` and `--report FILE` work as for the other steps; `count`
+  is 1 when the cache was deleted.
+
 ## [0.2.0] - 2026-10-14
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.2.0`; nothing
@@ -51,5 +70,6 @@ this release removes one kind of them. Install it with a Go toolchain:
   status 1.
 - `diskcleaner version` prints the installed version.
 
+[0.3.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.3.0
 [0.2.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.2.0
 [0.1.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.1.0

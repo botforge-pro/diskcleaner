@@ -24,7 +24,8 @@ diskcleaner run STEP                   # remove it
 diskcleaner run STEP --report FILE     # also write the totals to FILE
 ```
 
-The steps are `simulator-caches` and `xcode-derived-data`, described below.
+The steps are `simulator-caches`, `xcode-derived-data` and `swiftpm-cache`,
+described below.
 
 Each removal is printed as `REMOVE` with its size (`WOULD REMOVE` in a dry run),
 a path kept on purpose as `SKIPPED` with the reason, and a failure as `FAILED`;
@@ -67,6 +68,20 @@ is running. A build started after that check is not detected.
 
 `DISKCLEANER_XCODE_DERIVED_DATA` replaces the DerivedData directory and
 `DISKCLEANER_XCODE_PROCESSES` the `pgrep -f` pattern of the programs that make
+it skip.
+
+### swiftpm-cache
+
+Removes the Swift Package Manager cache `~/Library/Caches/org.swift.swiftpm`:
+the clones and downloads of package dependencies. The next build that resolves
+packages downloads them again. If the cache is a symbolic link, only the link
+is removed, not what it points to.
+
+It is skipped while `swift build`, `swift package`, `swift test`, `swift run` or
+`xcodebuild` is running. A build started after that check is not detected.
+
+`DISKCLEANER_SWIFTPM_CACHE` replaces the cache directory and
+`DISKCLEANER_SWIFT_PROCESSES` the `pgrep -f` pattern of the programs that make
 it skip.
 
 ## Lines of Code

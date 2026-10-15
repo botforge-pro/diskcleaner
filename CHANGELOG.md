@@ -23,13 +23,16 @@ steps added in earlier versions work as in 0.7.0.
   - keeps silently: the folders these sit in and every other file;
   - keeps with a `SKIPPED` line and exit status 0:
     - a `.build` with no `Package.swift` next to it, and any `.build` inside
-      that one; Xcode and package caches inside it are still deleted;
-    - a path that Git tracks, or where Git cannot say whether it does;
+      that one; Xcode and package caches inside such a `.build` are still
+      deleted;
+    - a path holding any file Git tracks, or where Git cannot say whether it
+      does;
   - cost: the next build in that scratchpad starts from scratch, also in
     Claude Code sessions that are still open;
   - skips the whole step with a `SKIPPED` line and exit status 0 while
     `swift build`, `swift package`, `swift test`, `swift run` or `xcodebuild`
-    runs; a build started after that check is not noticed;
+    runs; a build started after that check, or one in the Xcode app, is not
+    noticed;
   - failure, exit status 1: a folder it cannot read; what it could read is
     still cleaned;
   - `--dry-run`: `WOULD REMOVE` lines, deletes nothing; `--report FILE`:

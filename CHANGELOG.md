@@ -5,6 +5,42 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.5.0] - 2026-10-15
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.5.0`; the
+commands added in earlier versions work as in 0.4.0.
+
+### Added
+
+- `diskcleaner run docker-images` deletes Docker images that no container uses,
+  by running `docker image prune --all --force`; volumes, which hold data, are
+  never touched. It runs only when `docker system df` reports space such images
+  could free, and prints a `RUN` line with that size and Docker's own
+  `Total reclaimed space` line. A removed image is pulled or built again the
+  next time something needs it. If Docker Desktop is not running, it changes
+  nothing and prints a `SKIPPED` line with exit status 0; if `docker` is not
+  installed, it prints nothing and exits with status 0. A Docker that does not
+  answer within `DISKCLEANER_DOCKER_TIMEOUT` seconds (default 30), or a prune
+  that takes longer than `DISKCLEANER_DOCKER_PRUNE_TIMEOUT` seconds (default
+  900), is stopped and reported as a failure with exit status 1. `--dry-run`
+  prints a `WOULD RUN` line and counts the size Docker reports. With
+  `--report FILE`, `count` is 1 when the prune succeeded and `kb` is how much
+  the Docker Desktop data folder shrank, which can be less than Docker reports
+  because Docker Desktop returns space to macOS gradually.
+- `diskcleaner check STEP...` checks the timeouts of the named steps and that
+  the home folder can be found, and changes nothing: it exits with status 0
+  when they are valid, and otherwise prints what is wrong and exits with status
+  2. A script that runs several steps can call it first, so that a mistyped
+  timeout stops it before anything is deleted. Other settings, such as the
+  process patterns, are not checked ahead.
+
+### Changed
+
+- `diskcleaner run` now exits with status 2, printing the reason, when a
+  timeout of the step is not a whole number of seconds above zero or is too
+  large to wait for; nothing is touched then. When the home folder cannot be
+  determined, it now says so instead of reporting an unknown step.
+
 ## [0.4.0] - 2026-10-15
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.4.0`; the
@@ -110,6 +146,7 @@ this release removes one kind of them. Install it with a Go toolchain:
   status 1.
 - `diskcleaner version` prints the installed version.
 
+[0.5.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.5.0
 [0.4.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.4.0
 [0.3.1]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.3.1
 [0.3.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.3.0

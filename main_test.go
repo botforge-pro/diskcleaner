@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -23,9 +24,15 @@ func (f fakeStep) Run(r *report.Report) {
 	}
 }
 
-func findFake(fail bool) func(string) (step, bool) {
-	return func(name string) (step, bool) {
-		return fakeStep{fail: fail}, name == "fake"
+func findFake(fail bool) func(string) (step, error) {
+	return func(name string) (step, error) {
+		switch name {
+		case "fake":
+			return fakeStep{fail: fail}, nil
+		case "misconfigured":
+			return nil, errors.New("DISKCLEANER_FAKE must be a whole number above zero, got: 1.5")
+		}
+		return nil, unknownStepError{name: name}
 	}
 }
 
@@ -44,6 +51,11 @@ func TestRun(t *testing.T) {
 		{"unknown step", []string{"run", "nothing"}, 2, "", "unknown step \"nothing\"\n" + usage},
 		{"step argument", []string{"run", "fake", "now"}, 2, "", usage},
 		{"step", []string{"run", "fake", "--dry-run"}, 0, "", ""},
+		{"misconfigured step", []string{"run", "misconfigured"}, 2, "", "DISKCLEANER_FAKE must be a whole number above zero, got: 1.5\n"},
+		{"check", []string{"check", "fake", "fake"}, 0, "", ""},
+		{"check without steps", []string{"check"}, 2, "", usage},
+		{"check misconfigured", []string{"check", "fake", "misconfigured"}, 2, "", "DISKCLEANER_FAKE must be a whole number above zero, got: 1.5\n"},
+		{"check unknown", []string{"check", "nothing"}, 2, "", "unknown step \"nothing\"\n" + usage},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -22,10 +22,16 @@ diskcleaner version                    # print the installed version
 diskcleaner run STEP --dry-run         # list what STEP would remove
 diskcleaner run STEP                   # remove it
 diskcleaner run STEP --report FILE     # also write the totals to FILE
+diskcleaner check STEP...              # check the settings of these steps
 ```
 
-The steps are `simulator-caches`, `xcode-derived-data`, `swiftpm-cache` and
-`go-cache`, described below.
+The steps are `simulator-caches`, `xcode-derived-data`, `swiftpm-cache`,
+`go-cache` and `docker-images`, described below. A timeout that is not a whole
+number of seconds above zero, or a home directory that cannot be found, makes
+`run` and `check` print what is wrong and exit with status 2 before anything is
+touched; `check` lets a script that runs several steps find that out before the
+first one. Other settings, such as a `pgrep -f` pattern, are not checked ahead:
+a wrong one shows up as a failure of its step.
 
 Each removal is printed as `REMOVE` with its size (`WOULD REMOVE` in a dry run),
 a cleanup command as `RUN` with the size of the directory it cleans
@@ -100,6 +106,28 @@ after that check is not detected.
 
 `DISKCLEANER_GO_PROCESSES` replaces the `pgrep -f` pattern of the commands that
 make it skip.
+
+### docker-images
+
+Runs `docker image prune --all --force` when `docker system df` reports space
+that images not used by any container could free. Volumes are never touched:
+they hold data. The next build or run that needs a removed image pulls or
+builds it again. Docker Desktop returns the space to macOS gradually, so the
+space counted, measured on its data directory, can be smaller than what Docker
+reports as reclaimed. Without a `docker` command on the `PATH` the step does
+nothing.
+
+It assumes Docker Desktop: when `docker info` fails and no Docker Desktop
+backend process is running, Docker is taken to be off and the step is skipped.
+A failing `docker info` while the backend runs is a failure.
+`docker info` and `docker system df` that do not answer within
+`DISKCLEANER_DOCKER_TIMEOUT` seconds (default 30), or a prune that does not
+finish within `DISKCLEANER_DOCKER_PRUNE_TIMEOUT` seconds (default 900), are
+stopped and reported as failures.
+
+`DISKCLEANER_DOCKER_DATA` replaces the Docker Desktop data directory
+(`~/Library/Containers/com.docker.docker`) and `DISKCLEANER_DOCKER_PROCESS` the
+`pgrep -f` pattern of its backend process.
 
 ## Lines of Code
 

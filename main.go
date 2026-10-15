@@ -1,12 +1,14 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"runtime/debug"
 
+	"github.com/botforge-pro/diskcleaner/internal/docker"
 	"github.com/botforge-pro/diskcleaner/internal/gocache"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/botforge-pro/diskcleaner/internal/simulator"
@@ -20,41 +22,56 @@ Commands:
   version                    print the installed version
   run STEP [--dry-run] [--report FILE]
                              run one cleanup step
+  check STEP...              check the settings of these steps, change nothing
 
 Steps:
   simulator-caches           Core ML caches of shut-down iOS simulators
   xcode-derived-data         Xcode DerivedData
   swiftpm-cache              the Swift Package Manager cache
   go-cache                   the Go module and build caches
+  docker-images              Docker images not used by any container
 `
 
 type step interface {
 	Run(r *report.Report)
 }
 
+type unknownStepError struct {
+	name string
+}
+
+func (e unknownStepError) Error() string {
+	return fmt.Sprintf("unknown step %q", e.name)
+}
+
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr, steps))
 }
 
-func steps(name string) (step, bool) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, false
-	}
-	switch name {
-	case "simulator-caches":
-		return simulator.Default(home), true
-	case "xcode-derived-data":
-		return xcode.Default(home), true
-	case "swiftpm-cache":
-		return swiftpm.Default(home), true
-	case "go-cache":
-		return gocache.Default(), true
-	}
-	return nil, false
+var constructors = map[string]func(home string) (step, error){
+	"simulator-caches":   func(home string) (step, error) { return simulator.Default(home), nil },
+	"xcode-derived-data": func(home string) (step, error) { return xcode.Default(home), nil },
+	"swiftpm-cache":      func(home string) (step, error) { return swiftpm.Default(home), nil },
+	"go-cache":           func(string) (step, error) { return gocache.Default(), nil },
+	"docker-images": func(home string) (step, error) {
+		s, err := docker.Default(home)
+		return s, err
+	},
 }
 
-func run(args []string, stdout, stderr io.Writer, find func(string) (step, bool)) int {
+func steps(name string) (step, error) {
+	construct, ok := constructors[name]
+	if !ok {
+		return nil, unknownStepError{name: name}
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("%s: no home directory: %w", name, err)
+	}
+	return construct(home)
+}
+
+func run(args []string, stdout, stderr io.Writer, find func(string) (step, error)) int {
 	if len(args) == 1 && args[0] == "version" {
 		fmt.Fprintln(stdout, version())
 		return 0
@@ -62,11 +79,35 @@ func run(args []string, stdout, stderr io.Writer, find func(string) (step, bool)
 	if len(args) >= 2 && args[0] == "run" {
 		return runStep(args[1], args[2:], stdout, stderr, find)
 	}
+	if len(args) >= 2 && args[0] == "check" {
+		return checkSteps(args[1:], stderr, find)
+	}
 	fmt.Fprint(stderr, usage)
 	return 2
 }
 
-func runStep(name string, args []string, stdout, stderr io.Writer, find func(string) (step, bool)) int {
+func findStep(name string, stderr io.Writer, find func(string) (step, error)) (step, bool) {
+	s, err := find(name)
+	if err == nil {
+		return s, true
+	}
+	fmt.Fprintln(stderr, err)
+	if errors.As(err, &unknownStepError{}) {
+		fmt.Fprint(stderr, usage)
+	}
+	return nil, false
+}
+
+func checkSteps(names []string, stderr io.Writer, find func(string) (step, error)) int {
+	for _, name := range names {
+		if _, ok := findStep(name, stderr, find); !ok {
+			return 2
+		}
+	}
+	return 0
+}
+
+func runStep(name string, args []string, stdout, stderr io.Writer, find func(string) (step, error)) int {
 	flags := flag.NewFlagSet("run", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	dryRun := flags.Bool("dry-run", false, "list what would be removed, remove nothing")
@@ -75,10 +116,8 @@ func runStep(name string, args []string, stdout, stderr io.Writer, find func(str
 		fmt.Fprint(stderr, usage)
 		return 2
 	}
-	s, ok := find(name)
+	s, ok := findStep(name, stderr, find)
 	if !ok {
-		fmt.Fprintf(stderr, "unknown step %q\n", name)
-		fmt.Fprint(stderr, usage)
 		return 2
 	}
 	r := &report.Report{Out: stdout, Err: stderr, DryRun: *dryRun}

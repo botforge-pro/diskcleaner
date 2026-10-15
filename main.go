@@ -10,6 +10,7 @@ import (
 
 	"github.com/botforge-pro/diskcleaner/internal/docker"
 	"github.com/botforge-pro/diskcleaner/internal/gocache"
+	"github.com/botforge-pro/diskcleaner/internal/gradle"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/botforge-pro/diskcleaner/internal/simulator"
 	"github.com/botforge-pro/diskcleaner/internal/swiftpm"
@@ -30,6 +31,7 @@ Steps:
   swiftpm-cache              the Swift Package Manager cache
   go-cache                   the Go module and build caches
   docker-images              Docker images not used by any container
+  gradle-caches              the Gradle caches
 `
 
 type step interface {
@@ -53,6 +55,7 @@ var constructors = map[string]func(home string) (step, error){
 	"xcode-derived-data": func(home string) (step, error) { return xcode.Default(home), nil },
 	"swiftpm-cache":      func(home string) (step, error) { return swiftpm.Default(home), nil },
 	"go-cache":           func(string) (step, error) { return gocache.Default(), nil },
+	"gradle-caches":      func(home string) (step, error) { return gradle.Default(home), nil },
 	"docker-images": func(home string) (step, error) {
 		s, err := docker.Default(home)
 		return s, err

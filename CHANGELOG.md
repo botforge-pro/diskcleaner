@@ -5,6 +5,26 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.6.0] - 2026-10-15
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.6.0`; the
+steps added in earlier versions work as in 0.5.0.
+
+### Added
+
+- `diskcleaner run gradle-caches` deletes the Gradle caches folder
+  (`~/.gradle/caches`, or `caches` inside `GRADLE_USER_HOME` when that is set),
+  where Gradle keeps downloaded dependencies and build results. The next Gradle
+  build downloads and builds them again, which makes it slower and needs a
+  network connection. If a Gradle build, Android Studio or IntelliJ IDEA is
+  running, or a Gradle or Kotlin background process (daemon) used the CPU during
+  a two-second check, it deletes nothing and prints the reason as a `SKIPPED`
+  line with exit status 0. Otherwise it stops the idle daemons first, printing a
+  `STOP` line, and Gradle starts them again on the next build; daemons that are
+  still running ten seconds later keep the folder and are reported as a failure
+  with exit status 1. `--dry-run` prints `WOULD STOP` and `WOULD REMOVE` and
+  stops nothing. With `--report FILE`, `count` is 1 when the folder was deleted.
+
 ## [0.5.0] - 2026-10-15
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.5.0`. The steps
@@ -153,6 +173,7 @@ this release removes one kind of them. Install it with a Go toolchain:
   status 1.
 - `diskcleaner version` prints the installed version.
 
+[0.6.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.6.0
 [0.5.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.5.0
 [0.4.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.4.0
 [0.3.1]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.3.1

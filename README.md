@@ -14,6 +14,7 @@ Frees disk space on a Mac by deleting what builds and tools recreate on demand.
 | `go-cache` | Go module and build caches |
 | `docker-images` | Docker images no container uses |
 | `gradle-caches` | `~/.gradle/caches` |
+| `claude-logs` | Claude Code session logs older than 30 days |
 
 What makes each step skip is listed for it below. After a cleanup the first
 build is slower.
@@ -47,8 +48,9 @@ Output lines:
 The report file holds `count N` (paths removed or cleaned), `kb N` (KiB freed)
 and a `failure ...` line per failure.
 
-A wrong timeout or a missing home directory makes `run` and `check` exit 2
-before anything is touched. Other settings, such as `pgrep -f` patterns, fail
+A wrong number setting (a timeout, a day count) or a missing home directory
+makes `run` and `check` exit 2 before anything is touched. Other settings, such
+as `pgrep -f` patterns, fail
 only when the step runs.
 
 ## Steps in detail
@@ -117,6 +119,14 @@ A build started after a step checked for running tools is not detected.
 - Stops idle daemons with `SIGTERM` first; daemons alive ten seconds later keep
   the cache and are a failure.
 - Settings: `DISKCLEANER_GRADLE_DAEMONS`, `DISKCLEANER_GRADLE_CLIENTS`.
+
+### claude-logs
+
+- Removes `*.jsonl` session logs, agents' included, under `~/.claude/projects`
+  untouched for more than `DISKCLEANER_CLAUDE_LOG_DAYS` whole days (30).
+- Such a session can no longer be resumed.
+- A log Git tracks, or one Git cannot tell about, is kept.
+- Settings: `DISKCLEANER_CLAUDE_PROJECTS`, `DISKCLEANER_CLAUDE_LOG_DAYS`.
 
 ## Lines of Code
 

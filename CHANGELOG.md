@@ -5,6 +5,28 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.7.0] - 2026-10-15
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.7.0`; the
+steps added in earlier versions work as in 0.6.0.
+
+### Added
+
+- `diskcleaner run claude-logs` deletes old Claude Code session logs:
+  - which: `*.jsonl` files, agents' logs included, under `~/.claude/projects`
+    that were not changed for more than 30 whole days;
+  - cost: such a session can no longer be resumed;
+  - keeps a log that Git tracks, or that Git cannot tell about, with a
+    `SKIPPED` line;
+  - failure, exit status 1: a folder it cannot read; the logs it could read
+    are still deleted;
+  - `--dry-run`: prints `WOULD REMOVE` lines, deletes nothing;
+  - `--report FILE`: `count` is the number of logs deleted, `kb` the space
+    freed;
+  - settings: `DISKCLEANER_CLAUDE_PROJECTS` replaces the folder,
+    `DISKCLEANER_CLAUDE_LOG_DAYS` the 30 days; a day count that is not a whole
+    number above zero gives exit status 2 before anything is deleted.
+
 ## [0.6.0] - 2026-10-15
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.6.0`; the
@@ -177,6 +199,7 @@ this release removes one kind of them. Install it with a Go toolchain:
   status 1.
 - `diskcleaner version` prints the installed version.
 
+[0.7.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.7.0
 [0.6.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.6.0
 [0.5.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.5.0
 [0.4.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.4.0

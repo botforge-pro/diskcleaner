@@ -8,6 +8,7 @@ import (
 	"os"
 	"runtime/debug"
 
+	"github.com/botforge-pro/diskcleaner/internal/claudelogs"
 	"github.com/botforge-pro/diskcleaner/internal/docker"
 	"github.com/botforge-pro/diskcleaner/internal/gocache"
 	"github.com/botforge-pro/diskcleaner/internal/gradle"
@@ -32,6 +33,7 @@ Steps:
   go-cache                   the Go module and build caches
   docker-images              Docker images not used by any container
   gradle-caches              the Gradle caches
+  claude-logs                old Claude Code session logs
 `
 
 type step interface {
@@ -56,6 +58,10 @@ var constructors = map[string]func(home string) (step, error){
 	"swiftpm-cache":      func(home string) (step, error) { return swiftpm.Default(home), nil },
 	"go-cache":           func(string) (step, error) { return gocache.Default(), nil },
 	"gradle-caches":      func(home string) (step, error) { return gradle.Default(home), nil },
+	"claude-logs": func(home string) (step, error) {
+		s, err := claudelogs.Default(home)
+		return s, err
+	},
 	"docker-images": func(home string) (step, error) {
 		s, err := docker.Default(home)
 		return s, err

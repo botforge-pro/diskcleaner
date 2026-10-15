@@ -16,9 +16,9 @@ steps added in earlier versions work as in 0.5.0.
   - which: `~/.gradle/caches`, or `caches` inside `GRADLE_USER_HOME`;
   - cost: the next Gradle build downloads and builds them again, slower and
     online;
-  - skips, exit status 0: while a Gradle build, Android Studio or IntelliJ IDEA
-    runs, or while a Gradle or Kotlin background process (daemon) used any CPU
-    time in a two-second check;
+  - skips with a `SKIPPED` line and exit status 0: while a Gradle build,
+    Android Studio or IntelliJ IDEA runs, or while a Gradle or Kotlin background
+    process (daemon) used any CPU time in a two-second check;
   - otherwise stops the idle daemons with `SIGTERM` (a `STOP` line); Gradle
     starts them again on the next build;
   - failure, exit status 1: daemons still running ten seconds later; the

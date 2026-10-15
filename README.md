@@ -123,7 +123,8 @@ A build started after a step checked for running tools is not detected.
 ### claude-logs
 
 - Removes `*.jsonl` session logs, agents' included, under `~/.claude/projects`
-  untouched for more than `DISKCLEANER_CLAUDE_LOG_DAYS` whole days (30).
+  last modified more than `DISKCLEANER_CLAUDE_LOG_DAYS` whole days ago (30, so
+  31 days or more).
 - Such a session can no longer be resumed.
 - A log Git tracks, or one Git cannot tell about, is kept.
 - Settings: `DISKCLEANER_CLAUDE_PROJECTS`, `DISKCLEANER_CLAUDE_LOG_DAYS`.

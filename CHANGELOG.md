@@ -13,11 +13,11 @@ steps added in earlier versions work as in 0.6.0.
 ### Added
 
 - `diskcleaner run claude-logs` deletes old Claude Code session logs:
-  - which: `*.jsonl` files, agents' logs included, under `~/.claude/projects`
-    that were not changed for more than 30 whole days;
+  - which: `*.jsonl` files anywhere under `~/.claude/projects`, agents' logs in
+    subfolders included, last modified 31 or more days ago;
   - cost: such a session can no longer be resumed;
-  - keeps a log that Git tracks, or that Git cannot tell about, with a
-    `SKIPPED` line;
+  - keeps, with a `SKIPPED` line and exit status 0, a log inside a Git
+    repository that tracks it, or when Git cannot say whether it does;
   - failure, exit status 1: a folder it cannot read; the logs it could read
     are still deleted;
   - `--dry-run`: prints `WOULD REMOVE` lines, deletes nothing;

@@ -19,20 +19,24 @@ steps added in earlier versions work as in 0.7.0.
     `SourcePackages`) next to a `Build/Intermediates.noindex`; the `checkouts`
     and `repositories` of a Swift package next to a `workspace-state.json`;
     `.build` next to a `Package.swift`;
-  - keeps: the folders these sit in and every other file; a `.build` without a
-    `Package.swift` next to it is not taken whole, and no `.build` inside it is
-    taken, though Xcode and package caches inside it still go; a path that Git
-    tracks or cannot tell about. The last two get a `SKIPPED` line;
-  - cost: the next build in that scratchpad starts from scratch; sessions still
-    running lose their build output too;
-  - skips with a `SKIPPED` line and exit status 0 while `swift build`,
-    `swift package`, `swift test`, `swift run` or `xcodebuild` runs;
+  - prints a `REMOVE` line for each folder it deletes;
+  - keeps silently: the folders these sit in and every other file;
+  - keeps with a `SKIPPED` line and exit status 0:
+    - a `.build` with no `Package.swift` next to it, and any `.build` inside
+      that one; Xcode and package caches inside it are still deleted;
+    - a path that Git tracks, or where Git cannot say whether it does;
+  - cost: the next build in that scratchpad starts from scratch, also in
+    Claude Code sessions that are still open;
+  - skips the whole step with a `SKIPPED` line and exit status 0 while
+    `swift build`, `swift package`, `swift test`, `swift run` or `xcodebuild`
+    runs; a build started after that check is not noticed;
   - failure, exit status 1: a folder it cannot read; what it could read is
     still cleaned;
   - `--dry-run`: `WOULD REMOVE` lines, deletes nothing; `--report FILE`:
-    `count` is the number of folders deleted, `kb` the space freed;
-  - settings: `DISKCLEANER_CLAUDE_TMP` replaces the folder,
-    `DISKCLEANER_SWIFT_PROCESSES` the programs it waits for.
+    `count` is the number of folders deleted (would be, with `--dry-run`), `kb`
+    the space freed;
+  - settings: `DISKCLEANER_CLAUDE_TMP` replaces `/private/tmp/claude-<uid>`,
+    `DISKCLEANER_SWIFT_PROCESSES` the programs that make it skip.
 
 ## [0.7.0] - 2026-10-15
 

@@ -5,6 +5,25 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.4.0] - 2026-10-15
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.4.0`; the
+other steps work as in 0.3.1.
+
+### Added
+
+- `diskcleaner run go-cache` empties the Go module cache and build cache by
+  running `go clean -modcache` and `go clean -cache`, where Go keeps downloaded
+  modules and compiled packages. The next build downloads and compiles them
+  again, which makes it slower and needs a network connection. Each command is
+  printed as a `RUN` line with the size of the folder it empties. If `go build`,
+  `go test` or another Go command that uses these caches is running when the
+  command starts, it changes nothing and prints the reason as a `SKIPPED` line;
+  a skip is not a failure and the exit status stays 0. If `go` is not installed,
+  the command does nothing. `--dry-run` prints `WOULD RUN` lines instead and
+  runs nothing; in the report, `count` is the number of caches emptied, at most
+  2.
+
 ## [0.3.1] - 2026-10-15
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.3.1`.
@@ -55,9 +74,10 @@ else changes for existing users.
   slower. If Xcode or a command-line `xcodebuild` is running when the command
   starts, it deletes nothing and prints the reason as a `SKIPPED` line; a skip is
   not a failure and the exit status stays 0. Quit Xcode first: a build started
-  while the command is deleting is not noticed. If DerivedData is a symbolic link, the folders in the directory it
-  points to are deleted and the link stays. `--dry-run` and `--report FILE` work
-  as for `simulator-caches`; `count N` is the number of deleted folders.
+  while the command is deleting is not noticed. If DerivedData is a symbolic
+  link, the folders in the directory it points to are deleted and the link
+  stays. `--dry-run` and `--report FILE` work as for `simulator-caches`;
+  `count N` is the number of deleted folders.
 
 ## [0.1.0] - 2026-10-14
 
@@ -72,8 +92,9 @@ this release removes one kind of them. Install it with a Go toolchain:
   Xcode. When an app that uses machine-learning models (Apple's Core ML) runs in
   a simulator, the system compiles those models and keeps the compiled copies,
   which can grow to many gigabytes. The command deletes these compiled copies,
-  one folder per app or service in each simulator, and nothing else. It is safe: the app compiles its models again on its next
-  launch, which only makes that launch slower. A simulator that is running is
+  one folder per app or service in each simulator, and nothing else. It is
+  safe: the app compiles its models again on its next launch, which only makes
+  that launch slower. A simulator that is running is
   left alone, and so are all simulators while Xcode is building or the Simulator
   app is open; each skip is printed with its reason.
 - `diskcleaner run simulator-caches --dry-run` prints what would be deleted
@@ -87,6 +108,7 @@ this release removes one kind of them. Install it with a Go toolchain:
   status 1.
 - `diskcleaner version` prints the installed version.
 
+[0.4.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.4.0
 [0.3.1]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.3.1
 [0.3.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.3.0
 [0.2.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.2.0

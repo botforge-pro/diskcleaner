@@ -24,14 +24,15 @@ diskcleaner run STEP                   # remove it
 diskcleaner run STEP --report FILE     # also write the totals to FILE
 ```
 
-The steps are `simulator-caches`, `xcode-derived-data` and `swiftpm-cache`,
-described below.
+The steps are `simulator-caches`, `xcode-derived-data`, `swiftpm-cache` and
+`go-cache`, described below.
 
 Each removal is printed as `REMOVE` with its size (`WOULD REMOVE` in a dry run),
-a path kept on purpose as `SKIPPED` with the reason, and a failure as `FAILED`;
-any failure makes the exit status 1. The report file holds `count N` and
-`kb N` lines with the number of paths and kilobytes removed, and a
-`failure ...` line for each failure.
+a cleanup command as `RUN` with the size of the directory it cleans
+(`WOULD RUN`), a path kept on purpose as `SKIPPED` with the reason, and a
+failure as `FAILED`; any failure makes the exit status 1. The report file holds
+`count N` and `kb N` lines with the number of paths removed or cleaned and the
+kilobytes freed, and a `failure ...` line for each failure.
 
 ### simulator-caches
 
@@ -85,6 +86,20 @@ is running. A build started after that check is not detected.
 `DISKCLEANER_SWIFTPM_CACHE` replaces the cache directory and
 `DISKCLEANER_SWIFT_PROCESSES` the `pgrep -f` pattern of the programs that make
 it skip.
+
+### go-cache
+
+Runs `go clean -modcache` and `go clean -cache`, which empty the Go module cache
+(`go env GOMODCACHE`) and build cache (`go env GOCACHE`). The next build
+downloads the modules it needs and compiles everything again. Without a `go`
+command on the `PATH` the step does nothing.
+
+It is skipped while `go build`, `go test`, `go run`, `go install`, `go get`,
+`go mod`, `go generate`, `go vet` or `go list` is running. A command started
+after that check is not detected.
+
+`DISKCLEANER_GO_PROCESSES` replaces the `pgrep -f` pattern of the commands that
+make it skip.
 
 ## Lines of Code
 

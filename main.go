@@ -7,6 +7,7 @@ import (
 	"os"
 	"runtime/debug"
 
+	"github.com/botforge-pro/diskcleaner/internal/gocache"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/botforge-pro/diskcleaner/internal/simulator"
 	"github.com/botforge-pro/diskcleaner/internal/swiftpm"
@@ -24,6 +25,7 @@ Steps:
   simulator-caches           Core ML caches of shut-down iOS simulators
   xcode-derived-data         Xcode DerivedData
   swiftpm-cache              the Swift Package Manager cache
+  go-cache                   the Go module and build caches
 `
 
 type step interface {
@@ -46,6 +48,8 @@ func steps(name string) (step, bool) {
 		return xcode.Default(home), true
 	case "swiftpm-cache":
 		return swiftpm.Default(home), true
+	case "go-cache":
+		return gocache.Default(), true
 	}
 	return nil, false
 }

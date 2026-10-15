@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -71,26 +72,48 @@ func (r *Report) Remove(path string) {
 	fmt.Fprintf(r.Out, "REMOVE        %s  %s\n", FormatKB(sizeKB), path)
 	if err := os.RemoveAll(path); err != nil {
 		r.Fail("rm %s: %v", path, err)
-		r.countPartialRemoval(path, sizeKB)
+		r.countFreed(path, sizeKB, "a failed rm")
 		return
 	}
 	r.Count++
 	r.KB += sizeKB
 }
 
-func (r *Report) countPartialRemoval(path string, sizeKB int64) {
+func (r *Report) RunCleanup(dir string, name string, args ...string) {
+	command := strings.Join(append([]string{name}, args...), " ")
+	sizeKB, err := DiskUsageKB(dir)
+	if err != nil {
+		r.Fail("du %s: %v", dir, err)
+	}
+	if r.DryRun {
+		fmt.Fprintf(r.Out, "WOULD RUN     %s  (%s in %s)\n", command, FormatKB(sizeKB), dir)
+		r.Count++
+		r.KB += sizeKB
+		return
+	}
+	fmt.Fprintf(r.Out, "RUN           %s  (%s in %s)\n", command, FormatKB(sizeKB), dir)
+	output, err := exec.Command(name, args...).CombinedOutput()
+	if err != nil {
+		r.Fail("%s: %v: %s", command, err, strings.TrimSpace(string(output)))
+	} else {
+		r.Count++
+	}
+	r.countFreed(dir, sizeKB, command)
+}
+
+func (r *Report) countFreed(path string, sizeKB int64, after string) {
 	_, err := os.Lstat(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		r.KB += sizeKB
 		return
 	}
 	if err != nil {
-		r.Fail("stat %s after a failed rm, its freed space is not counted: %v", path, err)
+		r.Fail("stat %s after %s, its freed space is not counted: %v", path, after, err)
 		return
 	}
 	leftKB, err := DiskUsageKB(path)
 	if err != nil {
-		r.Fail("du %s after a failed rm, its freed space is not counted: %v", path, err)
+		r.Fail("du %s after %s, its freed space is not counted: %v", path, after, err)
 		return
 	}
 	if leftKB < sizeKB {

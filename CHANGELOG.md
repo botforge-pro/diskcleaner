@@ -12,35 +12,43 @@ steps added in earlier versions work as in 0.8.0.
 
 ### Added
 
-- `diskcleaner run projects` cleans each Git repository one level below
-  `~/Developer`, printing a `PROJECT` line for each:
+- `diskcleaner run projects` cleans each Git repository directly inside
+  `~/Developer` (not deeper; other folders there are passed over silently),
+  printing a `PROJECT` line for each:
   - deletes `.build` next to a `Package.swift`, Gradle `build` next to a
     `build.gradle(.kts)` or `settings.gradle(.kts)`, and `.apk` and `.aab`
     files in a repository with a `gradlew`;
   - deletes temporary files a dead `git fetch` or `git repack` left in
-    `.git/objects`, once older than 60 minutes, not written by a `git repack`
-    that is still running, and not held open by any of your processes
-    according to `lsof`;
+    `.git/objects`: last modified more than 60 minutes ago, not written by a
+    `git repack` that is still running, and not held open by any of your own
+    processes according to `lsof` (other users' processes are not seen);
   - prunes Git LFS objects with `git lfs prune --verify-remote`, so only
     objects the remote has go;
+  - cost: the next build of each project starts from scratch. It does not
+    check whether a build is running, so do not run it during one;
   - keeps with a `SKIPPED` line and exit status 0: a `.build` with no
-    `Package.swift`, a younger or still open temporary file, and a path
-    holding a file Git tracks;
+    `Package.swift`, a younger or still open temporary file, a folder or file
+    holding something Git tracks; a `build` with no Gradle file next to it is
+    kept silently;
   - keeps with a `SKIPPED` and a `FAILED` line, exit status 1: a path Git
-    cannot answer for; also a failure: `lsof` that does not answer within 30
-    seconds or errs, `git-lfs` missing while a repository uses LFS, a folder
-    it cannot read;
-  - `--dry-run`: `WOULD REMOVE` and `WOULD PRUNE` lines, deletes nothing;
-    `--report FILE`: `count` is the folders and files deleted plus one per
-    pruned repository, `kb` the space freed;
+    cannot answer for;
+  - failures, exit status 1, after which the other repositories are still
+    cleaned: `lsof` that errs or gives no answer within 30 seconds, `git-lfs`
+    missing while a repository uses LFS, a folder it cannot read;
+  - `--dry-run`: `WOULD REMOVE` and `WOULD PRUNE` lines with the size Git LFS
+    reports, deletes nothing (it still asks `lsof` and `git lfs`);
+  - `--report FILE`: `count` is the folders and files deleted plus one per
+    repository whose prune succeeded, `kb` the space freed; with `--dry-run`,
+    what would be;
   - settings: `DISKCLEANER_REPOS_DIR` replaces `~/Developer` (a missing folder
     gives exit status 2), `DISKCLEANER_GIT_TMP_MINUTES` the 60 minutes,
     `DISKCLEANER_GIT_LSOF_TIMEOUT` the 30 seconds.
 
 ### Fixed
 
-- The 0.7.0 and 0.8.0 entries below said a path Git cannot answer for is kept
-  with exit status 0; it is kept, but as a failure with exit status 1.
+- Wording only: the 0.7.0 and 0.8.0 entries below now say that a path Git
+  cannot answer for is kept as a failure with exit status 1; before this
+  release they said exit status 0. The program always did the former.
 
 ## [0.8.0] - 2026-10-15
 

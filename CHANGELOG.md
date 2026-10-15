@@ -8,21 +8,23 @@ is 0.x, commands and output may still change.
 ## [0.4.0] - 2026-10-15
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.4.0`; the
-other steps work as in 0.3.1.
+commands added in earlier versions work as in 0.3.1.
 
 ### Added
 
-- `diskcleaner run go-cache` empties the Go module cache and build cache by
-  running `go clean -modcache` and `go clean -cache`, where Go keeps downloaded
-  modules and compiled packages. The next build downloads and compiles them
-  again, which makes it slower and needs a network connection. Each command is
-  printed as a `RUN` line with the size of the folder it empties. If `go build`,
-  `go test` or another Go command that uses these caches is running when the
-  command starts, it changes nothing and prints the reason as a `SKIPPED` line;
-  a skip is not a failure and the exit status stays 0. If `go` is not installed,
-  the command does nothing. `--dry-run` prints `WOULD RUN` lines instead and
-  runs nothing; in the report, `count` is the number of caches emptied, at most
-  2.
+- `diskcleaner run go-cache` empties the two caches where Go keeps downloaded
+  modules and compiled packages (the module cache and the build cache). It
+  does so by running `go clean -modcache` and `go clean -cache`, each printed as
+  a `RUN` line with the size of the folder it empties. The next Go build
+  downloads and compiles them again, which makes it slower and needs a network
+  connection. If `go build`, `go test` or another Go command that uses these
+  caches is running when the command starts, it changes nothing and prints the
+  reason as a `SKIPPED` line; a skip is not a failure and the exit status stays
+  0. If `go` is not installed, the command prints nothing and exits with status
+  0. `--dry-run` prints `WOULD RUN` lines instead and runs nothing. With
+  `--report FILE`, `count` is the number of caches emptied (at most 2) and `kb`
+  the space freed; if a `go clean` fails, its cache is not counted, only the
+  space it did free is, and the failure makes the exit status 1.
 
 ## [0.3.1] - 2026-10-15
 

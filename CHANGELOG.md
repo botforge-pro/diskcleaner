@@ -33,10 +33,11 @@ for them is the home folder message under Changed.
   touches nothing when one of its two timeouts is not a whole number of seconds
   above zero or is more than 9223372036 seconds.
 - `diskcleaner check STEP...`, for example
-  `diskcleaner check go-cache docker-images`, accepts any step names and changes
-  nothing. It exits with status 0 when the timeouts of those steps are valid
-  (only `docker-images` has any) and the home folder can be found; otherwise it
-  prints what is wrong and exits with status 2. A script that runs several steps
+  `diskcleaner check go-cache docker-images`, takes one or more step names and
+  changes nothing. It exits with status 0 when the timeouts of those steps are
+  valid (only `docker-images` has any) and the home folder can be found;
+  otherwise, and for a step name it does not know, it prints what is wrong, the
+  same message `run` would, and exits with status 2. A script that runs several steps
   can call it first, so that a mistyped timeout stops it before anything is
   deleted. Other settings, such as the `DISKCLEANER_*_PROCESSES` patterns that
   tell which running programs make a step skip, are not checked ahead.

@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"runtime/debug"
+	"strings"
 
 	"github.com/botforge-pro/diskcleaner/internal/claudelogs"
 	"github.com/botforge-pro/diskcleaner/internal/docker"
@@ -21,29 +22,60 @@ import (
 	"github.com/botforge-pro/diskcleaner/internal/xcode"
 )
 
-const usage = `Usage: diskcleaner <command>
+type step interface {
+	Run(r *report.Report)
+}
+
+type stepInfo struct {
+	name      string
+	describes string
+	construct func(home string) (step, error)
+}
+
+var catalog = []stepInfo{
+	{"projects", "build output and Git leftovers in your repositories", func(home string) (step, error) {
+		s, err := projects.Default(home)
+		return s, err
+	}},
+	{"gradle-caches", "the Gradle caches", func(home string) (step, error) { return gradle.Default(home), nil }},
+	{"docker-images", "Docker images not used by any container", func(home string) (step, error) {
+		s, err := docker.Default(home)
+		return s, err
+	}},
+	{"go-cache", "the Go module and build caches", func(string) (step, error) { return gocache.Default(), nil }},
+	{"swiftpm-cache", "the Swift Package Manager cache", func(home string) (step, error) { return swiftpm.Default(home), nil }},
+	{"xcode-derived-data", "Xcode DerivedData", func(home string) (step, error) { return xcode.Default(home), nil }},
+	{"simulator-caches", "Core ML caches of shut-down iOS simulators", func(home string) (step, error) { return simulator.Default(home), nil }},
+	{"claude-logs", "old Claude Code session logs", func(home string) (step, error) {
+		s, err := claudelogs.Default(home)
+		return s, err
+	}},
+	{"claude-scratchpads", "build output in Claude Code scratchpads", func(string) (step, error) { return scratchpads.Default(), nil }},
+	{"node-modules", "node_modules of Node projects that have a lockfile", func(home string) (step, error) {
+		s, err := nodemodules.Default(home)
+		return s, err
+	}},
+}
+
+var usage = buildUsage()
+
+func buildUsage() string {
+	var b strings.Builder
+	b.WriteString(`Usage: diskcleaner <command>
 
 Commands:
   version                    print the installed version
+  clean [--dry-run]          run every step below, one cleanup at a time
   run STEP [--dry-run] [--report FILE]
                              run one cleanup step
   check STEP...              check the settings of these steps, change nothing
 
-Steps:
-  simulator-caches           Core ML caches of shut-down iOS simulators
-  xcode-derived-data         Xcode DerivedData
-  swiftpm-cache              the Swift Package Manager cache
-  go-cache                   the Go module and build caches
-  docker-images              Docker images not used by any container
-  gradle-caches              the Gradle caches
-  claude-logs                old Claude Code session logs
-  claude-scratchpads         build output in Claude Code scratchpads
-  projects                   build output and Git leftovers in your repositories
-  node-modules               node_modules of Node projects that have a lockfile
-`
-
-type step interface {
-	Run(r *report.Report)
+Steps, in the order clean runs them:
+`)
+	for _, info := range catalog {
+		fmt.Fprintf(&b, "  %-26s %s\n", info.name, info.describes)
+	}
+	return b.String()
 }
 
 type unknownStepError struct {
@@ -54,57 +86,50 @@ func (e unknownStepError) Error() string {
 	return fmt.Sprintf("unknown step %q", e.name)
 }
 
-func main() {
-	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr, steps))
+type registry struct {
+	names []string
+	find  func(name string) (step, error)
 }
 
-var constructors = map[string]func(home string) (step, error){
-	"simulator-caches":   func(home string) (step, error) { return simulator.Default(home), nil },
-	"xcode-derived-data": func(home string) (step, error) { return xcode.Default(home), nil },
-	"swiftpm-cache":      func(home string) (step, error) { return swiftpm.Default(home), nil },
-	"go-cache":           func(string) (step, error) { return gocache.Default(), nil },
-	"gradle-caches":      func(home string) (step, error) { return gradle.Default(home), nil },
-	"claude-logs": func(home string) (step, error) {
-		s, err := claudelogs.Default(home)
-		return s, err
-	},
-	"claude-scratchpads": func(string) (step, error) { return scratchpads.Default(), nil },
-	"projects": func(home string) (step, error) {
-		s, err := projects.Default(home)
-		return s, err
-	},
-	"node-modules": func(home string) (step, error) {
-		s, err := nodemodules.Default(home)
-		return s, err
-	},
-	"docker-images": func(home string) (step, error) {
-		s, err := docker.Default(home)
-		return s, err
-	},
+func main() {
+	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr, registry{names: stepNames(), find: steps}))
+}
+
+func stepNames() []string {
+	names := make([]string, len(catalog))
+	for i, info := range catalog {
+		names[i] = info.name
+	}
+	return names
 }
 
 func steps(name string) (step, error) {
-	construct, ok := constructors[name]
-	if !ok {
-		return nil, unknownStepError{name: name}
+	for _, info := range catalog {
+		if info.name != name {
+			continue
+		}
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return nil, fmt.Errorf("%s: no home directory: %w", name, err)
+		}
+		return info.construct(home)
 	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("%s: no home directory: %w", name, err)
-	}
-	return construct(home)
+	return nil, unknownStepError{name: name}
 }
 
-func run(args []string, stdout, stderr io.Writer, find func(string) (step, error)) int {
+func run(args []string, stdout, stderr io.Writer, steps registry) int {
 	if len(args) == 1 && args[0] == "version" {
 		fmt.Fprintln(stdout, version())
 		return 0
 	}
+	if len(args) >= 1 && args[0] == "clean" {
+		return clean(args[1:], stdout, stderr, steps)
+	}
 	if len(args) >= 2 && args[0] == "run" {
-		return runStep(args[1], args[2:], stdout, stderr, find)
+		return runStep(args[1], args[2:], stdout, stderr, steps.find)
 	}
 	if len(args) >= 2 && args[0] == "check" {
-		return checkSteps(args[1:], stderr, find)
+		return checkSteps(args[1:], stderr, steps.find)
 	}
 	fmt.Fprint(stderr, usage)
 	return 2

@@ -8,19 +8,19 @@ Frees disk space on a Mac by deleting what builds and tools recreate on demand.
 
 | Step | Deletes |
 |---|---|
-| `simulator-caches` | Core ML caches of iOS simulators |
-| `xcode-derived-data` | Xcode DerivedData |
-| `swiftpm-cache` | the SwiftPM package cache |
-| `go-cache` | Go module and build caches |
-| `docker-images` | Docker images no container uses |
+| `projects` | build output, `.apk`/`.aab`, dead Git temporary files and old Git LFS objects in your repositories |
 | `gradle-caches` | `~/.gradle/caches` |
+| `docker-images` | Docker images no container uses |
+| `go-cache` | Go module and build caches |
+| `swiftpm-cache` | the SwiftPM package cache |
+| `xcode-derived-data` | Xcode DerivedData |
+| `simulator-caches` | Core ML caches of iOS simulators |
 | `claude-logs` | Claude Code session logs older than 30 days |
 | `claude-scratchpads` | build output in Claude Code scratchpads |
-| `projects` | build output, `.apk`/`.aab`, dead Git temporary files and old Git LFS objects in your repositories |
 | `node-modules` | `node_modules` that have a lockfile, and dead Git temporary files in Node projects |
 
-What makes each step skip is listed for it below. After a cleanup the first
-build is slower.
+`diskcleaner clean` runs them all in this order. What makes each step skip is
+listed for it below. After a cleanup the first build is slower.
 
 ## Install
 
@@ -34,12 +34,25 @@ The binary lands in `$(go env GOBIN)`, or in `$(go env GOPATH)/bin` (usually
 ## Usage
 
 ```sh
-diskcleaner run STEP --dry-run         # list what STEP would remove
-diskcleaner run STEP                   # remove it
+diskcleaner clean --dry-run            # list what every step would remove
+diskcleaner clean                      # remove it, then say how much is free
+diskcleaner run STEP --dry-run         # the same for one step
 diskcleaner run STEP --report FILE     # also write the totals to FILE
 diskcleaner check STEP...              # check the settings of these steps
 diskcleaner version
 ```
+
+`clean`:
+
+- checks the settings of every step first; a wrong one stops it with exit
+  status 2 before anything is touched;
+- runs one at a time: a second `clean` while one runs exits 3. The lock is
+  `~/.diskcleaner.lock` (`DISKCLEANER_LOCK`); the file stays, and is free once
+  the run ends however it ends. On a disk too full to create it, `clean` runs
+  without it and says so;
+- ends with the paths and the space removed, then repeats every failure.
+
+`run` takes no lock.
 
 Output lines:
 
@@ -52,8 +65,8 @@ The report file holds `count N` (paths removed or cleaned), `kb N` (KiB freed)
 and a `failure ...` line per failure.
 
 A wrong number setting (a timeout, a day or minute count), a missing
-repositories folder or a missing home directory makes `run` and `check` exit 2
-before anything is touched. Other settings, such as `pgrep -f` patterns, fail
+repositories folder or a missing home directory makes `clean`, `run` and
+`check` exit 2 before anything is touched. Other settings, such as `pgrep -f` patterns, fail
 only when the step runs.
 
 Steps that look inside projects (`claude-logs`, `claude-scratchpads`,

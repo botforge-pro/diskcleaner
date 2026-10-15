@@ -21,6 +21,7 @@ type Report struct {
 	Count    int
 	KB       int64
 	Failures []string
+	removed  []string
 }
 
 func (r *Report) Fail(format string, args ...any) {
@@ -59,6 +60,15 @@ func (r *Report) Busy(running func(pattern string) (bool, error), pattern string
 }
 
 func (r *Report) Remove(path string) {
+	key, err := filepath.Abs(path)
+	if err != nil {
+		r.Fail("abs %s: %v", path, err)
+		key = filepath.Clean(path)
+	}
+	if r.alreadyRemoved(key) {
+		return
+	}
+	r.removed = append(r.removed, key)
 	sizeKB, err := DiskUsageKB(path)
 	if err != nil {
 		r.Fail("du %s: %v", path, err)
@@ -77,6 +87,15 @@ func (r *Report) Remove(path string) {
 	}
 	r.Count++
 	r.KB += sizeKB
+}
+
+func (r *Report) alreadyRemoved(path string) bool {
+	for _, removed := range r.removed {
+		if path == removed || strings.HasPrefix(path, removed+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *Report) RunCleanup(dir string, name string, args ...string) {

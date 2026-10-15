@@ -5,6 +5,40 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.11.0] - 2026-10-15
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.11.0`; every
+step works as in 0.10.0.
+
+### Added
+
+- `diskcleaner clean` runs every step, in the order `diskcleaner` with no
+  arguments lists them:
+  - first it checks the settings of all steps; a wrong one (such as a minute
+    count that is not a whole number above zero, or a missing
+    `DISKCLEANER_REPOS_DIR`) stops it with exit status 2 before anything is
+    deleted;
+  - one run at a time: while one runs, a second `clean` exits with status 3.
+    The lock is the file `~/.diskcleaner.lock` (`DISKCLEANER_LOCK` names
+    another). The file is never deleted, and a run that crashes or is killed
+    frees it on its own, so there is no stale lock to remove. On a disk too
+    full to create the file, `clean` runs without the lock and says so;
+  - a path that an earlier step already removed or listed is not counted
+    again by a later step: a `node_modules` inside a Swift `.build` that
+    `projects` removes is counted once, also with `--dry-run`;
+  - ends with `Removed N paths; freed approximately X.` and the space free on
+    the disk of your home folder, or with `--dry-run`, `Would remove N paths
+    and free approximately X.` and `Nothing was removed.`;
+  - then repeats every `FAILED` line under `N failure(s):` and exits with
+    status 1; otherwise exits with status 0.
+- `diskcleaner run STEP` takes no lock: run single steps only when no `clean`
+  is running.
+
+### Changed
+
+- `diskcleaner` with no arguments lists the steps in the order `clean` runs
+  them.
+
 ## [0.10.0] - 2026-10-15
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.10.0`; the
@@ -337,6 +371,7 @@ this release removes one kind of them. Install it with a Go toolchain:
   status 1.
 - `diskcleaner version` prints the installed version.
 
+[0.11.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.11.0
 [0.10.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.10.0
 [0.9.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.9.0
 [0.8.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.8.0

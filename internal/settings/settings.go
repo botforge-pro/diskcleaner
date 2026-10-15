@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"time"
@@ -16,6 +17,18 @@ func Env(name, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func Canonical(path string) (string, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return path, err
+	}
+	resolved, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		return abs, err
+	}
+	return resolved, nil
 }
 
 func PositiveInt(name string, fallback int) (int, error) {

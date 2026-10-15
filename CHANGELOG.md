@@ -5,6 +5,44 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.10.0] - 2026-10-15
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.10.0`; the
+steps added in earlier versions work as in 0.9.0.
+
+### Added
+
+- `diskcleaner run node-modules` cleans Node projects below
+  `~/GolandProjects`, printing a `NODE` line first:
+  - deletes each `node_modules` (not looking inside it) whose folder has a
+    `package-lock.json`, `npm-shrinkwrap.json`, `yarn.lock` or
+    `pnpm-lock.yaml`, or whose workspace root above it has one; a workspace
+    root has a `pnpm-workspace.yaml` or `"workspaces"` in its `package.json`;
+  - deletes temporary files of a dead `git fetch` or `git repack` in each Git
+    repository directly inside `~/GolandProjects`, by the same rules as
+    `projects`; when that folder is also `DISKCLEANER_REPOS_DIR`, it leaves
+    them to `projects`;
+  - cost: each project needs a reinstall, which cannot bring back packages
+    installed with `--no-save`, unpublished, or from a registry you can no
+    longer reach. It does not check whether `npm install` is running;
+  - keeps with a `SKIPPED` line and exit status 0: a `node_modules` with no
+    lockfile, a `node_modules` holding something Git tracks, and the Git
+    temporary files `projects` would keep;
+  - keeps with a `SKIPPED` and a `FAILED` line, exit status 1: a path Git
+    cannot answer for;
+  - a missing `~/GolandProjects` is passed over silently; a folder it cannot
+    read is a failure, exit status 1;
+  - `--dry-run`: `WOULD REMOVE` lines, deletes nothing;
+  - `--report FILE`: `count` and `kb` of what was deleted, or would be;
+  - settings: `DISKCLEANER_NODE_DIR` replaces `~/GolandProjects`;
+    `DISKCLEANER_REPOS_DIR`, `DISKCLEANER_GIT_TMP_MINUTES` and
+    `DISKCLEANER_GIT_LSOF_TIMEOUT` as in `projects`.
+
+### Changed
+
+- `projects` with a relative `DISKCLEANER_REPOS_DIR` now prints absolute
+  paths; what it deletes is the same.
+
 ## [0.9.0] - 2026-10-15
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.9.0`; the

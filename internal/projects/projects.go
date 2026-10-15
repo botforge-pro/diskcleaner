@@ -24,7 +24,7 @@ type Step struct {
 
 func Default(home string) (Step, error) {
 	repos := settings.Env("DISKCLEANER_REPOS_DIR", filepath.Join(home, "Developer"))
-	resolved, err := filepath.EvalSymlinks(repos)
+	resolved, err := settings.Canonical(repos)
 	if err != nil {
 		return Step{}, fmt.Errorf("repositories directory not found: %s (set DISKCLEANER_REPOS_DIR): %w", repos, err)
 	}

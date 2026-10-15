@@ -12,6 +12,7 @@ import (
 	"github.com/botforge-pro/diskcleaner/internal/docker"
 	"github.com/botforge-pro/diskcleaner/internal/gocache"
 	"github.com/botforge-pro/diskcleaner/internal/gradle"
+	"github.com/botforge-pro/diskcleaner/internal/nodemodules"
 	"github.com/botforge-pro/diskcleaner/internal/projects"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/botforge-pro/diskcleaner/internal/scratchpads"
@@ -38,6 +39,7 @@ Steps:
   claude-logs                old Claude Code session logs
   claude-scratchpads         build output in Claude Code scratchpads
   projects                   build output and Git leftovers in your repositories
+  node-modules               node_modules of Node projects that have a lockfile
 `
 
 type step interface {
@@ -69,6 +71,10 @@ var constructors = map[string]func(home string) (step, error){
 	"claude-scratchpads": func(string) (step, error) { return scratchpads.Default(), nil },
 	"projects": func(home string) (step, error) {
 		s, err := projects.Default(home)
+		return s, err
+	},
+	"node-modules": func(home string) (step, error) {
+		s, err := nodemodules.Default(home)
 		return s, err
 	},
 	"docker-images": func(home string) (step, error) {

@@ -17,6 +17,7 @@ Frees disk space on a Mac by deleting what builds and tools recreate on demand.
 | `claude-logs` | Claude Code session logs older than 30 days |
 | `claude-scratchpads` | build output in Claude Code scratchpads |
 | `projects` | build output, `.apk`/`.aab`, dead Git temporary files and old Git LFS objects in your repositories |
+| `node-modules` | `node_modules` that have a lockfile, and dead Git temporary files in Node projects |
 
 What makes each step skip is listed for it below. After a cleanup the first
 build is slower.
@@ -56,7 +57,7 @@ before anything is touched. Other settings, such as `pgrep -f` patterns, fail
 only when the step runs.
 
 Steps that look inside projects (`claude-logs`, `claude-scratchpads`,
-`projects`) keep a path holding a file Git tracks (`SKIPPED`), and keep a path
+`projects`, `node-modules`) keep a path holding a file Git tracks (`SKIPPED`), and keep a path
 Git cannot answer for (`SKIPPED` and `FAILED`). The cache steps do not ask Git.
 
 ## Steps in detail
@@ -166,6 +167,30 @@ In each Git repository one level below `~/Developer`, removes:
 
 `node_modules` folders are not looked into. Settings: `DISKCLEANER_REPOS_DIR`,
 `DISKCLEANER_GIT_TMP_MINUTES`, `DISKCLEANER_GIT_LSOF_TIMEOUT`.
+
+### node-modules
+
+Below `DISKCLEANER_NODE_DIR` (`~/GolandProjects`), removes:
+
+- each `node_modules` (not those inside it) whose folder has a lockfile:
+  `package-lock.json`, `npm-shrinkwrap.json`, `yarn.lock` or
+  `pnpm-lock.yaml`;
+- or whose workspace root above it, up to `DISKCLEANER_NODE_DIR`, has one; a
+  workspace root has a `pnpm-workspace.yaml` or `"workspaces"` in its
+  `package.json`;
+- temporary files of a dead `git fetch` or `git repack` in each Git repository
+  one level below, by the same rules as in `projects`; when
+  `DISKCLEANER_NODE_DIR` is the repositories folder, `projects` covers them.
+
+- Keeps a `node_modules` with no lockfile (`SKIPPED`): a reinstall would not
+  bring back the same versions.
+- A reinstall cannot bring back packages installed with `--no-save`,
+  unpublished, or from a registry you can no longer reach.
+- It does not check whether `npm install` is running.
+
+Settings:
+`DISKCLEANER_NODE_DIR`, `DISKCLEANER_REPOS_DIR`, `DISKCLEANER_GIT_TMP_MINUTES`,
+`DISKCLEANER_GIT_LSOF_TIMEOUT`.
 
 ## Lines of Code
 

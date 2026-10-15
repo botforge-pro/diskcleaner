@@ -7,32 +7,43 @@ is 0.x, commands and output may still change.
 
 ## [0.11.0] - 2026-10-15
 
-Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.11.0`; every
-step works as in 0.10.0.
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.11.0`. What
+each step deletes and keeps is as in 0.10.0, whether run alone or by `clean`.
 
 ### Added
 
-- `diskcleaner clean` runs every step, in the order `diskcleaner` with no
-  arguments lists them:
-  - first it checks the settings of all steps; a wrong one (such as a minute
-    count that is not a whole number above zero, or a missing
-    `DISKCLEANER_REPOS_DIR`) stops it with exit status 2 before anything is
-    deleted;
-  - one run at a time: while one runs, a second `clean` exits with status 3.
-    The lock is the file `~/.diskcleaner.lock` (`DISKCLEANER_LOCK` names
-    another). The file is never deleted, and a run that crashes or is killed
-    frees it on its own, so there is no stale lock to remove. On a disk too
-    full to create the file, `clean` runs without the lock and says so;
-  - a path that an earlier step already removed or listed is not counted
-    again by a later step: a `node_modules` inside a Swift `.build` that
-    `projects` removes is counted once, also with `--dry-run`;
-  - ends with `Removed N paths; freed approximately X.` and the space free on
-    the disk of your home folder, or with `--dry-run`, `Would remove N paths
-    and free approximately X.` and `Nothing was removed.`;
-  - then repeats every `FAILED` line under `N failure(s):` and exits with
-    status 1; otherwise exits with status 0.
-- `diskcleaner run STEP` takes no lock: run single steps only when no `clean`
-  is running.
+- `diskcleaner clean [--dry-run]` runs every step, in this order: `projects`,
+  `gradle-caches`, `docker-images`, `go-cache`, `swiftpm-cache`,
+  `xcode-derived-data`, `simulator-caches`, `claude-logs`,
+  `claude-scratchpads`, `node-modules`. It asks for no confirmation, so run
+  it with `--dry-run` first. Any other argument, `--report` included, prints
+  the usage and exits with status 2.
+  - Before anything else it checks the settings of every step, the same
+    check as `diskcleaner check`: a wrong one, such as
+    `DISKCLEANER_GIT_TMP_MINUTES=1.5` or a missing `DISKCLEANER_REPOS_DIR`,
+    or no home folder, prints the problem and exits with status 2; nothing is
+    deleted.
+  - One `clean` at a time: while one runs, a second exits with status 3 and
+    `another cleanup is already running`. The lock is the file
+    `~/.diskcleaner.lock` (`DISKCLEANER_LOCK` names another). The file is
+    never deleted, and a run that crashes or is killed frees it on its own,
+    so there is no stale lock to remove. On a disk too full to create the
+    file, `clean` prints `The disk is full, so the lock
+    /Users/you/.diskcleaner.lock cannot be made; running without it.` and
+    runs; do not start a second `clean` then, as nothing stops it.
+  - A path that an earlier step removed, or with `--dry-run` listed as
+    `WOULD REMOVE`, is skipped silently by later steps, with everything inside
+    it: a `node_modules` inside a Swift `.build` that `projects` removes is
+    neither removed again nor counted twice.
+  - At the end it prints `Removed N paths; freed approximately X.` and
+    `Free on the disk of <home folder>: X.`; with `--dry-run`, `Would remove
+    N paths and free approximately X.` and `Nothing was removed.` instead.
+  - Exit status: 0 when nothing failed; 1 when anything failed, after every
+    `FAILED` line is printed once more under `N failure(s):`; 2 and 3 as
+    above. A `SKIPPED` line is not a failure.
+- `diskcleaner run STEP` takes no lock. Running one while `clean` runs can
+  make both work on the same files: one may fail on what the other already
+  deleted, and the totals of each count it.
 
 ### Changed
 

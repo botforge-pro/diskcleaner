@@ -12,18 +12,22 @@ steps added in earlier versions work as in 0.5.0.
 
 ### Added
 
-- `diskcleaner run gradle-caches` deletes the Gradle caches folder
-  (`~/.gradle/caches`, or `caches` inside `GRADLE_USER_HOME` when that is set),
-  where Gradle keeps downloaded dependencies and build results. The next Gradle
-  build downloads and builds them again, which makes it slower and needs a
-  network connection. If a Gradle build, Android Studio or IntelliJ IDEA is
-  running, or a Gradle or Kotlin background process (daemon) used the CPU during
-  a two-second check, it deletes nothing and prints the reason as a `SKIPPED`
-  line with exit status 0. Otherwise it stops the idle daemons first, printing a
-  `STOP` line, and Gradle starts them again on the next build; daemons that are
-  still running ten seconds later keep the folder and are reported as a failure
-  with exit status 1. `--dry-run` prints `WOULD STOP` and `WOULD REMOVE` and
-  stops nothing. With `--report FILE`, `count` is 1 when the folder was deleted.
+- `diskcleaner run gradle-caches` deletes the Gradle caches folder:
+  - which: `~/.gradle/caches`, or `caches` inside `GRADLE_USER_HOME`;
+  - cost: the next Gradle build downloads and builds them again, slower and
+    online;
+  - skips, exit status 0: while a Gradle build, Android Studio or IntelliJ IDEA
+    runs, or while a Gradle or Kotlin background process (daemon) used any CPU
+    time in a two-second check;
+  - otherwise stops the idle daemons with `SIGTERM` (a `STOP` line); Gradle
+    starts them again on the next build;
+  - failure, exit status 1: daemons still running ten seconds later; the
+    folder is kept;
+  - `--dry-run`: prints `WOULD STOP` and `WOULD REMOVE`, changes nothing;
+  - `--report FILE`: `count` is 1 when the folder was deleted, `kb` the space
+    freed;
+  - settings: `DISKCLEANER_GRADLE_CLIENTS` and `DISKCLEANER_GRADLE_DAEMONS`
+    replace the patterns of the programs it looks for.
 
 ## [0.5.0] - 2026-10-15
 

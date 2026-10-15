@@ -5,6 +5,35 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.8.0] - 2026-10-15
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.8.0`; the
+steps added in earlier versions work as in 0.7.0.
+
+### Added
+
+- `diskcleaner run claude-scratchpads` deletes build output that Claude Code
+  agents leave in their session scratchpads:
+  - where: `scratchpad` folders under `/private/tmp/claude-<uid>`;
+  - which: Xcode build output (`Build`, `Index.noindex`, `ModuleCache.noindex`,
+    `SourcePackages`) next to a `Build/Intermediates.noindex`; the `checkouts`
+    and `repositories` of a Swift package next to a `workspace-state.json`;
+    `.build` next to a `Package.swift`;
+  - keeps: the folders these sit in and every other file; a `.build` without a
+    `Package.swift` next to it is not taken whole, and no `.build` inside it is
+    taken, though Xcode and package caches inside it still go; a path that Git
+    tracks or cannot tell about. The last two get a `SKIPPED` line;
+  - cost: the next build in that scratchpad starts from scratch; sessions still
+    running lose their build output too;
+  - skips with a `SKIPPED` line and exit status 0 while `swift build`,
+    `swift package`, `swift test`, `swift run` or `xcodebuild` runs;
+  - failure, exit status 1: a folder it cannot read; what it could read is
+    still cleaned;
+  - `--dry-run`: `WOULD REMOVE` lines, deletes nothing; `--report FILE`:
+    `count` is the number of folders deleted, `kb` the space freed;
+  - settings: `DISKCLEANER_CLAUDE_TMP` replaces the folder,
+    `DISKCLEANER_SWIFT_PROCESSES` the programs it waits for.
+
 ## [0.7.0] - 2026-10-15
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.7.0`; the
@@ -199,6 +228,7 @@ this release removes one kind of them. Install it with a Go toolchain:
   status 1.
 - `diskcleaner version` prints the installed version.
 
+[0.8.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.8.0
 [0.7.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.7.0
 [0.6.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.6.0
 [0.5.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.5.0

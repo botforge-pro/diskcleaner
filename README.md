@@ -15,6 +15,7 @@ Frees disk space on a Mac by deleting what builds and tools recreate on demand.
 | `docker-images` | Docker images no container uses |
 | `gradle-caches` | `~/.gradle/caches` |
 | `claude-logs` | Claude Code session logs older than 30 days |
+| `claude-scratchpads` | build output in Claude Code scratchpads |
 
 What makes each step skip is listed for it below. After a cleanup the first
 build is slower.
@@ -128,6 +129,20 @@ A build started after a step checked for running tools is not detected.
 - Such a session can no longer be resumed.
 - A log Git tracks, or one Git cannot tell about, is kept.
 - Settings: `DISKCLEANER_CLAUDE_PROJECTS`, `DISKCLEANER_CLAUDE_LOG_DAYS`.
+
+### claude-scratchpads
+
+- Looks in the `scratchpad` folders of Claude Code sessions under
+  `/private/tmp/claude-<uid>` and removes:
+  - Xcode derived data: `Build`, `Index.noindex`, `ModuleCache.noindex` and
+    `SourcePackages` next to a `Build/Intermediates.noindex`;
+  - `checkouts` and `repositories` next to a `workspace-state.json`;
+  - `.build` next to a `Package.swift`.
+- The folders these sit in stay; running sessions are cleaned too, including a
+  `.build` an agent keeps as test data.
+- Skips while `swift build`, `package`, `test`, `run` or `xcodebuild` run.
+- A path Git tracks, or one Git cannot tell about, is kept.
+- Settings: `DISKCLEANER_CLAUDE_TMP`, `DISKCLEANER_SWIFT_PROCESSES`.
 
 ## Lines of Code
 

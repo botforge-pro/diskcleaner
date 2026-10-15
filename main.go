@@ -13,6 +13,7 @@ import (
 	"github.com/botforge-pro/diskcleaner/internal/gocache"
 	"github.com/botforge-pro/diskcleaner/internal/gradle"
 	"github.com/botforge-pro/diskcleaner/internal/report"
+	"github.com/botforge-pro/diskcleaner/internal/scratchpads"
 	"github.com/botforge-pro/diskcleaner/internal/simulator"
 	"github.com/botforge-pro/diskcleaner/internal/swiftpm"
 	"github.com/botforge-pro/diskcleaner/internal/xcode"
@@ -34,6 +35,7 @@ Steps:
   docker-images              Docker images not used by any container
   gradle-caches              the Gradle caches
   claude-logs                old Claude Code session logs
+  claude-scratchpads         build output in Claude Code scratchpads
 `
 
 type step interface {
@@ -62,6 +64,7 @@ var constructors = map[string]func(home string) (step, error){
 		s, err := claudelogs.Default(home)
 		return s, err
 	},
+	"claude-scratchpads": func(string) (step, error) { return scratchpads.Default(), nil },
 	"docker-images": func(home string) (step, error) {
 		s, err := docker.Default(home)
 		return s, err

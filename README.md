@@ -16,6 +16,7 @@ Frees disk space on a Mac by deleting what builds and tools recreate on demand.
 | `gradle-caches` | `~/.gradle/caches` |
 | `claude-logs` | Claude Code session logs older than 30 days |
 | `claude-scratchpads` | build output in Claude Code scratchpads |
+| `projects` | build output, `.apk`/`.aab`, dead Git temporary files and old Git LFS objects in your repositories |
 
 What makes each step skip is listed for it below. After a cleanup the first
 build is slower.
@@ -49,10 +50,14 @@ Output lines:
 The report file holds `count N` (paths removed or cleaned), `kb N` (KiB freed)
 and a `failure ...` line per failure.
 
-A wrong number setting (a timeout, a day count) or a missing home directory
-makes `run` and `check` exit 2 before anything is touched. Other settings, such
-as `pgrep -f` patterns, fail
+A wrong number setting (a timeout, a day or minute count), a missing
+repositories folder or a missing home directory makes `run` and `check` exit 2
+before anything is touched. Other settings, such as `pgrep -f` patterns, fail
 only when the step runs.
+
+Steps that look inside projects (`claude-logs`, `claude-scratchpads`,
+`projects`) keep a path holding a file Git tracks (`SKIPPED`), and keep a path
+Git cannot answer for (`SKIPPED` and `FAILED`). The cache steps do not ask Git.
 
 ## Steps in detail
 
@@ -127,7 +132,6 @@ A build started after a step checked for running tools is not detected.
   last modified more than `DISKCLEANER_CLAUDE_LOG_DAYS` whole days ago (30, so
   31 days or more).
 - Such a session can no longer be resumed.
-- A log Git tracks, or one Git cannot tell about, is kept.
 - Settings: `DISKCLEANER_CLAUDE_PROJECTS`, `DISKCLEANER_CLAUDE_LOG_DAYS`.
 
 ### claude-scratchpads
@@ -141,8 +145,27 @@ A build started after a step checked for running tools is not detected.
 - The folders these sit in stay; running sessions are cleaned too, including a
   `.build` an agent keeps as test data.
 - Skips while `swift build`, `package`, `test`, `run` or `xcodebuild` run.
-- A path Git tracks, or one Git cannot tell about, is kept.
 - Settings: `DISKCLEANER_CLAUDE_TMP`, `DISKCLEANER_SWIFT_PROCESSES`.
+
+### projects
+
+In each Git repository one level below `~/Developer`, removes:
+
+- `.build` next to a `Package.swift`;
+- Gradle `build` next to a `build.gradle(.kts)` or `settings.gradle(.kts)`;
+- `.apk` and `.aab` files, when the repository has a `gradlew`;
+- temporary files a dead `git fetch` or `git repack` left in `.git/objects`
+  (`tmp_*`, `*/tmp_*`, `pack/.tmp-*`), once all of these hold:
+  - older than `DISKCLEANER_GIT_TMP_MINUTES` (60);
+  - the `git repack` named in it has ended;
+  - `lsof` sees no process of yours holding it within
+    `DISKCLEANER_GIT_LSOF_TIMEOUT` seconds (30); other users' processes, such
+    as `sudo git`, are guarded only by the age;
+- Git LFS objects `git lfs prune --verify-remote` would prune: only those the
+  remote has.
+
+`node_modules` folders are not looked into. Settings: `DISKCLEANER_REPOS_DIR`,
+`DISKCLEANER_GIT_TMP_MINUTES`, `DISKCLEANER_GIT_LSOF_TIMEOUT`.
 
 ## Lines of Code
 

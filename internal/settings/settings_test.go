@@ -1,7 +1,11 @@
 package settings
 
 import (
+	"fmt"
+	"math"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,6 +27,19 @@ func TestPositiveIntReadsWholeNumber(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, 900, number)
+}
+
+func TestPositiveDurationStopsWhereTheDurationWouldOverflow(t *testing.T) {
+	most := int64(math.MaxInt64 / int64(time.Minute))
+
+	t.Setenv("DISKCLEANER_TEST_NUMBER", strconv.FormatInt(most, 10))
+	number, err := PositiveDuration("DISKCLEANER_TEST_NUMBER", 60, time.Minute, "minutes")
+	require.NoError(t, err)
+	assert.Equal(t, most, int64(number))
+
+	t.Setenv("DISKCLEANER_TEST_NUMBER", strconv.FormatInt(most+1, 10))
+	_, err = PositiveDuration("DISKCLEANER_TEST_NUMBER", 60, time.Minute, "minutes")
+	assert.EqualError(t, err, fmt.Sprintf("DISKCLEANER_TEST_NUMBER must be at most %d minutes, got: %d", most, most+1))
 }
 
 func TestPositiveIntRejectsOtherValues(t *testing.T) {

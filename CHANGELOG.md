@@ -5,6 +5,43 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.9.0] - 2026-10-15
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.9.0`; the
+steps added in earlier versions work as in 0.8.0.
+
+### Added
+
+- `diskcleaner run projects` cleans each Git repository one level below
+  `~/Developer`, printing a `PROJECT` line for each:
+  - deletes `.build` next to a `Package.swift`, Gradle `build` next to a
+    `build.gradle(.kts)` or `settings.gradle(.kts)`, and `.apk` and `.aab`
+    files in a repository with a `gradlew`;
+  - deletes temporary files a dead `git fetch` or `git repack` left in
+    `.git/objects`, once older than 60 minutes, not written by a `git repack`
+    that is still running, and not held open by any of your processes
+    according to `lsof`;
+  - prunes Git LFS objects with `git lfs prune --verify-remote`, so only
+    objects the remote has go;
+  - keeps with a `SKIPPED` line and exit status 0: a `.build` with no
+    `Package.swift`, a younger or still open temporary file, and a path
+    holding a file Git tracks;
+  - keeps with a `SKIPPED` and a `FAILED` line, exit status 1: a path Git
+    cannot answer for; also a failure: `lsof` that does not answer within 30
+    seconds or errs, `git-lfs` missing while a repository uses LFS, a folder
+    it cannot read;
+  - `--dry-run`: `WOULD REMOVE` and `WOULD PRUNE` lines, deletes nothing;
+    `--report FILE`: `count` is the folders and files deleted plus one per
+    pruned repository, `kb` the space freed;
+  - settings: `DISKCLEANER_REPOS_DIR` replaces `~/Developer` (a missing folder
+    gives exit status 2), `DISKCLEANER_GIT_TMP_MINUTES` the 60 minutes,
+    `DISKCLEANER_GIT_LSOF_TIMEOUT` the 30 seconds.
+
+### Fixed
+
+- The 0.7.0 and 0.8.0 entries below said a path Git cannot answer for is kept
+  with exit status 0; it is kept, but as a failure with exit status 1.
+
 ## [0.8.0] - 2026-10-15
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.8.0`; the
@@ -22,11 +59,12 @@ steps added in earlier versions work as in 0.7.0.
   - prints a `REMOVE` line for each folder it deletes;
   - keeps silently: the folders these sit in and every other file;
   - keeps with a `SKIPPED` line and exit status 0:
-    - a `.build` with no `Package.swift` next to it, and any `.build` inside
-      that one; Xcode and package caches inside such a `.build` are still
-      deleted;
-    - a path holding any file Git tracks, or where Git cannot say whether it
-      does;
+    - a `.build` with no `Package.swift` next to it (any `.build` inside that
+      one stays too, silently); Xcode and package caches inside such a
+      `.build` are still deleted;
+    - a path holding any file Git tracks;
+  - keeps a path where Git cannot say whether it tracks a file, with a
+    `SKIPPED` and a `FAILED` line and exit status 1;
   - cost: the next build in that scratchpad starts from scratch, also in
     Claude Code sessions that are still open;
   - skips the whole step with a `SKIPPED` line and exit status 0 while
@@ -53,7 +91,8 @@ steps added in earlier versions work as in 0.6.0.
     subfolders included, last modified 31 or more days ago;
   - cost: such a session can no longer be resumed;
   - keeps, with a `SKIPPED` line and exit status 0, a log inside a Git
-    repository that tracks it, or when Git cannot say whether it does;
+    repository that tracks it; when Git cannot say whether it does, keeps it
+    with a `SKIPPED` and a `FAILED` line and exit status 1;
   - failure, exit status 1: a folder it cannot read; the logs it could read
     are still deleted;
   - `--dry-run`: prints `WOULD REMOVE` lines, deletes nothing;
@@ -235,6 +274,7 @@ this release removes one kind of them. Install it with a Go toolchain:
   status 1.
 - `diskcleaner version` prints the installed version.
 
+[0.9.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.9.0
 [0.8.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.8.0
 [0.7.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.7.0
 [0.6.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.6.0

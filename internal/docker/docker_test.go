@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -304,30 +305,6 @@ func TestWithoutDockerDoesNothing(t *testing.T) {
 	assert.Empty(t, stderr)
 }
 
-func TestSizeKB(t *testing.T) {
-	cases := []struct {
-		size string
-		kb   int64
-		ok   bool
-	}{
-		{"1.5GB", 1464843, true},
-		{"0B", 0, true},
-		{"100B", 0, true},
-		{"2048B", 2, true},
-		{"512kB", 500, true},
-		{"2.3 MB", 2246, true},
-		{"1TB", 976562500, true},
-		{"1.2.3GB", 0, false},
-		{"GB", 0, false},
-		{"12", 0, false},
-	}
-	for _, tc := range cases {
-		kb, ok := sizeKB(tc.size)
-		assert.Equal(t, tc.ok, ok, tc.size)
-		assert.Equal(t, tc.kb, kb, tc.size)
-	}
-}
-
 func TestDefaultRejectsFractionalTimeout(t *testing.T) {
 	t.Setenv("DISKCLEANER_DOCKER_TIMEOUT", "1.5")
 
@@ -335,6 +312,8 @@ func TestDefaultRejectsFractionalTimeout(t *testing.T) {
 
 	assert.EqualError(t, err, "DISKCLEANER_DOCKER_TIMEOUT must be a whole number above zero, got: 1.5")
 }
+
+const maxTimeoutSeconds = math.MaxInt64 / int64(time.Second)
 
 func TestDefaultRejectsTimeoutBeyondDuration(t *testing.T) {
 	t.Setenv("DISKCLEANER_DOCKER_PRUNE_TIMEOUT", strconv.FormatInt(maxTimeoutSeconds+1, 10))

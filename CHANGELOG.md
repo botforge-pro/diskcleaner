@@ -7,8 +7,9 @@ is 0.x, commands and output may still change.
 
 ## [0.5.0] - 2026-10-15
 
-Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.5.0`; the
-commands added in earlier versions work as in 0.4.0.
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.5.0`. The steps
+added in earlier versions remove the same things as in 0.4.0; the only change
+for them is the home folder message under Changed.
 
 ### Added
 
@@ -16,7 +17,8 @@ commands added in earlier versions work as in 0.4.0.
   by running `docker image prune --all --force`; volumes, which hold data, are
   never touched. It runs only when `docker system df` reports space such images
   could free, and prints a `RUN` line with that size and Docker's own
-  `Total reclaimed space` line. A removed image is pulled or built again the
+  `Total reclaimed space` line; when they could free nothing, it prints only its
+  `DOCKER` heading and exits with status 0. A removed image is pulled or built again the
   next time something needs it. If Docker Desktop is not running, it changes
   nothing and prints a `SKIPPED` line with exit status 0; if `docker` is not
   installed, it prints nothing and exits with status 0. A Docker that does not
@@ -25,21 +27,25 @@ commands added in earlier versions work as in 0.4.0.
   900), is stopped and reported as a failure with exit status 1. `--dry-run`
   prints a `WOULD RUN` line and counts the size Docker reports. With
   `--report FILE`, `count` is 1 when the prune succeeded and `kb` is how much
-  the Docker Desktop data folder shrank, which can be less than Docker reports
-  because Docker Desktop returns space to macOS gradually.
-- `diskcleaner check STEP...` checks the timeouts of the named steps and that
-  the home folder can be found, and changes nothing: it exits with status 0
-  when they are valid, and otherwise prints what is wrong and exits with status
-  2. A script that runs several steps can call it first, so that a mistyped
-  timeout stops it before anything is deleted. Other settings, such as the
-  process patterns, are not checked ahead.
+  the Docker Desktop data folder shrank. Right after a run that can be less
+  than Docker reports, even 0, because Docker Desktop hands the space back to
+  macOS gradually. `diskcleaner run docker-images` exits with status 2 and
+  touches nothing when one of its two timeouts is not a whole number of seconds
+  above zero or is more than 9223372036 seconds.
+- `diskcleaner check STEP...`, for example
+  `diskcleaner check go-cache docker-images`, accepts any step names and changes
+  nothing. It exits with status 0 when the timeouts of those steps are valid
+  (only `docker-images` has any) and the home folder can be found; otherwise it
+  prints what is wrong and exits with status 2. A script that runs several steps
+  can call it first, so that a mistyped timeout stops it before anything is
+  deleted. Other settings, such as the `DISKCLEANER_*_PROCESSES` patterns that
+  tell which running programs make a step skip, are not checked ahead.
 
 ### Changed
 
-- `diskcleaner run` now exits with status 2, printing the reason, when a
-  timeout of the step is not a whole number of seconds above zero or is too
-  large to wait for; nothing is touched then. When the home folder cannot be
-  determined, it now says so instead of reporting an unknown step.
+- When the home folder cannot be determined, `diskcleaner run` now prints
+  `STEP: no home directory:` and the reason, and exits with status 2, instead of
+  reporting an unknown step.
 
 ## [0.4.0] - 2026-10-15
 

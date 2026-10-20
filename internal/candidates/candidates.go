@@ -43,18 +43,29 @@ func (s *Set) Add(r *report.Report, path string) {
 	}
 }
 
+func (s *Set) Paths() []string {
+	return slices.Clone(s.paths)
+}
+
 func (s *Set) Remove(r *report.Report) {
+	s.RemoveUnless(r, func(string) bool { return false })
+}
+
+func (s *Set) RemoveUnless(r *report.Report, keep func(path string) bool) {
 	paths := slices.Clone(s.paths)
 	s.paths = nil
 	slices.Sort(paths)
-	var removed []string
+	var handled []string
 	for _, path := range paths {
-		if slices.ContainsFunc(removed, func(parent string) bool { return within(path, parent) }) {
+		if slices.ContainsFunc(handled, func(parent string) bool { return within(path, parent) }) {
 			continue
 		}
-		removed = append(removed, path)
+		handled = append(handled, path)
 		if _, err := os.Lstat(path); errors.Is(err, os.ErrNotExist) {
 			r.Skip("%s: no longer exists", path)
+			continue
+		}
+		if keep(path) {
 			continue
 		}
 		r.Remove(path)

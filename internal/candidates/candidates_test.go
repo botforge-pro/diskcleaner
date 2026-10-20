@@ -182,6 +182,34 @@ func TestSetSkipsAPathThatIsGone(t *testing.T) {
 	assert.Contains(t, stderr.String(), "SKIPPED       "+gone+": no longer exists\n")
 }
 
+func TestSetListsItsPaths(t *testing.T) {
+	repo := newRepo(t)
+	r, _, _ := newReport(false)
+	var set Set
+
+	set.Add(r, filepath.Join(repo, "lib", "build"))
+
+	assert.Equal(t, []string{filepath.Join(repo, "lib", "build")}, set.Paths())
+}
+
+func TestSetKeepsWhatTheLastCheckKeeps(t *testing.T) {
+	repo := newRepo(t)
+	r, _, _ := newReport(false)
+	var set Set
+	kept := filepath.Join(repo, "lib", "build")
+	var asked []string
+
+	set.Add(r, kept)
+	set.RemoveUnless(r, func(path string) bool {
+		asked = append(asked, path)
+		return true
+	})
+
+	assert.DirExists(t, kept)
+	assert.Zero(t, r.Count)
+	assert.Equal(t, []string{kept}, asked)
+}
+
 func TestSetDryRunRemovesNothing(t *testing.T) {
 	repo := newRepo(t)
 	r, _, _ := newReport(true)

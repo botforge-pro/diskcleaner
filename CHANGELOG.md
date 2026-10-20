@@ -5,6 +5,49 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.12.0] - 2026-10-20
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.12.0`.
+
+After upgrading, `diskcleaner clean` deletes more than before: Codex session
+logs, and Claude Code session logs 21 to 30 days old. Run
+`diskcleaner clean --dry-run` first to see the list.
+
+### Added
+
+- A new step, `codex-logs`, deletes Codex session logs: the `*.jsonl` files
+  under `~/.codex/sessions` not modified for 21 days or more. A file 20 days
+  and 23 hours old stays. `clean` runs it right after `claude-logs`; run it
+  alone with `diskcleaner run codex-logs`. The files are deleted, not moved to
+  the Trash, and Codex can no longer resume those sessions.
+- Environment variables set the step up. `DISKCLEANER_CODEX_LOG_DAYS`
+  (default 20) is the age in whole days that a log may reach and still stay,
+  so `30` deletes logs 31 days old or more. It must be a whole number above
+  zero; any other value stops `clean` and `run` before anything is deleted.
+  `DISKCLEANER_CODEX_SESSIONS` replaces `~/.codex/sessions` as the folder
+  searched, subfolders included. There is no switch to turn the step off: to
+  keep the logs much longer, set `DISKCLEANER_CODEX_LOG_DAYS=3650`.
+
+### Changed
+
+- `claude-logs` keeps 20 whole days of Claude Code session logs instead of
+  30, so the next `clean` or `diskcleaner run claude-logs` also deletes the
+  logs 21 to 30 days old. To keep 30 days, set the environment variable
+  `DISKCLEANER_CLAUDE_LOG_DAYS=30`.
+
+### Fixed
+
+- `claude-logs`, and the new `codex-logs`, now check each old log again just
+  before deleting it, so a session resumed while the cleanup runs is less
+  likely to lose its log, though not fully protected. A log that has been
+  written to since the step listed it stays, and so does one that `lsof`
+  shows open at that check; both are listed as `SKIPPED`. A session that
+  opens an old log after that check and before the deletion, without writing
+  to it, can still lose it. When `lsof` does not answer within 30 seconds, or
+  prints a warning, the step deletes no further logs, keeps the ones already
+  deleted, and reports `FAILED`, which makes the exit status 1; the other
+  steps of `clean` still run.
+
 ## [0.11.0] - 2026-10-15
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.11.0`. What
@@ -382,6 +425,7 @@ this release removes one kind of them. Install it with a Go toolchain:
   status 1.
 - `diskcleaner version` prints the installed version.
 
+[0.12.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.12.0
 [0.11.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.11.0
 [0.10.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.10.0
 [0.9.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.9.0

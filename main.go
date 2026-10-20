@@ -9,7 +9,6 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"github.com/botforge-pro/diskcleaner/internal/claudelogs"
 	"github.com/botforge-pro/diskcleaner/internal/docker"
 	"github.com/botforge-pro/diskcleaner/internal/gocache"
 	"github.com/botforge-pro/diskcleaner/internal/gradle"
@@ -17,6 +16,7 @@ import (
 	"github.com/botforge-pro/diskcleaner/internal/projects"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/botforge-pro/diskcleaner/internal/scratchpads"
+	"github.com/botforge-pro/diskcleaner/internal/sessionlogs"
 	"github.com/botforge-pro/diskcleaner/internal/simulator"
 	"github.com/botforge-pro/diskcleaner/internal/swiftpm"
 	"github.com/botforge-pro/diskcleaner/internal/xcode"
@@ -47,7 +47,11 @@ var catalog = []stepInfo{
 	{"xcode-derived-data", "Xcode DerivedData", func(home string) (step, error) { return xcode.Default(home), nil }},
 	{"simulator-caches", "Core ML caches of shut-down iOS simulators", func(home string) (step, error) { return simulator.Default(home), nil }},
 	{"claude-logs", "old Claude Code session logs", func(home string) (step, error) {
-		s, err := claudelogs.Default(home)
+		s, err := sessionlogs.Claude(home)
+		return s, err
+	}},
+	{"codex-logs", "old Codex session logs", func(home string) (step, error) {
+		s, err := sessionlogs.Codex(home)
 		return s, err
 	}},
 	{"claude-scratchpads", "build output in Claude Code scratchpads", func(string) (step, error) { return scratchpads.Default(), nil }},

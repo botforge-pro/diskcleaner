@@ -1,11 +1,9 @@
 STATICCHECK_VERSION := v0.8.2
-GO_BIN := $(or $(shell go env GOBIN),$(shell go env GOPATH)/bin)
-STATICCHECK := $(GO_BIN)/staticcheck
+STATICCHECK := go run honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION)
 
 .PHONY: tools format lint test-build test build install
 
 tools:
-	go install honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION)
 	pip install --upgrade git+https://github.com/botforge-pro/commentcensor.git
 
 format:

@@ -15,7 +15,8 @@ Frees disk space on a Mac by deleting what builds and tools recreate on demand.
 | `swiftpm-cache` | the SwiftPM package cache |
 | `xcode-derived-data` | Xcode DerivedData |
 | `simulator-caches` | Core ML caches of iOS simulators |
-| `claude-logs` | Claude Code session logs older than 30 days |
+| `claude-logs` | Claude Code session logs older than 20 days |
+| `codex-logs` | Codex session logs older than 20 days |
 | `claude-scratchpads` | build output in Claude Code scratchpads |
 | `node-modules` | `node_modules` that have a lockfile, and dead Git temporary files in Node projects |
 
@@ -69,8 +70,8 @@ repositories folder or a missing home directory makes `clean`, `run` and
 `check` exit 2 before anything is touched. Other settings, such as `pgrep -f` patterns, fail
 only when the step runs.
 
-Steps that look inside projects (`claude-logs`, `claude-scratchpads`,
-`projects`, `node-modules`) keep a path holding a file Git tracks (`SKIPPED`), and keep a path
+Steps that look inside projects (`claude-logs`, `codex-logs`,
+`claude-scratchpads`, `projects`, `node-modules`) keep a path holding a file Git tracks (`SKIPPED`), and keep a path
 Git cannot answer for (`SKIPPED` and `FAILED`). The cache steps do not ask Git.
 
 ## Steps in detail
@@ -143,10 +144,26 @@ A build started after a step checked for running tools is not detected.
 ### claude-logs
 
 - Removes `*.jsonl` session logs, agents' included, under `~/.claude/projects`
-  last modified more than `DISKCLEANER_CLAUDE_LOG_DAYS` whole days ago (30, so
-  31 days or more).
+  last modified more than `DISKCLEANER_CLAUDE_LOG_DAYS` whole days ago (20, so
+  21 days or more).
 - Such a session can no longer be resumed.
+- Keeps a log that was written again after the scan found it old, and a log
+  that `lsof` finds open (`SKIPPED`). `lsof` looks at the logs 50 at a time,
+  right before those 50 are removed, so a session that opens an old log in
+  that moment and has not yet written to it can still lose it. When `lsof`
+  does not answer within 30 seconds, or warns, no further log is removed
+  (`FAILED`).
 - Settings: `DISKCLEANER_CLAUDE_PROJECTS`, `DISKCLEANER_CLAUDE_LOG_DAYS`.
+
+### codex-logs
+
+- Removes `*.jsonl` session logs under `~/.codex/sessions` last modified more
+  than `DISKCLEANER_CODEX_LOG_DAYS` whole days ago (20, so 21 days or more).
+  `~/.codex/history.jsonl`, `session_index.jsonl` and the databases next to
+  `sessions` stay.
+- Such a session can no longer be resumed.
+- Keeps open and rewritten logs the same way as `claude-logs`.
+- Settings: `DISKCLEANER_CODEX_SESSIONS`, `DISKCLEANER_CODEX_LOG_DAYS`.
 
 ### claude-scratchpads
 

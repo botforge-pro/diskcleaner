@@ -3,6 +3,7 @@ package simulator
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -93,6 +94,16 @@ func (s DataStep) idleSince(r *report.Report, device string) (string, bool) {
 	}
 	if state != shutdownState {
 		r.Skip("%s: the simulator is not shut down (state %s)", device, state)
+		return "", false
+	}
+	containers := filepath.Join(device, "data", "Containers")
+	_, err = os.Stat(containers)
+	if errors.Is(err, fs.ErrNotExist) {
+		r.Skip("%s: not booted since it was created or erased, erasing frees nothing", device)
+		return "", false
+	}
+	if err != nil {
+		r.Fail("stat %s: %v", containers, err)
 		return "", false
 	}
 	lastUsed, err := s.Value(plist, "lastUsedAt")

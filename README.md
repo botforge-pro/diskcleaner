@@ -87,7 +87,8 @@ A build started after a step checked for running tools is not detected.
   `DISKCLEANER_SIMULATOR_IDLE_DAYS` whole days ago (3). The simulator stays in
   Xcode's list; every app installed on it and all their data are gone, as on a
   new one.
-- Keeps a simulator that was never booted: erasing it frees nothing.
+- Keeps a simulator not booted since it was created or erased (it has no
+  `data/Containers` yet): erasing it again frees nothing.
 - `--dry-run` shows the whole `data` folder of a simulator, while the erase
   leaves a fresh one of about 20 megabytes, so the size it shows is an
   upper bound; a real run counts what was actually freed.

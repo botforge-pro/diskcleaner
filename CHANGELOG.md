@@ -5,6 +5,19 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.13.1] - 2026-10-22
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.13.1`.
+
+### Fixed
+
+- `simulator-data` no longer erases the same simulator on every run. Erasing
+  keeps the simulator's old last-boot date, so 0.13.0 erased it again each
+  time, and `--dry-run` listed it as about 17 MiB to free. A simulator not
+  booted since it was created or erased is now left alone with a `SKIPPED`
+  line; once booted again, it is erased three days after its last boot as
+  before.
+
 ## [0.13.0] - 2026-10-22
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.13.0`.
@@ -461,6 +474,7 @@ this release removes one kind of them. Install it with a Go toolchain:
   status 1.
 - `diskcleaner version` prints the installed version.
 
+[0.13.1]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.13.1
 [0.13.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.13.0
 [0.12.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.12.0
 [0.11.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.11.0

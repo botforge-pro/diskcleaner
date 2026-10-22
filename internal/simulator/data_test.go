@@ -128,6 +128,19 @@ func TestKeepsSimulatorNeverBooted(t *testing.T) {
 	assert.Contains(t, stderr, "NEVER: the simulator was never booted")
 }
 
+func TestKeepsSimulatorAlreadyErased(t *testing.T) {
+	f := newDataFixture(t)
+	f.device(t, "ERASED", "1", "2026-09-01T00:00:00Z")
+	require.NoError(t, os.RemoveAll(filepath.Join(f.devices, "ERASED", "data", "Containers")))
+
+	r, _, stderr := f.run(f.step(), false)
+
+	assert.Empty(t, f.calls(t))
+	assert.Zero(t, r.Count)
+	assert.Empty(t, r.Failures)
+	assert.Contains(t, stderr, "ERASED: not booted since it was created or erased")
+}
+
 func TestDataDryRunErasesNothing(t *testing.T) {
 	f := newDataFixture(t)
 	f.device(t, "OLD", "1", "2026-09-01T00:00:00Z")

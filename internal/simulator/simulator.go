@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -124,9 +123,5 @@ func (s Step) idle(r *report.Report, device string) bool {
 }
 
 func plutilState(plist string) (string, error) {
-	output, err := exec.Command("plutil", "-extract", "state", "raw", "-o", "-", plist).CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
-	}
-	return strings.TrimSpace(string(output)), nil
+	return plutilValue(plist, "state")
 }

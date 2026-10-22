@@ -12,8 +12,10 @@ Frees disk space on a Mac by deleting what builds and tools recreate on demand.
 | `gradle-caches` | `~/.gradle/caches` |
 | `docker-images` | Docker images no container uses |
 | `go-cache` | Go module and build caches |
+| `homebrew` | old Homebrew versions and all its downloads |
 | `swiftpm-cache` | the SwiftPM package cache |
 | `xcode-derived-data` | Xcode DerivedData |
+| `simulator-data` | apps and data of iOS simulators not used for 3 days |
 | `simulator-caches` | Core ML caches of iOS simulators |
 | `claude-logs` | Claude Code session logs older than 20 days |
 | `codex-logs` | Codex session logs older than 20 days |
@@ -78,6 +80,23 @@ Git cannot answer for (`SKIPPED` and `FAILED`). The cache steps do not ask Git.
 
 A build started after a step checked for running tools is not detected.
 
+### simulator-data
+
+- Runs `xcrun simctl erase` on each iOS simulator in
+  `~/Library/Developer/CoreSimulator/Devices` whose `lastUsedAt` is more than
+  `DISKCLEANER_SIMULATOR_IDLE_DAYS` whole days ago (3). The simulator stays in
+  Xcode's list; every app installed on it and all their data are gone, as on a
+  new one.
+- Keeps a simulator that was never booted: erasing it frees nothing.
+- `--dry-run` shows the whole `data` folder of a simulator, while the erase
+  leaves a fresh one of about 20 megabytes, so the size it shows is an
+  upper bound; a real run counts what was actually freed.
+- Skips all simulators while Simulator, DeviceHub, `simctl` or `xcodebuild` run.
+- Skips a simulator that is not Shutdown or has a running process; one whose
+  `device.plist` `plutil` cannot read is a failure.
+- Settings: `DISKCLEANER_SIMULATOR_DEVICES`, `DISKCLEANER_SIMULATOR_PROCESSES`,
+  `DISKCLEANER_SIMULATOR_IDLE_DAYS`.
+
 ### simulator-caches
 
 - Removes `com.apple.e5rt.e5bundlecache` under `Library/Caches` of each iOS
@@ -115,6 +134,18 @@ A build started after a step checked for running tools is not detected.
 - Skips while `go build`, `test`, `run`, `install`, `get`, `mod`, `generate`,
   `vet` or `list` run.
 - Settings: `DISKCLEANER_GO_PROCESSES`.
+
+### homebrew
+
+- Runs `brew cleanup --prune=all`: removes versions of formulae and casks
+  older than the installed ones and every cached download, whatever its age.
+- The next install or upgrade downloads its bottle again; an old version is no
+  longer there to switch back to.
+- Does nothing without `brew` on the `PATH`; skips while another `brew` runs.
+- The space counted is what `brew` reports it freed. A cleanup longer than
+  `DISKCLEANER_BREW_TIMEOUT` seconds (900) is a failure, and `brew` with every
+  process it started is killed.
+- Settings: `DISKCLEANER_BREW_PROCESSES`, `DISKCLEANER_BREW_TIMEOUT`.
 
 ### docker-images
 

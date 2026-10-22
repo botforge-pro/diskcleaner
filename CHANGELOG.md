@@ -5,6 +5,42 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.13.0] - 2026-10-22
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.13.0`.
+
+After upgrading, `diskcleaner clean` deletes more than before: old Homebrew
+versions with every Homebrew download, and iOS simulators not booted for
+three days are reset to new, losing their apps and app data. Run
+`diskcleaner clean --dry-run` first to see the list. Neither can be undone.
+
+### Added
+
+- A new step, `homebrew`, runs `brew cleanup --prune=all`. Besides the old
+  versions of formulae and casks that a plain `brew cleanup` removes, it
+  deletes every cached download, however recent. After it an older version of
+  a formula is no longer on the disk to go back to, and the next install
+  downloads its bottle again. `clean` runs it right after `go-cache`; run it
+  alone with `diskcleaner run homebrew`. It does nothing without `brew` on the
+  `PATH`. While another `brew` runs it is skipped with a `SKIPPED` line, which
+  does not change the exit status. `DISKCLEANER_BREW_TIMEOUT` (default 900) is
+  how many seconds the cleanup may take; past that `brew` is stopped and the
+  step is a failure, so `clean` exits 1 after running the remaining steps. It
+  must be a whole number above zero; any other value stops `clean` and `run`
+  before anything is deleted.
+- A new step, `simulator-data`, runs `xcrun simctl erase` on each shut-down
+  iOS simulator whose last boot (`lastUsedAt` in its `device.plist`) is more
+  than three days old: 3 days and 1 second is erased, exactly 3 days is kept.
+  The simulator stays in Xcode's list, but every app installed on it, its
+  data and settings are gone, as on a new simulator. Booted simulators,
+  simulators never booted, and all simulators while Simulator, `simctl` or an
+  Xcode build run are left alone with a `SKIPPED` line. `clean` runs it right
+  before `simulator-caches`. `DISKCLEANER_SIMULATOR_IDLE_DAYS` (default 3)
+  sets the number of days. It must be a whole number above zero; any other
+  value stops `clean` and `run` before anything is deleted. There is no switch
+  to turn the step off: to keep simulators much longer, set
+  `DISKCLEANER_SIMULATOR_IDLE_DAYS=3650`.
+
 ## [0.12.0] - 2026-10-20
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.12.0`.
@@ -425,6 +461,7 @@ this release removes one kind of them. Install it with a Go toolchain:
   status 1.
 - `diskcleaner version` prints the installed version.
 
+[0.13.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.13.0
 [0.12.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.12.0
 [0.11.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.11.0
 [0.10.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.10.0

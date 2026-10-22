@@ -12,6 +12,7 @@ import (
 	"github.com/botforge-pro/diskcleaner/internal/docker"
 	"github.com/botforge-pro/diskcleaner/internal/gocache"
 	"github.com/botforge-pro/diskcleaner/internal/gradle"
+	"github.com/botforge-pro/diskcleaner/internal/homebrew"
 	"github.com/botforge-pro/diskcleaner/internal/nodemodules"
 	"github.com/botforge-pro/diskcleaner/internal/projects"
 	"github.com/botforge-pro/diskcleaner/internal/report"
@@ -43,8 +44,16 @@ var catalog = []stepInfo{
 		return s, err
 	}},
 	{"go-cache", "the Go module and build caches", func(string) (step, error) { return gocache.Default(), nil }},
+	{"homebrew", "old Homebrew versions and downloads", func(string) (step, error) {
+		s, err := homebrew.Default()
+		return s, err
+	}},
 	{"swiftpm-cache", "the Swift Package Manager cache", func(home string) (step, error) { return swiftpm.Default(home), nil }},
 	{"xcode-derived-data", "Xcode DerivedData", func(home string) (step, error) { return xcode.Default(home), nil }},
+	{"simulator-data", "data of iOS simulators not used for days", func(home string) (step, error) {
+		s, err := simulator.DefaultData(home)
+		return s, err
+	}},
 	{"simulator-caches", "Core ML caches of shut-down iOS simulators", func(home string) (step, error) { return simulator.Default(home), nil }},
 	{"claude-logs", "old Claude Code session logs", func(home string) (step, error) {
 		s, err := sessionlogs.Claude(home)

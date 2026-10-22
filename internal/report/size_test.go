@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestDecimalSizeKB(t *testing.T) {
+func TestSizeKB(t *testing.T) {
 	cases := []struct {
 		size string
 		kb   int64
@@ -19,12 +19,13 @@ func TestDecimalSizeKB(t *testing.T) {
 		{"512kB", 500, true},
 		{"2.3 MB", 2246, true},
 		{"1TB", 976562500, true},
+		{"1.1GiB", 1153433, true},
 		{"1.2.3GB", 0, false},
 		{"GB", 0, false},
 		{"12", 0, false},
 	}
 	for _, tc := range cases {
-		kb, ok := DecimalSizeKB(tc.size)
+		kb, ok := SizeKB(tc.size)
 		assert.Equal(t, tc.ok, ok, tc.size)
 		assert.Equal(t, tc.kb, kb, tc.size)
 	}

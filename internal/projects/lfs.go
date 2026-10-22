@@ -48,7 +48,7 @@ func (l LFS) Prune(r *report.Report, repo string) {
 		match := parenthesized.FindStringSubmatch(summary)
 		kb, ok := int64(0), false
 		if match != nil {
-			kb, ok = report.DecimalSizeKB(match[1])
+			kb, ok = report.SizeKB(match[1])
 		}
 		if !ok {
 			r.Fail("git lfs prune --dry-run in %s: cannot read the size from: %s", repo, summary)

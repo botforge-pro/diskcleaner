@@ -126,7 +126,7 @@ func (s Step) reclaimable(r *report.Report) (string, int64, bool) {
 			continue
 		}
 		size, _, _ = strings.Cut(size, " (")
-		if kb, ok := report.DecimalSizeKB(size); ok {
+		if kb, ok := report.SizeKB(size); ok {
 			return size, kb, true
 		}
 	}

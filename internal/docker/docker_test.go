@@ -89,12 +89,17 @@ func newFixture(t *testing.T, reclaimable string) fixture {
 	f.step = Step{
 		Docker:              docker,
 		Data:                filepath.Join(f.state, "data"),
-		TimeoutSeconds:      1,
-		PruneTimeoutSeconds: 1,
+		TimeoutSeconds:      10,
+		PruneTimeoutSeconds: 10,
 		Backend:             "docker",
 		Running:             idle,
 	}
 	return f
+}
+
+func (f *fixture) hangsAfterOneSecond() {
+	f.step.TimeoutSeconds = 1
+	f.step.PruneTimeoutSeconds = 1
 }
 
 func (f fixture) mark(t *testing.T, name string) {
@@ -191,6 +196,7 @@ func TestHungCommandsTimeOut(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.marker, func(t *testing.T) {
 			f := newFixture(t, "1.5GB")
+			f.hangsAfterOneSecond()
 			f.mark(t, tc.marker)
 			started := time.Now()
 
@@ -233,6 +239,7 @@ func TestPruneFailingMidwayCountsOnlyFreedSpace(t *testing.T) {
 
 func TestTimeoutStopsTheChildrenOfDocker(t *testing.T) {
 	f := newFixture(t, "1.5GB")
+	f.hangsAfterOneSecond()
 	f.mark(t, "info-hung-in-child")
 
 	r, _, _ := run(f.step, false)

@@ -161,10 +161,17 @@ func TestLeavesOtherFoldersAlone(t *testing.T) {
 	assert.Empty(t, stderr)
 }
 
-func TestMissingFolderIsQuiet(t *testing.T) {
-	r, stdout, stderr := run(step(filepath.Join(t.TempDir(), "absent"), "/usr/bin/false"), false)
+func TestNothingToLookAtIsQuiet(t *testing.T) {
+	for name, dir := range map[string]string{
+		"missing folder":           filepath.Join(t.TempDir(), "absent"),
+		"no such folder on the OS": "",
+	} {
+		t.Run(name, func(t *testing.T) {
+			r, stdout, stderr := run(step(dir, "/usr/bin/false"), false)
 
-	assert.Zero(t, r.Count)
-	assert.Empty(t, stdout)
-	assert.Empty(t, stderr)
+			assert.Zero(t, r.Count)
+			assert.Empty(t, stdout)
+			assert.Empty(t, stderr)
+		})
+	}
 }

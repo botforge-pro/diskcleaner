@@ -36,7 +36,9 @@ func Default() (Step, error) {
 		if err != nil {
 			return Step{}, fmt.Errorf("%w; set DISKCLEANER_CODE_SIGN_CLONES instead", err)
 		}
-		dir = filepath.Join(filepath.Dir(temp), "X")
+		if temp != "" {
+			dir = filepath.Join(filepath.Dir(temp), "X")
+		}
 	}
 	minutes, err := settings.PositiveDuration("DISKCLEANER_TMP_MINUTES", 60, time.Minute, "minutes")
 	if err != nil {
@@ -52,7 +54,7 @@ func Default() (Step, error) {
 }
 
 func (s Step) Run(r *report.Report) {
-	if !r.Directory(s.Dir) {
+	if s.Dir == "" || !r.Directory(s.Dir) {
 		return
 	}
 	dir, err := filepath.EvalSymlinks(s.Dir)

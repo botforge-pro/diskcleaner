@@ -166,8 +166,9 @@ func TestKeepsFilesAndSymlinksWithMatchingNames(t *testing.T) {
 
 func TestNothingToLookAtIsQuiet(t *testing.T) {
 	for name, dir := range map[string]string{
-		"missing folder": filepath.Join(t.TempDir(), "absent"),
-		"no leftovers":   newTemp(t),
+		"missing folder":           filepath.Join(t.TempDir(), "absent"),
+		"no such folder on the OS": "",
+		"no leftovers":             newTemp(t),
 	} {
 		t.Run(name, func(t *testing.T) {
 			r, stdout, stderr := run(step(dir, noneOpen), false)

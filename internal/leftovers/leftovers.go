@@ -56,7 +56,7 @@ func Default() (Step, error) {
 }
 
 func (s Step) Run(r *report.Report) {
-	if !r.Directory(s.Dir) {
+	if s.Dir == "" || !r.Directory(s.Dir) {
 		return
 	}
 	dir, err := filepath.EvalSymlinks(s.Dir)

@@ -5,6 +5,18 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.14.1] - 2026-10-26
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.14.1`.
+
+### Fixed
+
+- On any system but macOS, 0.14.0 stopped every `clean`, `run` and `check`
+  with exit status 2 before doing anything, because the new steps
+  `temp-leftovers` and `code-sign-clones` could not find the macOS
+  temporary folder. There they now do nothing, like the other macOS-only
+  steps.
+
 ## [0.14.0] - 2026-10-26
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.14.0`.

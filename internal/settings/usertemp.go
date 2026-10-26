@@ -5,10 +5,14 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
 func UserTemp() (string, error) {
+	if runtime.GOOS != "darwin" {
+		return "", nil
+	}
 	var stdout, stderr bytes.Buffer
 	command := exec.Command("getconf", "DARWIN_USER_TEMP_DIR")
 	command.Stdout = &stdout

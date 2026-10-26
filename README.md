@@ -19,7 +19,7 @@ and the table says which.
 | `xcode-derived-data` | Xcode DerivedData | yes: the next build |
 | `temp-leftovers` | temporary folders of killed Go builds and of Xcode exports | nothing reads them again |
 | `code-sign-clones` | copies of Chrome and other apps that no running app was started from | nothing reads them again |
-| `ide-old-versions` | settings, caches and logs of JetBrains IDE and Android Studio versions older than the installed one | **no**: old settings and logs are deleted for good |
+| `ide-old-versions` | data of IDE versions older than the installed one: JetBrains IDEs, Android Studio, VS Code and its forks | **no**: old settings and logs are deleted for good |
 | `simulator-data` | apps and data of iOS simulators not used for 3 days | **no**: the simulator is reset to new |
 | `simulator-caches` | Core ML caches of iOS simulators | yes: the app compiles its models again |
 | `claude-logs` | Claude Code session logs older than 20 days | **no**: such a session can no longer be resumed |
@@ -214,23 +214,25 @@ Settings: `DISKCLEANER_REPOS_DIR`, `DISKCLEANER_GIT_TMP_MINUTES`,
 
 ### ide-old-versions
 
-- Each JetBrains IDE and Android Studio keeps its data in folders named after
-  its version, such as `GoLand2025.3`, and an upgrade leaves the old ones
-  behind. The step looks for them in `~/Library/Application Support`,
-  `~/Library/Caches` and `~/Library/Logs`, under `JetBrains` and `Google`.
-- It learns which versions are installed from the `dataDirectoryName` in the
-  `product-info.json` of each app in `/Applications` and `~/Applications`,
-  one folder deep (JetBrains Toolbox).
-- Removes a folder only when all of these hold:
-  - the same product is installed in a newer version;
-  - this version is not installed;
-  - the newest installed version has a folder of its own next to it, so it
-    has run and had the chance to copy the settings it wants. Until then the
-    old folder stays (`SKIPPED`).
-- Folders of products not installed, of newer versions, and of every
-  installed version stay.
-- An app whose `product-info.json` cannot be read stops the step before
-  anything is removed (`FAILED`).
+An upgrade of an IDE leaves the data of the old version behind. The step
+finds the installed IDEs in `/Applications` and `~/Applications`, one folder
+deep (JetBrains Toolbox), and handles two families:
+
+| Family | How it is recognised | What it removes |
+|---|---|---|
+| IntelliJ platform: every JetBrains IDE, Android Studio and other IDEs built on it | `Contents/Resources/product-info.json` names the vendor and the data folder, such as `JetBrains` and `GoLand2026.2` | folders of older versions of the same product, such as `GoLand2025.3`, in `~/Library/Application Support`, `Caches` and `Logs` under the vendor's name |
+| VS Code and its forks: Cursor, Windsurf, VSCodium and others | `Contents/Resources/app/product.json` names the data folder and the build's commit | `~/Library/Application Support/<name>/CachedData/<commit>` of builds no longer installed |
+
+- A folder of an older version goes only when the same product is installed
+  in a newer version and this version is not installed. Folders of products
+  not installed, of newer versions and of every installed version stay.
+- Nothing goes until the installed version has run and made its own folder
+  next to the old one, so it had the chance to copy the settings it wants
+  (`SKIPPED` until then).
+- An app whose description cannot be read, or names a folder oddly, stops the
+  step before anything is removed (`FAILED`).
+- Downloaded extensions (`CachedExtensionVSIXs`) and the extensions
+  themselves stay.
 
 ### simulator-data
 

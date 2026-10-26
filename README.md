@@ -12,7 +12,7 @@ and the table says which.
 |---|---|---|
 | `projects` | build output, `.apk`/`.aab`, dead Git temporary files and old Git LFS objects in your repositories | yes: the next build, the LFS remote |
 | `gradle-caches` | `~/.gradle/caches` | yes: the next Gradle build |
-| `docker-images` | Docker images no container uses | yes: pulled or built again |
+| `docker-images` | Docker images no container uses | when a registry or a Dockerfile still has it |
 | `go-cache` | Go module and build caches | yes: the next Go build |
 | `homebrew` | old Homebrew versions and all its downloads | **no** for the old versions; downloads come again |
 | `swiftpm-cache` | the SwiftPM package cache | yes: the next package resolution |
@@ -24,7 +24,7 @@ and the table says which.
 | `claude-logs` | Claude Code session logs older than 20 days | **no**: such a session can no longer be resumed |
 | `codex-logs` | Codex session logs older than 20 days | **no**: such a session can no longer be resumed |
 | `claude-scratchpads` | build output in Claude Code scratchpads | yes: the next build |
-| `node-modules` | `node_modules` that have a lockfile, and dead Git temporary files in Node projects | yes: `npm install` and the like |
+| `node-modules` | `node_modules` that have a lockfile, and dead Git temporary files in Node projects | usually, by `npm install` and the like; exceptions under the step |
 
 `diskcleaner clean` runs them all in this order. Run it with `--dry-run` first
 to see the list. After a cleanup the first build is slower.

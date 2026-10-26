@@ -2,7 +2,7 @@ package leftovers
 
 import (
 	"bytes"
-	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -23,23 +23,37 @@ func newTemp(t *testing.T) string {
 
 func makeDir(t *testing.T, temp, name string, age time.Duration) string {
 	path := filepath.Join(temp, name)
-	require.NoError(t, os.MkdirAll(filepath.Join(path, "b001"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(path, "b001", "a.out"), make([]byte, 8192), 0o644))
-	require.NoError(t, os.Chtimes(path, now.Add(-age), now.Add(-age)))
+	for _, file := range []string{"b001/a.out", "b001/importcfg", "b002/_pkg_.a"} {
+		require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(path, file)), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(path, file), make([]byte, 8192), 0o644))
+	}
+	backdate(t, path, age)
 	return path
 }
 
-func step(temp string, running func(string) (bool, error)) Step {
+func backdate(t *testing.T, root string, age time.Duration) {
+	require.NoError(t, filepath.WalkDir(root, func(path string, _ fs.DirEntry, err error) error {
+		require.NoError(t, err)
+		return os.Chtimes(path, now.Add(-age), now.Add(-age))
+	}))
+}
+
+func step(temp, lsof string) Step {
 	return Step{
-		Dir:     temp,
-		Minutes: 60,
-		Kinds: []Kind{
-			{Patterns: []string{"go-build*", "go-link-*"}, Processes: "go", Busy: "a go command is running"},
-			{Patterns: []string{"XcodeDistPipeline.*"}, Processes: "xcode", Busy: "Xcode or an Xcode build is running"},
-		},
-		Now:     func() time.Time { return now },
-		Running: running,
+		Dir:                temp,
+		Patterns:           patterns,
+		Minutes:            60,
+		Now:                func() time.Time { return now },
+		Lsof:               lsof,
+		LsofTimeoutSeconds: 5,
+		Batch:              lsofBatch,
 	}
+}
+
+func fakeLsof(t *testing.T, body string) string {
+	path := filepath.Join(t.TempDir(), "lsof")
+	require.NoError(t, os.WriteFile(path, []byte("#!/bin/sh\n"+body), 0o755))
+	return path
 }
 
 func run(s Step, dryRun bool) (*report.Report, string, string) {
@@ -49,7 +63,7 @@ func run(s Step, dryRun bool) (*report.Report, string, string) {
 	return r, stdout.String(), stderr.String()
 }
 
-func idle(string) (bool, error) { return false, nil }
+const noneOpen = "/usr/bin/false"
 
 func TestRemovesOldFoldersOfEveryKind(t *testing.T) {
 	temp := newTemp(t)
@@ -58,7 +72,7 @@ func TestRemovesOldFoldersOfEveryKind(t *testing.T) {
 	export := makeDir(t, temp, "XcodeDistPipeline.~~~NmSxWB", 2*time.Hour)
 	other := makeDir(t, temp, "TemporaryDirectory.abc", 30*24*time.Hour)
 
-	r, stdout, stderr := run(step(temp, idle), false)
+	r, stdout, stderr := run(step(temp, noneOpen), false)
 
 	assert.Empty(t, stderr)
 	assert.NoDirExists(t, build)
@@ -74,7 +88,7 @@ func TestDryRunRemovesNothing(t *testing.T) {
 	temp := newTemp(t)
 	build := makeDir(t, temp, "go-build1", 2*time.Hour)
 
-	r, stdout, _ := run(step(temp, idle), true)
+	r, stdout, _ := run(step(temp, noneOpen), true)
 
 	assert.DirExists(t, build)
 	assert.Equal(t, 1, r.Count)
@@ -85,49 +99,54 @@ func TestKeepsAFolderWrittenWithinTheLimit(t *testing.T) {
 	temp := newTemp(t)
 	fresh := makeDir(t, temp, "go-build1", 59*time.Minute)
 
-	r, _, stderr := run(step(temp, idle), false)
+	r, _, stderr := run(step(temp, noneOpen), false)
 
 	assert.DirExists(t, fresh)
 	assert.Zero(t, r.Count)
 	assert.Contains(t, stderr, "SKIPPED       "+fresh+": written within 60 minutes")
 }
 
-func TestSkipsOnlyTheKindWhoseToolRuns(t *testing.T) {
+func TestAFreshFileDeepInsideKeepsAnOldFolder(t *testing.T) {
+	temp := newTemp(t)
+	build := makeDir(t, temp, "go-build1", 3*time.Hour)
+	inner := filepath.Join(build, "b002", "_pkg_.a")
+	require.NoError(t, os.Chtimes(inner, now.Add(-time.Minute), now.Add(-time.Minute)))
+
+	r, _, stderr := run(step(temp, noneOpen), false)
+
+	assert.FileExists(t, inner)
+	assert.Zero(t, r.Count)
+	assert.Contains(t, stderr, "SKIPPED       "+build+": written within 60 minutes")
+}
+
+func TestKeepsAFolderAProcessHasAFileOpenIn(t *testing.T) {
 	temp := newTemp(t)
 	build := makeDir(t, temp, "go-build1", 2*time.Hour)
 	export := makeDir(t, temp, "XcodeDistPipeline.~~~abc", 2*time.Hour)
-	goRuns := func(pattern string) (bool, error) { return pattern == "go", nil }
+	file, err := os.Open(filepath.Join(build, "b002", "_pkg_.a"))
+	require.NoError(t, err)
+	defer file.Close()
+	s := step(temp, "lsof")
+	s.Batch = 2
 
-	r, _, stderr := run(step(temp, goRuns), false)
+	r, _, stderr := run(s, false)
 
 	assert.DirExists(t, build)
 	assert.NoDirExists(t, export)
 	assert.Equal(t, 1, r.Count)
-	assert.Contains(t, stderr, "SKIPPED       "+filepath.Join(temp, "go-build*")+": a go command is running")
-	assert.Contains(t, stderr, "SKIPPED       "+filepath.Join(temp, "go-link-*")+": a go command is running")
+	assert.Contains(t, stderr, "SKIPPED       "+build+": a process still has something in it open")
 }
 
-func TestProcessCheckErrorKeepsTheKindAndFails(t *testing.T) {
+func TestLsofFailureKeepsTheFolderAndFails(t *testing.T) {
 	temp := newTemp(t)
 	build := makeDir(t, temp, "go-build1", 2*time.Hour)
-	broken := func(string) (bool, error) { return false, errors.New("exit status 2") }
+	lsof := fakeLsof(t, "echo 'lsof: broken' >&2\nexit 2\n")
 
-	r, _, _ := run(step(temp, broken), false)
+	r, _, _ := run(step(temp, lsof), false)
 
 	assert.DirExists(t, build)
-	assert.Len(t, r.Failures, 1)
-}
-
-func TestDoesNotAskAboutProcessesWhenThereIsNothingToRemove(t *testing.T) {
-	temp := newTemp(t)
-	asked := false
-	running := func(string) (bool, error) { asked = true; return false, nil }
-
-	r, _, stderr := run(step(temp, running), false)
-
-	assert.False(t, asked)
 	assert.Zero(t, r.Count)
-	assert.Empty(t, stderr)
+	assert.Len(t, r.Failures, 1)
 }
 
 func TestKeepsFilesAndSymlinksWithMatchingNames(t *testing.T) {
@@ -136,7 +155,7 @@ func TestKeepsFilesAndSymlinksWithMatchingNames(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(temp, "go-build.log"), []byte("x"), 0o644))
 	require.NoError(t, os.Symlink(target, filepath.Join(temp, "go-build-link")))
 
-	r, _, _ := run(step(temp, idle), false)
+	r, _, _ := run(step(temp, noneOpen), false)
 
 	assert.FileExists(t, filepath.Join(temp, "go-build.log"))
 	assert.DirExists(t, target)
@@ -145,10 +164,17 @@ func TestKeepsFilesAndSymlinksWithMatchingNames(t *testing.T) {
 	assert.Zero(t, r.Count)
 }
 
-func TestMissingFolderIsQuiet(t *testing.T) {
-	r, stdout, stderr := run(step(filepath.Join(t.TempDir(), "absent"), idle), false)
+func TestNothingToLookAtIsQuiet(t *testing.T) {
+	for name, dir := range map[string]string{
+		"missing folder": filepath.Join(t.TempDir(), "absent"),
+		"no leftovers":   newTemp(t),
+	} {
+		t.Run(name, func(t *testing.T) {
+			r, stdout, stderr := run(step(dir, noneOpen), false)
 
-	assert.Zero(t, r.Count)
-	assert.Empty(t, stdout)
-	assert.Empty(t, stderr)
+			assert.Zero(t, r.Count)
+			assert.Empty(t, stdout)
+			assert.Empty(t, stderr)
+		})
+	}
 }

@@ -9,10 +9,7 @@ import (
 	"strings"
 )
 
-const (
-	Xcode = `xcodebuild|XCBBuildService|/Xcode[^/]*\.app/Contents/MacOS/Xcode`
-	Go    = "(^|/)go (build|test|run|install|get|mod|generate|vet|list)( |$)"
-)
+const Xcode = `xcodebuild|XCBBuildService|/Xcode[^/]*\.app/Contents/MacOS/Xcode`
 
 func Running(pattern string) (bool, error) {
 	pids, err := Pids(pattern)

@@ -14,46 +14,44 @@ import (
 	"github.com/botforge-pro/diskcleaner/internal/settings"
 )
 
-type Kind struct {
-	Patterns  []string
-	Processes string
-	Busy      string
-}
+const (
+	lsofTimeoutSeconds = 30
+	lsofBatch          = 200
+)
+
+var patterns = []string{"go-build*", "go-link-*", "XcodeDistPipeline.*"}
 
 type Step struct {
-	Dir     string
-	Minutes int
-	Kinds   []Kind
-	Now     func() time.Time
-	Running func(pattern string) (bool, error)
+	Dir                string
+	Patterns           []string
+	Minutes            int
+	Now                func() time.Time
+	Lsof               string
+	LsofTimeoutSeconds int
+	Batch              int
 }
 
 func Default() (Step, error) {
-	dir, err := settings.EnvOrUserTemp("DISKCLEANER_USER_TMP", func(temp string) string { return temp })
-	if err != nil {
-		return Step{}, err
+	dir := settings.Env("DISKCLEANER_USER_TMP", "")
+	if dir == "" {
+		temp, err := settings.UserTemp()
+		if err != nil {
+			return Step{}, fmt.Errorf("%w; set DISKCLEANER_USER_TMP instead", err)
+		}
+		dir = temp
 	}
 	minutes, err := settings.PositiveDuration("DISKCLEANER_TMP_MINUTES", 60, time.Minute, "minutes")
 	if err != nil {
 		return Step{}, err
 	}
 	return Step{
-		Dir:     dir,
-		Minutes: minutes,
-		Kinds: []Kind{
-			{
-				Patterns:  []string{"go-build*", "go-link-*"},
-				Processes: settings.Env("DISKCLEANER_GO_PROCESSES", process.Go),
-				Busy:      "a go command is running",
-			},
-			{
-				Patterns:  []string{"XcodeDistPipeline.*"},
-				Processes: settings.Env("DISKCLEANER_XCODE_PROCESSES", process.Xcode),
-				Busy:      "Xcode or an Xcode build is running",
-			},
-		},
-		Now:     time.Now,
-		Running: process.Running,
+		Dir:                dir,
+		Patterns:           patterns,
+		Minutes:            minutes,
+		Now:                time.Now,
+		Lsof:               "lsof",
+		LsofTimeoutSeconds: lsofTimeoutSeconds,
+		Batch:              lsofBatch,
 	}, nil
 }
 
@@ -66,17 +64,8 @@ func (s Step) Run(r *report.Report) {
 		r.Fail("resolve %s: %v", s.Dir, err)
 		return
 	}
-	fmt.Fprintf(r.Out, "TEMP     %s\n", dir)
-	defer fmt.Fprintln(r.Out)
-
-	for _, kind := range s.Kinds {
-		s.clean(r, dir, kind)
-	}
-}
-
-func (s Step) clean(r *report.Report, dir string, kind Kind) {
 	var paths []string
-	for _, pattern := range kind.Patterns {
+	for _, pattern := range s.Patterns {
 		matches, err := filepath.Glob(filepath.Join(dir, pattern))
 		if err != nil {
 			r.Fail("glob %s: %v", pattern, err)
@@ -87,29 +76,66 @@ func (s Step) clean(r *report.Report, dir string, kind Kind) {
 	if len(paths) == 0 {
 		return
 	}
+	fmt.Fprintf(r.Out, "TEMP     %s\n", dir)
+	defer fmt.Fprintln(r.Out)
+
 	slices.Sort(paths)
-	if r.Busy(s.Running, kind.Processes) {
-		for _, pattern := range kind.Patterns {
-			r.Skip("%s: %s", filepath.Join(dir, pattern), kind.Busy)
-		}
+	for _, path := range paths {
+		s.check(r, path)
+	}
+}
+
+func (s Step) check(r *report.Report, path string) {
+	info, err := os.Lstat(path)
+	if errors.Is(err, fs.ErrNotExist) {
 		return
 	}
-	for _, path := range paths {
-		info, err := os.Lstat(path)
-		if errors.Is(err, fs.ErrNotExist) {
-			continue
-		}
-		if err != nil {
-			r.Fail("stat %s: %v", path, err)
-			continue
-		}
-		if !info.IsDir() {
-			continue
-		}
-		if s.Now().Sub(info.ModTime()) <= time.Duration(s.Minutes)*time.Minute {
-			r.Skip("%s: written within %d minutes", path, s.Minutes)
-			continue
-		}
-		r.Remove(path)
+	if err != nil {
+		r.Fail("stat %s: %v", path, err)
+		return
 	}
+	if !info.IsDir() {
+		return
+	}
+	entries, latest, err := walk(path)
+	if err != nil {
+		r.Fail("look into %s: %v", path, err)
+		return
+	}
+	if s.Now().Sub(latest) <= time.Duration(s.Minutes)*time.Minute {
+		r.Skip("%s: written within %d minutes", path, s.Minutes)
+		return
+	}
+	for batch := range slices.Chunk(entries, s.Batch) {
+		open, err := process.OpenFiles(s.LsofTimeoutSeconds, s.Lsof, batch)
+		if err != nil {
+			r.Fail("lsof in %s: %v", path, err)
+			return
+		}
+		if len(open) > 0 {
+			r.Skip("%s: a process still has something in it open", path)
+			return
+		}
+	}
+	r.Remove(path)
+}
+
+func walk(root string) ([]string, time.Time, error) {
+	var entries []string
+	var latest time.Time
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		if info.ModTime().After(latest) {
+			latest = info.ModTime()
+		}
+		entries = append(entries, path)
+		return nil
+	})
+	return entries, latest, err
 }

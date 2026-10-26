@@ -123,19 +123,20 @@ A build started after a step checked for running tools is not detected.
 ### temp-leftovers
 
 - Looks in your temporary folder, `getconf DARWIN_USER_TEMP_DIR` (the one in
-  `/var/folders`, whatever `TMPDIR` says), and removes folders written more
-  than `DISKCLEANER_TMP_MINUTES` (60) minutes ago:
+  `/var/folders`, whatever `TMPDIR` says), for:
   - `go-build*` and `go-link-*`: the work folders of `go build`, `test` and
     `run`. Go removes them when it exits, so the ones left behind belong to
     commands that were killed. One killed `go test` left 1.1 GB;
-  - `XcodeDistPipeline.*`: what `xcodebuild -exportArchive` leaves after
-    exporting an archive for upload, about 100 MB per upload.
+  - `XcodeDistPipeline.*`: what an archive export for upload leaves behind,
+    up to about 100 MB each.
+- Removes such a folder when both hold:
+  - nothing in it was written within `DISKCLEANER_TMP_MINUTES` (60) minutes;
+  - `lsof` sees no process with a file or folder in it open, so a running
+    test binary or `go run` server keeps its folder (`SKIPPED`).
 - Nothing is lost: none of them is read again.
-- Skips the Go folders while a `go` command runs (`DISKCLEANER_GO_PROCESSES`),
-  and the Xcode ones while Xcode or `xcodebuild` runs
-  (`DISKCLEANER_XCODE_PROCESSES`).
-- Settings: `DISKCLEANER_USER_TMP`, `DISKCLEANER_TMP_MINUTES`,
-  `DISKCLEANER_GO_PROCESSES`, `DISKCLEANER_XCODE_PROCESSES`.
+- When `lsof` fails, warns or does not answer within 30 seconds, the folder
+  stays and the step fails.
+- Settings: `DISKCLEANER_USER_TMP`, `DISKCLEANER_TMP_MINUTES`.
 
 ### code-sign-clones
 
@@ -150,6 +151,8 @@ A build started after a step checked for running tools is not detected.
   that no running process was started from: `lsof` finds none of the
   programs in its `Contents/MacOS` and frameworks open. A Chrome running from
   a copy, including one started for remote debugging, keeps it (`SKIPPED`).
+- Keeps a copy with no such program inside (`SKIPPED`): without one, `lsof`
+  cannot tell whether an app runs from it.
 - When `lsof` fails, warns or does not answer within 30 seconds, the copy
   stays and the step fails.
 - Settings: `DISKCLEANER_CODE_SIGN_CLONES` (the `X` folder),

@@ -16,19 +16,20 @@ Run `diskcleaner clean --dry-run` first to see the list.
 ### Added
 
 - A new step, `temp-leftovers`, removes `go-build*`, `go-link-*` and
-  `XcodeDistPipeline.*` folders written more than an hour ago in the
-  temporary folder `getconf DARWIN_USER_TEMP_DIR` names. Go leaves the first
-  two when a `go build`, `test` or `run` is killed; `xcodebuild` leaves the
-  last after exporting an archive. On one machine they held 2.1 GB. The Go
-  folders are skipped while a `go` command runs, the Xcode ones while Xcode
-  or `xcodebuild` runs. `DISKCLEANER_TMP_MINUTES` (60) sets the age;
+  `XcodeDistPipeline.*` folders in the temporary folder
+  `getconf DARWIN_USER_TEMP_DIR` names. Go leaves the first two when a
+  `go build`, `test` or `run` is killed; an archive export leaves the last.
+  On one machine they held 2.1 GB. A folder stays while anything in it was
+  written within `DISKCLEANER_TMP_MINUTES` (60) minutes or `lsof` shows a
+  process with something in it open, such as a running test binary.
   `DISKCLEANER_USER_TMP` sets the folder.
 - A new step, `code-sign-clones`, removes the copies Chrome makes of itself at
   each start under `/var/folders/.../X/*.code_sign_clone` and leaves behind
   when it crashes, is killed or restarts for an update, 1.4 to 2.8 GB each. A
   copy that `lsof` shows a running program was started from is kept, and so
-  is one made within `DISKCLEANER_TMP_MINUTES`.
-  `DISKCLEANER_CODE_SIGN_CLONES` sets the folder.
+  is one made within `DISKCLEANER_TMP_MINUTES`, and one with no program
+  inside where it expects one. `DISKCLEANER_CODE_SIGN_CLONES` sets the
+  folder.
 
 `clean` runs both right after `xcode-derived-data`.
 

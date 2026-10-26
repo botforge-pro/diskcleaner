@@ -120,6 +120,21 @@ func TestKeepsACloneMadeWithinTheLimit(t *testing.T) {
 	assert.Contains(t, stderr, "SKIPPED       "+clone+": made within 60 minutes")
 }
 
+func TestKeepsACloneWithNoProgramToAskAbout(t *testing.T) {
+	dir := newDir(t)
+	clone := filepath.Join(dir, "com.example.Other.code_sign_clone", "code_sign_clone.a")
+	program := filepath.Join(clone, "Other.app", "Other")
+	require.NoError(t, os.MkdirAll(filepath.Dir(program), 0o755))
+	require.NoError(t, os.WriteFile(program, make([]byte, 8192), 0o755))
+	require.NoError(t, os.Chtimes(clone, now.Add(-48*time.Hour), now.Add(-48*time.Hour)))
+
+	r, _, stderr := run(step(dir, "/usr/bin/false"), false)
+
+	assert.FileExists(t, program)
+	assert.Zero(t, r.Count)
+	assert.Contains(t, stderr, "SKIPPED       "+clone+": no app program found in it to ask lsof about")
+}
+
 func TestLsofFailureKeepsTheCloneAndFails(t *testing.T) {
 	dir := newDir(t)
 	clone := makeClone(t, dir, "code_sign_clone.a", 2*time.Hour)

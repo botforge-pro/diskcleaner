@@ -30,11 +30,13 @@ type Step struct {
 }
 
 func Default() (Step, error) {
-	dir, err := settings.EnvOrUserTemp("DISKCLEANER_CODE_SIGN_CLONES", func(temp string) string {
-		return filepath.Join(filepath.Dir(temp), "X")
-	})
-	if err != nil {
-		return Step{}, err
+	dir := settings.Env("DISKCLEANER_CODE_SIGN_CLONES", "")
+	if dir == "" {
+		temp, err := settings.UserTemp()
+		if err != nil {
+			return Step{}, fmt.Errorf("%w; set DISKCLEANER_CODE_SIGN_CLONES instead", err)
+		}
+		dir = filepath.Join(filepath.Dir(temp), "X")
 	}
 	minutes, err := settings.PositiveDuration("DISKCLEANER_TMP_MINUTES", 60, time.Minute, "minutes")
 	if err != nil {
@@ -96,16 +98,18 @@ func (s Step) check(r *report.Report, clone string) {
 		r.Fail("look into %s: %v", clone, err)
 		return
 	}
-	if len(files) > 0 {
-		open, err := process.OpenFiles(s.LsofTimeoutSeconds, s.Lsof, files)
-		if err != nil {
-			r.Fail("lsof in %s: %v", clone, err)
-			return
-		}
-		if len(open) > 0 {
-			r.Skip("%s: a running app was started from it", clone)
-			return
-		}
+	if len(files) == 0 {
+		r.Skip("%s: no app program found in it to ask lsof about", clone)
+		return
+	}
+	open, err := process.OpenFiles(s.LsofTimeoutSeconds, s.Lsof, files)
+	if err != nil {
+		r.Fail("lsof in %s: %v", clone, err)
+		return
+	}
+	if len(open) > 0 {
+		r.Skip("%s: a running app was started from it", clone)
+		return
 	}
 	r.Remove(clone)
 }

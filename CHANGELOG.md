@@ -9,36 +9,38 @@ is 0.x, commands and output may still change.
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.14.0`.
 
-After upgrading, `diskcleaner clean` also deletes old work folders of Go and
-Xcode in your temporary folder and copies of Chrome no running Chrome uses.
-Run `diskcleaner clean --dry-run` first to see the list.
+After upgrading, `diskcleaner clean` deletes two more kinds of leftovers on
+your Mac, leaving alone anything a running program has open. Run
+`diskcleaner clean --dry-run` first to see the list. No settings need to
+change.
 
 ### Added
 
-- A new step, `temp-leftovers`, removes `go-build*`, `go-link-*` and
-  `XcodeDistPipeline.*` folders in the temporary folder
-  `getconf DARWIN_USER_TEMP_DIR` names. Go leaves the first two when a
-  `go build`, `test` or `run` is killed; an archive export leaves the last.
-  A folder stays while anything in it was
-  written within `DISKCLEANER_TMP_MINUTES` (60) minutes or `lsof` shows a
-  process with something in it open, such as a running test binary.
-  `DISKCLEANER_USER_TMP` sets the folder.
-- A new step, `code-sign-clones`, removes the copies Chrome makes of itself at
-  each start under `/var/folders/.../X/*.code_sign_clone` and leaves behind
-  when it crashes, is killed or restarts for an update, gigabytes each. A
-  copy that `lsof` shows a running program was started from is kept, and so
-  is one made within `DISKCLEANER_TMP_MINUTES`, and one with no program
-  inside where it expects one. `DISKCLEANER_CODE_SIGN_CLONES` sets the
-  folder.
-
-`clean` runs both right after `xcode-derived-data`.
+- New step `temp-leftovers`. When a `go build`, `go test` or `go run` is
+  killed, Go leaves its work folder behind: `go-build…` or `go-link-…`.
+  Exporting an Xcode archive for upload can leave an `XcodeDistPipeline.…`
+  folder. The step deletes these folders from your user temporary folder in
+  `/var/folders`. A folder is kept if anything in it changed in the last hour,
+  or if a running program has a file in it open.
+- New step `code-sign-clones`. Each time Google Chrome starts on macOS, it
+  copies itself, a few gigabytes, into
+  `/var/folders/…/X/com.google.Chrome.code_sign_clone`. Chrome deletes the
+  copy when it quits normally, but not after a crash, a forced quit or a
+  restart for an update. The step deletes these copies, and those of other
+  apps that make such copies in the same `X` folder. A copy is kept if a
+  running program was started from it, if it was made in the last hour, or
+  if the step cannot find the app's program inside it to check.
+- Every `clean` and `clean --dry-run` runs both; each also runs alone with
+  `diskcleaner run temp-leftovers` or `diskcleaner run code-sign-clones`.
+  `DISKCLEANER_TMP_MINUTES` changes the hour for both; `README.md` lists the
+  other settings.
 
 ### Fixed
 
-- `claude-logs` and `codex-logs` no longer stop with `FAILED` when only some
-  of the 50 old logs they check at once are open. `lsof` exits with status 1
-  in that case while listing the open ones, which was taken for a failure;
-  now the open logs are kept and the rest are removed.
+- The steps that delete old Claude Code and Codex session logs,
+  `claude-logs` and `codex-logs`, reported `FAILED` and deleted no further
+  logs whenever some of the old logs were still open. Now they keep the open
+  logs and delete the rest.
 
 ## [0.13.1] - 2026-10-22
 

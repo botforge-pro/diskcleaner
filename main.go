@@ -14,6 +14,7 @@ import (
 	"github.com/botforge-pro/diskcleaner/internal/gocache"
 	"github.com/botforge-pro/diskcleaner/internal/gradle"
 	"github.com/botforge-pro/diskcleaner/internal/homebrew"
+	"github.com/botforge-pro/diskcleaner/internal/ide"
 	"github.com/botforge-pro/diskcleaner/internal/leftovers"
 	"github.com/botforge-pro/diskcleaner/internal/nodemodules"
 	"github.com/botforge-pro/diskcleaner/internal/projects"
@@ -60,6 +61,7 @@ var catalog = []stepInfo{
 		s, err := clones.Default()
 		return s, err
 	}},
+	{"ide-old-versions", "settings, caches and logs of IDE versions older than the installed one", func(home string) (step, error) { return ide.Default(home), nil }},
 	{"simulator-data", "data of iOS simulators not used for days", func(home string) (step, error) {
 		s, err := simulator.DefaultData(home)
 		return s, err

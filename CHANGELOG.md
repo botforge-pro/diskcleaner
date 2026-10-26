@@ -5,6 +5,24 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.15.0] - 2026-10-26
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.15.0`.
+
+After upgrading, `diskcleaner clean` also deletes what older versions of
+JetBrains IDEs and Android Studio left on your Mac. Run
+`diskcleaner clean --dry-run` first to see the list.
+
+### Added
+
+- New step `ide-old-versions`. A JetBrains IDE such as GoLand or PyCharm, and
+  Android Studio, keep their settings, caches and logs in folders named after
+  the version, such as `GoLand2025.3`. After an upgrade the new version copies
+  the settings it wants, and the old folders stay. The step deletes the
+  folders of versions older than the one installed. It keeps the folders of
+  every installed version, of newer versions, and of IDEs that are not
+  installed at all.
+
 ## [0.14.1] - 2026-10-26
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.14.1`.

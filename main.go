@@ -9,10 +9,12 @@ import (
 	"runtime/debug"
 	"strings"
 
+	"github.com/botforge-pro/diskcleaner/internal/clones"
 	"github.com/botforge-pro/diskcleaner/internal/docker"
 	"github.com/botforge-pro/diskcleaner/internal/gocache"
 	"github.com/botforge-pro/diskcleaner/internal/gradle"
 	"github.com/botforge-pro/diskcleaner/internal/homebrew"
+	"github.com/botforge-pro/diskcleaner/internal/leftovers"
 	"github.com/botforge-pro/diskcleaner/internal/nodemodules"
 	"github.com/botforge-pro/diskcleaner/internal/projects"
 	"github.com/botforge-pro/diskcleaner/internal/report"
@@ -50,6 +52,14 @@ var catalog = []stepInfo{
 	}},
 	{"swiftpm-cache", "the Swift Package Manager cache", func(home string) (step, error) { return swiftpm.Default(home), nil }},
 	{"xcode-derived-data", "Xcode DerivedData", func(home string) (step, error) { return xcode.Default(home), nil }},
+	{"temp-leftovers", "temporary folders of killed Go builds and of Xcode exports", func(string) (step, error) {
+		s, err := leftovers.Default()
+		return s, err
+	}},
+	{"code-sign-clones", "copies of Chrome and other apps no running app uses", func(string) (step, error) {
+		s, err := clones.Default()
+		return s, err
+	}},
 	{"simulator-data", "data of iOS simulators not used for days", func(home string) (step, error) {
 		s, err := simulator.DefaultData(home)
 		return s, err

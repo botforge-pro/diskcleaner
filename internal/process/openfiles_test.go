@@ -24,6 +24,36 @@ func TestOpenFilesNamesTheOpenOnes(t *testing.T) {
 	assert.Equal(t, map[string]bool{"/logs/b.jsonl": true}, open)
 }
 
+func TestOpenFilesNamesTheOpenOnesWhenLsofExitsOneForTheRest(t *testing.T) {
+	lsof := fakeLsof(t, "printf 'p42\\nf3\\nn/logs/b.jsonl\\n'\nexit 1\n")
+
+	open, err := OpenFiles(5, lsof, []string{"/logs/a.jsonl", "/logs/b.jsonl"})
+
+	require.NoError(t, err)
+	assert.Equal(t, map[string]bool{"/logs/b.jsonl": true}, open)
+}
+
+func TestOpenFilesWithRealLsofAndOneOfTwoOpen(t *testing.T) {
+	dir := t.TempDir()
+	openPath := filepath.Join(dir, "open")
+	closedPath := filepath.Join(dir, "closed")
+	for _, path := range []string{openPath, closedPath} {
+		require.NoError(t, os.WriteFile(path, []byte("x"), 0o644))
+	}
+	file, err := os.Open(openPath)
+	require.NoError(t, err)
+	defer file.Close()
+	resolved, err := filepath.EvalSymlinks(openPath)
+	require.NoError(t, err)
+	resolvedClosed, err := filepath.EvalSymlinks(closedPath)
+	require.NoError(t, err)
+
+	open, err := OpenFiles(30, "lsof", []string{resolved, resolvedClosed})
+
+	require.NoError(t, err)
+	assert.Equal(t, map[string]bool{resolved: true}, open)
+}
+
 func TestOpenFilesWithNoneOpen(t *testing.T) {
 	lsof := fakeLsof(t, "exit 1\n")
 

@@ -15,6 +15,8 @@ Frees disk space on a Mac by deleting what builds and tools recreate on demand.
 | `homebrew` | old Homebrew versions and all its downloads |
 | `swiftpm-cache` | the SwiftPM package cache |
 | `xcode-derived-data` | Xcode DerivedData |
+| `temp-leftovers` | temporary folders of killed Go builds and of Xcode exports |
+| `code-sign-clones` | copies of Chrome and other apps that no running app was started from |
 | `simulator-data` | apps and data of iOS simulators not used for 3 days |
 | `simulator-caches` | Core ML caches of iOS simulators |
 | `claude-logs` | Claude Code session logs older than 20 days |
@@ -117,6 +119,41 @@ A build started after a step checked for running tools is not detected.
 - The next build is slower.
 - Skips while Xcode (any `Xcode*.app`), `xcodebuild` or `XCBBuildService` run.
 - Settings: `DISKCLEANER_XCODE_DERIVED_DATA`, `DISKCLEANER_XCODE_PROCESSES`.
+
+### temp-leftovers
+
+- Looks in your temporary folder, `getconf DARWIN_USER_TEMP_DIR` (the one in
+  `/var/folders`, whatever `TMPDIR` says), and removes folders written more
+  than `DISKCLEANER_TMP_MINUTES` (60) minutes ago:
+  - `go-build*` and `go-link-*`: the work folders of `go build`, `test` and
+    `run`. Go removes them when it exits, so the ones left behind belong to
+    commands that were killed. One killed `go test` left 1.1 GB;
+  - `XcodeDistPipeline.*`: what `xcodebuild -exportArchive` leaves after
+    exporting an archive for upload, about 100 MB per upload.
+- Nothing is lost: none of them is read again.
+- Skips the Go folders while a `go` command runs (`DISKCLEANER_GO_PROCESSES`),
+  and the Xcode ones while Xcode or `xcodebuild` runs
+  (`DISKCLEANER_XCODE_PROCESSES`).
+- Settings: `DISKCLEANER_USER_TMP`, `DISKCLEANER_TMP_MINUTES`,
+  `DISKCLEANER_GO_PROCESSES`, `DISKCLEANER_XCODE_PROCESSES`.
+
+### code-sign-clones
+
+- Chrome copies itself into
+  `/var/folders/.../X/com.google.Chrome.code_sign_clone/code_sign_clone.*`
+  each time it starts, 1.4 to 2.8 GB a copy, and removes the copy when it
+  quits.
+  A copy outlives a Chrome that crashed, was killed or was restarted by an
+  update. Other apps that do the same have their own `*.code_sign_clone`
+  folder next to it.
+- Removes each copy made more than `DISKCLEANER_TMP_MINUTES` (60) minutes ago
+  that no running process was started from: `lsof` finds none of the
+  programs in its `Contents/MacOS` and frameworks open. A Chrome running from
+  a copy, including one started for remote debugging, keeps it (`SKIPPED`).
+- When `lsof` fails, warns or does not answer within 30 seconds, the copy
+  stays and the step fails.
+- Settings: `DISKCLEANER_CODE_SIGN_CLONES` (the `X` folder),
+  `DISKCLEANER_TMP_MINUTES`.
 
 ### swiftpm-cache
 

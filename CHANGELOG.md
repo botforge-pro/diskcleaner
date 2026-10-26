@@ -5,6 +5,40 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.14.0] - 2026-10-26
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.14.0`.
+
+After upgrading, `diskcleaner clean` also deletes old work folders of Go and
+Xcode in your temporary folder and copies of Chrome no running Chrome uses.
+Run `diskcleaner clean --dry-run` first to see the list.
+
+### Added
+
+- A new step, `temp-leftovers`, removes `go-build*`, `go-link-*` and
+  `XcodeDistPipeline.*` folders written more than an hour ago in the
+  temporary folder `getconf DARWIN_USER_TEMP_DIR` names. Go leaves the first
+  two when a `go build`, `test` or `run` is killed; `xcodebuild` leaves the
+  last after exporting an archive. On one machine they held 2.1 GB. The Go
+  folders are skipped while a `go` command runs, the Xcode ones while Xcode
+  or `xcodebuild` runs. `DISKCLEANER_TMP_MINUTES` (60) sets the age;
+  `DISKCLEANER_USER_TMP` sets the folder.
+- A new step, `code-sign-clones`, removes the copies Chrome makes of itself at
+  each start under `/var/folders/.../X/*.code_sign_clone` and leaves behind
+  when it crashes, is killed or restarts for an update, 1.4 to 2.8 GB each. A
+  copy that `lsof` shows a running program was started from is kept, and so
+  is one made within `DISKCLEANER_TMP_MINUTES`.
+  `DISKCLEANER_CODE_SIGN_CLONES` sets the folder.
+
+`clean` runs both right after `xcode-derived-data`.
+
+### Fixed
+
+- `claude-logs` and `codex-logs` no longer stop with `FAILED` when only some
+  of the 50 old logs they check at once are open. `lsof` exits with status 1
+  in that case while listing the open ones, which was taken for a failure;
+  now the open logs are kept and the rest are removed.
+
 ## [0.13.1] - 2026-10-22
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.13.1`.

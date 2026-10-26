@@ -31,7 +31,7 @@ var caches = []cache{
 func Default() Step {
 	return Step{
 		Go:        "go",
-		Processes: settings.Env("DISKCLEANER_GO_PROCESSES", "(^|/)go (build|test|run|install|get|mod|generate|vet|list)( |$)"),
+		Processes: settings.Env("DISKCLEANER_GO_PROCESSES", process.Go),
 		Running:   process.Running,
 	}
 }

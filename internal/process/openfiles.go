@@ -21,6 +21,8 @@ func OpenFiles(seconds int, lsof string, files []string) (map[string]bool, error
 		return openAmong(result.Stdout, files), nil
 	case errors.As(result.Err, &exit) && exit.ExitCode() == 1 && result.Output() == "":
 		return map[string]bool{}, nil
+	case errors.As(result.Err, &exit) && exit.ExitCode() == 1 && strings.TrimSpace(result.Stderr) == "":
+		return openAmong(result.Stdout, files), nil
 	case errors.As(result.Err, &exit):
 		return nil, fmt.Errorf("exit %d: %s", exit.ExitCode(), result.Output())
 	default:

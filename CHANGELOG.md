@@ -25,7 +25,10 @@ list.
 
   It acts only once the installed version has run and made its own folder,
   and keeps the data of every installed version, of newer versions, and of
-  IDEs that are not installed. What it deletes is gone for good.
+  IDEs that are not installed. An installed version is any copy in
+  `/Applications`, `~/Applications`, JetBrains Toolbox or anywhere Spotlight
+  sees; when Spotlight does not answer, the step deletes nothing. Old
+  IntelliJ-platform settings and logs it deletes are gone for good.
 
 ## [0.14.1] - 2026-10-26
 

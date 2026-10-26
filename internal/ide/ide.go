@@ -1,11 +1,13 @@
 package ide
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -23,13 +25,18 @@ var (
 
 type Step struct {
 	Applications []string
+	Toolbox      string
+	Spotlight    func() ([]string, error)
 	Library      string
 }
 
 func Default(home string) Step {
+	library := filepath.Join(home, "Library")
 	return Step{
 		Applications: []string{"/Applications", filepath.Join(home, "Applications")},
-		Library:      filepath.Join(home, "Library"),
+		Toolbox:      filepath.Join(library, "Application Support", "JetBrains", "Toolbox", "apps"),
+		Spotlight:    spotlightApps,
+		Library:      library,
 	}
 }
 
@@ -40,10 +47,9 @@ type release struct {
 	version []int
 }
 
-type editor struct {
-	app    string
-	folder string
-	commit string
+type editorBuilds struct {
+	apps    []string
+	commits []string
 }
 
 func (s Step) Run(r *report.Report) {
@@ -59,8 +65,13 @@ func (s Step) Run(r *report.Report) {
 	defer fmt.Fprintln(r.Out)
 
 	s.cleanPlatform(r, platform)
-	for _, e := range editors {
-		s.cleanEditor(r, e)
+	folders := make([]string, 0, len(editors))
+	for folder := range editors {
+		folders = append(folders, folder)
+	}
+	slices.Sort(folders)
+	for _, folder := range folders {
+		s.cleanEditor(r, folder, editors[folder])
 	}
 }
 
@@ -114,8 +125,8 @@ func (s Step) cleanVendorFolder(r *report.Report, folder, vendor string, install
 	}
 }
 
-func (s Step) cleanEditor(r *report.Report, e editor) {
-	cached := filepath.Join(s.Library, "Application Support", e.folder, "CachedData")
+func (s Step) cleanEditor(r *report.Report, folder string, builds editorBuilds) {
+	cached := filepath.Join(s.Library, "Application Support", folder, "CachedData")
 	entries, err := os.ReadDir(cached)
 	if errors.Is(err, fs.ErrNotExist) {
 		return
@@ -124,12 +135,14 @@ func (s Step) cleanEditor(r *report.Report, e editor) {
 		r.Fail("read %s: %v", cached, err)
 		return
 	}
-	if !slices.ContainsFunc(entries, func(entry fs.DirEntry) bool { return entry.Name() == e.commit && entry.IsDir() }) {
-		r.Skip("%s: %s has not made its own cache here yet", cached, e.app)
-		return
+	for i, commit := range builds.commits {
+		if !slices.ContainsFunc(entries, func(entry fs.DirEntry) bool { return entry.Name() == commit && entry.IsDir() }) {
+			r.Skip("%s: %s has not made its own cache here yet", cached, builds.apps[i])
+			return
+		}
 	}
 	for _, entry := range entries {
-		if entry.IsDir() && entry.Name() != e.commit {
+		if entry.IsDir() && !slices.Contains(builds.commits, entry.Name()) {
 			r.Remove(filepath.Join(cached, entry.Name()))
 		}
 	}
@@ -142,36 +155,87 @@ func superseded(old release, installed []release) bool {
 	return slices.ContainsFunc(installed, func(current release) bool { return slices.Compare(old.version, current.version) < 0 })
 }
 
-func (s Step) installed() (map[string][]release, []editor, error) {
+func (s Step) installed() (map[string][]release, map[string]editorBuilds, error) {
+	apps, err := s.apps()
+	if err != nil {
+		return nil, nil, err
+	}
 	platform := map[string][]release{}
-	var editors []editor
-	for _, dir := range s.Applications {
-		var apps []string
-		for _, pattern := range appPattern {
-			matches, err := filepath.Glob(filepath.Join(dir, pattern))
-			if err != nil {
-				return nil, nil, err
-			}
-			apps = append(apps, matches...)
+	editors := map[string]editorBuilds{}
+	for _, app := range apps {
+		current, ok, err := platformRelease(app)
+		if err != nil {
+			return nil, nil, fmt.Errorf("%s: %w", app, err)
 		}
-		for _, app := range apps {
-			current, ok, err := platformRelease(app)
-			if err != nil {
-				return nil, nil, fmt.Errorf("%s: %w", app, err)
-			}
-			if ok {
-				platform[current.product] = append(platform[current.product], current)
-			}
-			e, ok, err := editorBuild(app)
-			if err != nil {
-				return nil, nil, fmt.Errorf("%s: %w", app, err)
-			}
-			if ok {
-				editors = append(editors, e)
-			}
+		if ok {
+			platform[current.product] = append(platform[current.product], current)
+		}
+		folder, commit, ok, err := editorBuild(app)
+		if err != nil {
+			return nil, nil, fmt.Errorf("%s: %w", app, err)
+		}
+		if ok {
+			builds := editors[folder]
+			builds.apps = append(builds.apps, filepath.Base(app))
+			builds.commits = append(builds.commits, commit)
+			editors[folder] = builds
 		}
 	}
 	return platform, editors, nil
+}
+
+func (s Step) apps() ([]string, error) {
+	found, err := s.Spotlight()
+	if err != nil {
+		return nil, err
+	}
+	for _, dir := range s.Applications {
+		for _, pattern := range appPattern {
+			matches, err := filepath.Glob(filepath.Join(dir, pattern))
+			if err != nil {
+				return nil, err
+			}
+			found = append(found, matches...)
+		}
+	}
+	err = filepath.WalkDir(s.Toolbox, func(path string, entry fs.DirEntry, err error) error {
+		if errors.Is(err, fs.ErrNotExist) && path == s.Toolbox {
+			return filepath.SkipAll
+		}
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() && strings.HasSuffix(path, ".app") {
+			found = append(found, path)
+			return filepath.SkipDir
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	slices.Sort(found)
+	return slices.Compact(found), nil
+}
+
+func spotlightApps() ([]string, error) {
+	var stdout, stderr bytes.Buffer
+	command := exec.Command("mdfind", `kMDItemContentType == "com.apple.application-bundle"`)
+	command.Stdout = &stdout
+	command.Stderr = &stderr
+	if err := command.Run(); err != nil {
+		return nil, fmt.Errorf("mdfind: %v: %s", err, strings.TrimSpace(stderr.String()))
+	}
+	var apps []string
+	for _, line := range strings.Split(stdout.String(), "\n") {
+		if line != "" {
+			apps = append(apps, line)
+		}
+	}
+	if len(apps) == 0 {
+		return nil, errors.New("mdfind lists no apps, so installed IDEs outside /Applications cannot be found; is Spotlight indexing off?")
+	}
+	return apps, nil
 }
 
 func platformRelease(app string) (release, bool, error) {
@@ -180,7 +244,7 @@ func platformRelease(app string) (release, bool, error) {
 		ProductVendor     string `json:"productVendor"`
 	}
 	found, err := readJSON(filepath.Join(app, "Contents", "Resources", "product-info.json"), &info)
-	if err != nil || !found {
+	if err != nil || !found || info.DataDirectoryName == "" || info.ProductVendor == "" {
 		return release{}, false, err
 	}
 	current, ok := parse(info.DataDirectoryName)
@@ -191,19 +255,19 @@ func platformRelease(app string) (release, bool, error) {
 	return current, true, nil
 }
 
-func editorBuild(app string) (editor, bool, error) {
+func editorBuild(app string) (string, string, bool, error) {
 	var info struct {
 		NameShort string `json:"nameShort"`
 		Commit    string `json:"commit"`
 	}
 	found, err := readJSON(filepath.Join(app, "Contents", "Resources", "app", "product.json"), &info)
 	if err != nil || !found || info.NameShort == "" || info.Commit == "" {
-		return editor{}, false, err
+		return "", "", false, err
 	}
 	if !safeName(info.NameShort) || !safeName(info.Commit) {
-		return editor{}, false, fmt.Errorf("unexpected nameShort %q or commit %q", info.NameShort, info.Commit)
+		return "", "", false, fmt.Errorf("unexpected nameShort %q or commit %q", info.NameShort, info.Commit)
 	}
-	return editor{app: filepath.Base(app), folder: info.NameShort, commit: info.Commit}, true, nil
+	return info.NameShort, info.Commit, true, nil
 }
 
 func readJSON(path string, into any) (bool, error) {

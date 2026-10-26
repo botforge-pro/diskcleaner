@@ -2,6 +2,7 @@ package ide
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,18 +13,27 @@ import (
 )
 
 type machine struct {
-	apps    string
-	library string
+	root      string
+	apps      string
+	library   string
+	toolbox   string
+	spotlight []string
 }
 
-func newMachine(t *testing.T) machine {
+func newMachine(t *testing.T) *machine {
 	root := t.TempDir()
-	m := machine{apps: filepath.Join(root, "Applications"), library: filepath.Join(root, "Library")}
+	m := &machine{
+		root:      root,
+		apps:      filepath.Join(root, "Applications"),
+		library:   filepath.Join(root, "Library"),
+		toolbox:   filepath.Join(root, "Library", "Application Support", "JetBrains", "Toolbox", "apps"),
+		spotlight: []string{"/System/Applications/Calculator.app"},
+	}
 	require.NoError(t, os.MkdirAll(m.apps, 0o755))
 	return m
 }
 
-func (m machine) folder(kind, vendor string) string {
+func (m *machine) folder(kind, vendor string) string {
 	return filepath.Join(m.library, kind, vendor)
 }
 
@@ -48,8 +58,13 @@ func data(t *testing.T, folder, name string) string {
 	return path
 }
 
-func (m machine) step() Step {
-	return Step{Applications: []string{m.apps}, Library: m.library}
+func (m *machine) step() Step {
+	return Step{
+		Applications: []string{m.apps},
+		Toolbox:      m.toolbox,
+		Spotlight:    func() ([]string, error) { return m.spotlight, nil },
+		Library:      m.library,
+	}
 }
 
 func run(s Step, dryRun bool) (*report.Report, string, string) {
@@ -99,6 +114,59 @@ func TestKeepsEveryInstalledVersion(t *testing.T) {
 
 	assert.NoDirExists(t, older)
 	assert.DirExists(t, installed)
+	assert.Equal(t, 1, r.Count)
+}
+
+func TestKeepsAVersionInstalledAnywhereSpotlightOrToolboxSees(t *testing.T) {
+	m := newMachine(t)
+	installPlatform(t, m.apps, "GoLand.app", "JetBrains", "GoLand2026.2")
+	downloads := filepath.Join(m.root, "Downloads")
+	installPlatform(t, downloads, "GoLand 2025.1.app", "JetBrains", "GoLand2025.1")
+	m.spotlight = append(m.spotlight, filepath.Join(downloads, "GoLand 2025.1.app"))
+	installPlatform(t, filepath.Join(m.toolbox, "GoLand", "ch-0", "252.1"), "GoLand.app", "JetBrains", "GoLand2025.2")
+	support := m.folder("Application Support", "JetBrains")
+	inDownloads := data(t, support, "GoLand2025.1")
+	inToolbox := data(t, support, "GoLand2025.2")
+	nowhere := data(t, support, "GoLand2024.3")
+	data(t, support, "GoLand2026.2")
+
+	r, _, stderr := run(m.step(), false)
+
+	assert.Empty(t, stderr)
+	assert.DirExists(t, inDownloads)
+	assert.DirExists(t, inToolbox)
+	assert.NoDirExists(t, nowhere)
+	assert.Equal(t, 1, r.Count)
+}
+
+func TestSpotlightFailureRemovesNothingAndFails(t *testing.T) {
+	m := newMachine(t)
+	installPlatform(t, m.apps, "GoLand.app", "JetBrains", "GoLand2026.2")
+	support := m.folder("Application Support", "JetBrains")
+	old := data(t, support, "GoLand2025.3")
+	data(t, support, "GoLand2026.2")
+	s := m.step()
+	s.Spotlight = func() ([]string, error) { return nil, errors.New("mdfind: exit status 1") }
+
+	r, _, _ := run(s, false)
+
+	assert.DirExists(t, old)
+	assert.Zero(t, r.Count)
+	assert.Len(t, r.Failures, 1)
+}
+
+func TestToolboxAndOtherAppsWithoutIDEFieldsAreNotIDEs(t *testing.T) {
+	m := newMachine(t)
+	installPlatform(t, m.apps, "GoLand.app", "JetBrains", "GoLand2026.2")
+	writeFile(t, filepath.Join(m.apps, "JetBrains Toolbox.app", "Contents", "Resources", "product-info.json"), `{"name": "Toolbox"}`)
+	support := m.folder("Application Support", "JetBrains")
+	old := data(t, support, "GoLand2025.3")
+	data(t, support, "GoLand2026.2")
+
+	r, _, stderr := run(m.step(), false)
+
+	assert.Empty(t, stderr)
+	assert.NoDirExists(t, old)
 	assert.Equal(t, 1, r.Count)
 }
 
@@ -152,6 +220,24 @@ func TestRemovesTheCacheOfEditorBuildsNoLongerInstalled(t *testing.T) {
 	assert.DirExists(t, current)
 	assert.DirExists(t, vsix)
 	assert.Equal(t, 2, r.Count)
+}
+
+func TestKeepsTheCacheOfEveryInstalledBuildOfOneEditor(t *testing.T) {
+	m := newMachine(t)
+	installEditor(t, m.apps, "Visual Studio Code.app", "Code", "aaaa")
+	installEditor(t, m.apps, "Old/Visual Studio Code.app", "Code", "bbbb")
+	cached := filepath.Join(m.library, "Application Support", "Code", "CachedData")
+	first := data(t, cached, "aaaa")
+	second := data(t, cached, "bbbb")
+	gone := data(t, cached, "cccc")
+
+	r, _, stderr := run(m.step(), false)
+
+	assert.Empty(t, stderr)
+	assert.DirExists(t, first)
+	assert.DirExists(t, second)
+	assert.NoDirExists(t, gone)
+	assert.Equal(t, 1, r.Count)
 }
 
 func TestKeepsEditorCacheUntilTheInstalledBuildHasMadeItsOwn(t *testing.T) {

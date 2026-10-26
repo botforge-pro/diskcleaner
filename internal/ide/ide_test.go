@@ -81,12 +81,25 @@ func TestKeepsEveryInstalledVersion(t *testing.T) {
 	install(t, m.apps, "JetBrains Toolbox/GoLand 2025.3.app", "GoLand2025.3")
 	older := data(t, m.support, "GoLand2025.1")
 	installed := data(t, m.support, "GoLand2025.3")
+	data(t, m.support, "GoLand2026.2")
 
 	r, _, _ := run(m.step(), false)
 
 	assert.NoDirExists(t, older)
 	assert.DirExists(t, installed)
 	assert.Equal(t, 1, r.Count)
+}
+
+func TestKeepsTheOldFolderUntilTheNewVersionHasMadeItsOwn(t *testing.T) {
+	m := newMachine(t)
+	install(t, m.apps, "GoLand.app", "GoLand2026.2")
+	old := data(t, m.support, "GoLand2025.3")
+
+	r, _, stderr := run(m.step(), false)
+
+	assert.DirExists(t, old)
+	assert.Zero(t, r.Count)
+	assert.Contains(t, stderr, "SKIPPED       "+old+": GoLand2026.2 has not made its own folder here yet")
 }
 
 func TestKeepsNewerVersionsAndProductsNotInstalled(t *testing.T) {
@@ -109,6 +122,7 @@ func TestDryRunRemovesNothing(t *testing.T) {
 	m := newMachine(t)
 	install(t, m.apps, "GoLand.app", "GoLand2026.2")
 	old := data(t, m.support, "GoLand2025.3")
+	data(t, m.support, "GoLand2026.2")
 
 	r, _, _ := run(m.step(), true)
 

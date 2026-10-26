@@ -19,7 +19,7 @@ and the table says which.
 | `xcode-derived-data` | Xcode DerivedData | yes: the next build |
 | `temp-leftovers` | temporary folders of killed Go builds and of Xcode exports | nothing reads them again |
 | `code-sign-clones` | copies of Chrome and other apps that no running app was started from | nothing reads them again |
-| `ide-old-versions` | settings, caches and logs of JetBrains IDE and Android Studio versions older than the installed one | **no**, but the installed version already took over the settings it wanted |
+| `ide-old-versions` | settings, caches and logs of JetBrains IDE and Android Studio versions older than the installed one | **no**: old settings and logs are deleted for good |
 | `simulator-data` | apps and data of iOS simulators not used for 3 days | **no**: the simulator is reset to new |
 | `simulator-caches` | Core ML caches of iOS simulators | yes: the app compiles its models again |
 | `claude-logs` | Claude Code session logs older than 20 days | **no**: such a session can no longer be resumed |
@@ -221,9 +221,14 @@ Settings: `DISKCLEANER_REPOS_DIR`, `DISKCLEANER_GIT_TMP_MINUTES`,
 - It learns which versions are installed from the `dataDirectoryName` in the
   `product-info.json` of each app in `/Applications` and `~/Applications`,
   one folder deep (JetBrains Toolbox).
-- Removes a folder only when the same product is installed in a newer
-  version and this version is not installed. Folders of products not
-  installed, of newer versions, and of every installed version stay.
+- Removes a folder only when all of these hold:
+  - the same product is installed in a newer version;
+  - this version is not installed;
+  - the newest installed version has a folder of its own next to it, so it
+    has run and had the chance to copy the settings it wants. Until then the
+    old folder stays (`SKIPPED`).
+- Folders of products not installed, of newer versions, and of every
+  installed version stay.
 - An app whose `product-info.json` cannot be read stops the step before
   anything is removed (`FAILED`).
 

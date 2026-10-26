@@ -37,6 +37,7 @@ func Default(home string) Step {
 }
 
 type release struct {
+	name    string
 	product string
 	version []int
 }
@@ -67,22 +68,30 @@ func (s Step) Run(r *report.Report) {
 			if !ok || !entry.IsDir() {
 				continue
 			}
-			if superseded(old, installed[old.product]) {
-				r.Remove(filepath.Join(folder, entry.Name()))
+			versions := installed[old.product]
+			if !superseded(old, versions) {
+				continue
 			}
+			path := filepath.Join(folder, entry.Name())
+			newest := slices.MaxFunc(versions, func(a, b release) int { return slices.Compare(a.version, b.version) })
+			if !r.Directory(filepath.Join(folder, newest.name)) {
+				r.Skip("%s: %s has not made its own folder here yet", path, newest.name)
+				continue
+			}
+			r.Remove(path)
 		}
 	}
 }
 
-func superseded(old release, installed [][]int) bool {
-	if len(installed) == 0 || slices.ContainsFunc(installed, func(version []int) bool { return slices.Equal(version, old.version) }) {
+func superseded(old release, installed []release) bool {
+	if len(installed) == 0 || slices.ContainsFunc(installed, func(current release) bool { return slices.Equal(current.version, old.version) }) {
 		return false
 	}
-	return slices.Compare(old.version, slices.MaxFunc(installed, slices.Compare[[]int])) < 0
+	return slices.ContainsFunc(installed, func(current release) bool { return slices.Compare(old.version, current.version) < 0 })
 }
 
-func (s Step) installed() (map[string][][]int, error) {
-	installed := map[string][][]int{}
+func (s Step) installed() (map[string][]release, error) {
+	installed := map[string][]release{}
 	for _, dir := range s.Applications {
 		var apps []string
 		for _, pattern := range []string{"*.app", "*/*.app"} {
@@ -104,7 +113,7 @@ func (s Step) installed() (map[string][][]int, error) {
 			if !ok {
 				return nil, fmt.Errorf("%s: unexpected dataDirectoryName %q", app, name)
 			}
-			installed[current.product] = append(installed[current.product], current.version)
+			installed[current.product] = append(installed[current.product], current)
 		}
 	}
 	return installed, nil
@@ -137,5 +146,5 @@ func parse(name string) (release, bool) {
 		}
 		version = append(version, number)
 	}
-	return release{product: match[1], version: version}, true
+	return release{name: name, product: match[1], version: version}, true
 }

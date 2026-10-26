@@ -17,11 +17,11 @@ JetBrains IDEs and Android Studio left on your Mac. Run
 
 - New step `ide-old-versions`. A JetBrains IDE such as GoLand or PyCharm, and
   Android Studio, keep their settings, caches and logs in folders named after
-  the version, such as `GoLand2025.3`. After an upgrade the new version copies
-  the settings it wants, and the old folders stay. The step deletes the
-  folders of versions older than the one installed. It keeps the folders of
-  every installed version, of newer versions, and of IDEs that are not
-  installed at all.
+  the version, such as `GoLand2025.3`, and an upgrade leaves the old folders
+  behind. The step deletes the folders of versions older than the one
+  installed, once the installed version has run and made folders of its own.
+  It keeps the folders of every installed version, of newer versions, and of
+  IDEs that are not installed at all. What it deletes is gone for good.
 
 ## [0.14.1] - 2026-10-26
 

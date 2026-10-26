@@ -9,26 +9,32 @@ is 0.x, commands and output may still change.
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.15.0`.
 
-After upgrading, `diskcleaner clean` also deletes what older versions of your
-IDEs left on your Mac. Run `diskcleaner clean --dry-run` first to see the
-list.
+After upgrading, `diskcleaner clean` also deletes data that upgrades of your
+IDEs left behind. Run `diskcleaner clean --dry-run` first to see the list.
 
 ### Added
 
 - New step `ide-old-versions`. An upgrade of an IDE leaves the old version's
   data behind. The step deletes it for two families of IDEs:
-  - every IDE built on the IntelliJ platform, such as GoLand, PyCharm and
-    Android Studio: the settings, caches and logs of older versions, such as
-    the folder `GoLand2025.3`;
-  - VS Code and its forks, such as Cursor: the code cache of builds no longer
-    installed.
-
-  It acts only once the installed version has run and made its own folder,
-  and keeps the data of every installed version, of newer versions, and of
-  IDEs that are not installed. An installed version is any copy in
-  `/Applications`, `~/Applications`, JetBrains Toolbox or anywhere Spotlight
-  sees; when Spotlight does not answer, the step deletes nothing. Old
-  IntelliJ-platform settings and logs it deletes are gone for good.
+  - IDEs built on the IntelliJ platform, such as GoLand, PyCharm and Android
+    Studio: the settings, caches and logs of a version older than the
+    installed one, such as the folder
+    `~/Library/Application Support/JetBrains/GoLand2025.3`. These are deleted
+    for good, not moved to the Trash;
+  - VS Code and its forks, such as Cursor: the folders under
+    `~/Library/Application Support/Code/CachedData` that belong to versions
+    no longer installed. The editor rebuilds this cache when needed.
+- What stays:
+  - the data of every version that is installed, including two versions of
+    one IDE side by side;
+  - everything of an IDE that is not installed at all;
+  - the old data until the newly installed version has been started once,
+    so it has had the chance to copy the old settings.
+- "Installed" means a copy is in `/Applications`, `~/Applications`, the
+  JetBrains Toolbox apps folder, or anywhere Spotlight has indexed, such as
+  `~/Downloads`. A copy on a disk Spotlight does not index is not seen. If
+  the Spotlight search fails or finds no apps at all, the step deletes
+  nothing.
 
 ## [0.14.1] - 2026-10-26
 

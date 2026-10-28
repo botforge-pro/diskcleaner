@@ -30,6 +30,7 @@ type Step struct {
 	Exclude            []string
 	Files              bool
 	Owner              *int
+	MinKB              int64
 	Minutes            int
 	Now                func() time.Time
 	Lsof               string
@@ -42,12 +43,17 @@ func SystemTemp() (Step, error) {
 	if err != nil {
 		return Step{}, err
 	}
+	minKB, err := settings.PositiveInt("DISKCLEANER_SYSTEM_TMP_MIN_KB", 1024)
+	if err != nil {
+		return Step{}, err
+	}
 	return Step{
 		Dir:                settings.Env("DISKCLEANER_SYSTEM_TMP", "/private/tmp"),
 		Patterns:           []string{"*"},
 		Exclude:            keptInSystemTemp,
 		Files:              true,
 		Owner:              new(os.Getuid()),
+		MinKB:              int64(minKB),
 		Minutes:            minutes,
 		Now:                time.Now,
 		Lsof:               "lsof",
@@ -122,25 +128,34 @@ func (s Step) check(r *report.Report, path string) {
 	if !s.owns(info) {
 		return
 	}
-	var entries []string
-	var latest time.Time
+	var found tree
 	switch {
 	case info.IsDir():
-		entries, latest, err = walk(path)
+		found, err = walk(path)
+		if errors.Is(err, fs.ErrNotExist) {
+			return
+		}
 		if err != nil {
 			r.Fail("look into %s: %v", path, err)
 			return
 		}
 	case s.Files && info.Mode().IsRegular():
-		entries, latest = []string{path}, info.ModTime()
+		found.add(path, info)
 	default:
 		return
 	}
-	if s.Now().Sub(latest) <= time.Duration(s.Minutes)*time.Minute {
+	if found.kb < s.MinKB {
+		return
+	}
+	if found.socket != "" {
+		r.Skip("%s: holds the socket %s, which a process may be listening on", path, found.socket)
+		return
+	}
+	if s.Now().Sub(found.latest) <= time.Duration(s.Minutes)*time.Minute {
 		r.Skip("%s: written within %d minutes", path, s.Minutes)
 		return
 	}
-	for batch := range slices.Chunk(entries, s.Batch) {
+	for batch := range slices.Chunk(found.entries, s.Batch) {
 		open, err := process.OpenFiles(s.LsofTimeoutSeconds, s.Lsof, batch)
 		if err != nil {
 			r.Fail("lsof in %s: %v", path, err)
@@ -169,22 +184,48 @@ func (s Step) owns(info fs.FileInfo) bool {
 	return ok && int(stat.Uid) == *s.Owner
 }
 
-func walk(root string) ([]string, time.Time, error) {
-	var entries []string
-	var latest time.Time
-	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+type tree struct {
+	entries []string
+	latest  time.Time
+	kb      int64
+	socket  string
+}
+
+func (t *tree) add(path string, info fs.FileInfo) {
+	t.entries = append(t.entries, path)
+	if info.ModTime().After(t.latest) {
+		t.latest = info.ModTime()
+	}
+	if stat, ok := info.Sys().(*syscall.Stat_t); ok {
+		t.kb += stat.Blocks * 512 / 1024
+	}
+	if info.Mode().Type() == fs.ModeSocket && t.socket == "" {
+		t.socket = path
+	}
+}
+
+func walk(root string) (tree, error) {
+	return walkFS(os.DirFS(root), root)
+}
+
+func walkFS(fsys fs.FS, root string) (tree, error) {
+	var found tree
+	err := fs.WalkDir(fsys, ".", func(name string, entry fs.DirEntry, err error) error {
+		if errors.Is(err, fs.ErrNotExist) && name != "." {
+			return nil
+		}
 		if err != nil {
 			return err
 		}
 		info, err := entry.Info()
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
 		if err != nil {
 			return err
 		}
-		if info.ModTime().After(latest) {
-			latest = info.ModTime()
-		}
-		entries = append(entries, path)
+		found.add(filepath.Join(root, name), info)
 		return nil
 	})
-	return entries, latest, err
+	return found, err
 }

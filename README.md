@@ -191,6 +191,7 @@ Settings: `DISKCLEANER_REPOS_DIR`, `DISKCLEANER_GIT_TMP_MINUTES`,
   - nothing in it was written within `DISKCLEANER_TMP_MINUTES` (60) minutes;
   - `lsof` sees no process with a file or folder in it open, so a running
     test binary or `go run` server keeps its folder (`SKIPPED`).
+- Keeps a folder with a socket in it (`SKIPPED`).
 - When `lsof` fails, warns or does not answer within 30 seconds, the folder
   stays and the step fails.
 - Settings: `DISKCLEANER_USER_TMP`, `DISKCLEANER_TMP_MINUTES`.
@@ -199,20 +200,26 @@ Settings: `DISKCLEANER_REPOS_DIR`, `DISKCLEANER_GIT_TMP_MINUTES`,
 
 - Looks in the shared temporary folder `/private/tmp`, where programs and
   agents put copies, dumps and downloads that outlive the work they were for.
-- Removes a file or folder of yours there when both hold:
+- Removes a file or folder of yours there when all of these hold:
+  - it takes at least `DISKCLEANER_SYSTEM_TMP_MIN_KB` (1024) KB on disk;
   - nothing in it was written within `DISKCLEANER_TMP_MINUTES` (60) minutes;
+  - there is no socket in it (`SKIPPED`);
   - `lsof` sees no process with it, or anything in it, open.
 - Keeps what belongs to another user, symbolic links, sockets, every name
   that starts with a dot, and the `claude-*` folders of Claude Code sessions,
-  which `claude-scratchpads` handles. Services name their lock files that
-  way: PostgreSQL keeps `.s.PGSQL.5432.lock` without holding it open and shuts
-  down when it disappears.
+  which `claude-scratchpads` handles.
+- The size limit and the socket rule keep what running programs need without
+  holding it open. Lock and pid files weigh a few bytes, and a program can
+  shut down when its lock disappears, as PostgreSQL does with
+  `.s.PGSQL.5432.lock`. A program that listens on a socket can be reached
+  under `/tmp`, and `lsof` asked about `/private/tmp` does not find it there.
 - Nothing is recoverable afterwards; macOS itself deletes such files after
   three days. A Chrome profile kept in `/private/tmp` goes too once Chrome is
   closed, so keep a profile you sign in to elsewhere.
 - When `lsof` fails, warns or does not answer within 30 seconds, the entry
   stays and the step fails.
-- Settings: `DISKCLEANER_SYSTEM_TMP`, `DISKCLEANER_TMP_MINUTES`.
+- Settings: `DISKCLEANER_SYSTEM_TMP`, `DISKCLEANER_SYSTEM_TMP_MIN_KB`,
+  `DISKCLEANER_TMP_MINUTES`.
 
 ### code-sign-clones
 

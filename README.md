@@ -200,23 +200,26 @@ Settings: `DISKCLEANER_REPOS_DIR`, `DISKCLEANER_GIT_TMP_MINUTES`,
 
 - Looks in the shared temporary folder `/private/tmp`, where programs and
   agents put copies, dumps and downloads that outlive the work they were for.
-- Removes a file or folder of yours there when all of these hold:
-  - it takes at least `DISKCLEANER_SYSTEM_TMP_MIN_KB` (1024) KB on disk;
+- Removes a file or folder of yours there, with everything in it, when all
+  of these hold:
+  - with everything in it, it takes at least `DISKCLEANER_SYSTEM_TMP_MIN_KB`
+    (1024) KB on disk;
   - nothing in it was written within `DISKCLEANER_TMP_MINUTES` (60) minutes;
-  - there is no socket in it (`SKIPPED`);
+  - it neither is nor holds a socket (`SKIPPED`), however old;
   - it is not a mounted volume and holds none (`SKIPPED`), such as the
     `dmg.*` folders where disk images are attached: removing it would empty
     the image or fail on a read-only one, and free nothing on this disk;
   - `lsof` sees no process with it, or anything in it, open.
-- Keeps what belongs to another user, symbolic links, sockets, every name
-  that starts with a dot, and the `claude-*` folders of Claude Code sessions,
-  which `claude-scratchpads` handles.
-- The size limit and the socket rule keep what running programs need without
-  holding it open. Lock and pid files weigh a few bytes, and a program can
-  shut down when its lock disappears, as PostgreSQL does with
-  `.s.PGSQL.5432.lock`. `lsof` finds an open file whichever path it was
-  opened by, `/tmp` or `/private/tmp`, but a socket only by the path it was
-  created under, so sockets are kept for being there.
+- Keeps what belongs to another user, symbolic links, every name that starts
+  with a dot, and the `claude-*` folders of Claude Code sessions, which
+  `claude-scratchpads` handles. These rules apply to what sits directly in
+  `/private/tmp`.
+- These rules keep what running programs need without holding it open.
+  Services name their lock files with a dot: PostgreSQL shuts down when
+  `.s.PGSQL.5432.lock` disappears. Other lock and pid files weigh a few bytes
+  and fall under the size limit. A socket is kept whatever `lsof` says:
+  `lsof` finds an open file by either path, `/tmp` or `/private/tmp`, but a
+  socket only by the path it was created under.
 - What the step removes cannot be recovered. macOS itself removes files in
   `/tmp` that nobody opened or changed for three days, so nothing there was
   meant to last.

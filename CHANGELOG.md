@@ -9,8 +9,8 @@ is 0.x, commands and output may still change.
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.16.0`.
 
-After upgrading, `diskcleaner clean` also deletes your files in
-`/private/tmp` that nothing wrote within the last hour. Run
+After upgrading, `diskcleaner clean` also deletes some of your files and
+folders in `/private/tmp`, as described below. Run
 `diskcleaner clean --dry-run` first to see the list.
 
 ### Added
@@ -18,7 +18,7 @@ After upgrading, `diskcleaner clean` also deletes your files in
 - New step `system-temp`. Copies, dumps and downloads that programs and agents
   put straight into `/private/tmp` stayed there until macOS removed them days
   later, and no step looked at them. The step deletes a file or folder of
-  yours there that takes at least 1 MB, that nothing wrote within an hour,
+  yours there that takes at least 1 MB on disk, that nothing wrote within an hour,
   that neither is nor holds a socket or a mounted volume, and that no process
   has open, together with everything in it. Smaller entries stay, because the
   lock and pid files of running programs weigh a few bytes. Other users'

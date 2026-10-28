@@ -214,11 +214,15 @@ Settings: `DISKCLEANER_REPOS_DIR`, `DISKCLEANER_GIT_TMP_MINUTES`,
 - The size limit and the socket rule keep what running programs need without
   holding it open. Lock and pid files weigh a few bytes, and a program can
   shut down when its lock disappears, as PostgreSQL does with
-  `.s.PGSQL.5432.lock`. A program that listens on a socket can be reached
-  under `/tmp`, and `lsof` asked about `/private/tmp` does not find it there.
-- Nothing is recoverable afterwards; macOS itself deletes such files after
-  three days. A Chrome profile kept in `/private/tmp` goes too once Chrome is
-  closed, so keep a profile you sign in to elsewhere.
+  `.s.PGSQL.5432.lock`. `lsof` finds an open file whichever path it was
+  opened by, `/tmp` or `/private/tmp`, but a socket only by the path it was
+  created under, so sockets are kept for being there.
+- What the step removes cannot be recovered. macOS itself removes files in
+  `/tmp` that nobody opened or changed for three days, so nothing there was
+  meant to last.
+- A Chrome profile kept in `/private/tmp` goes on the first `clean` that runs
+  more than an hour after Chrome closed. Keep a profile you sign in with in
+  your home folder instead.
 - When `lsof` fails, warns or does not answer within 30 seconds, the entry
   stays and the step fails.
 - Settings: `DISKCLEANER_SYSTEM_TMP`, `DISKCLEANER_SYSTEM_TMP_MIN_KB`,

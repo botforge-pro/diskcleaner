@@ -76,6 +76,23 @@ func TestALogOpenInAProcessStays(t *testing.T) {
 	assert.Contains(t, stderr, "SKIPPED       "+open+": a process still has it open\n")
 }
 
+func TestAnOpenLogStaysWhenTheFolderIsReachedThroughALink(t *testing.T) {
+	folder := newFolder(t)
+	link := filepath.Join(t.TempDir(), "projects")
+	require.NoError(t, os.Symlink(folder, link))
+	open := filepath.Join(folder, "-dev-app", "old.jsonl")
+	file, err := os.Open(open)
+	require.NoError(t, err)
+	defer file.Close()
+	s := step(link)
+	s.Lsof = "lsof"
+
+	_, _, stderr := run(s, false)
+
+	assert.FileExists(t, open, "lsof prints the resolved path, so the walk must use it too")
+	assert.Contains(t, stderr, "SKIPPED       "+open+": a process still has it open\n")
+}
+
 func TestALogWrittenAgainAfterTheScanStays(t *testing.T) {
 	folder := newFolder(t)
 	s := step(folder)

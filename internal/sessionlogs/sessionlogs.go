@@ -66,10 +66,15 @@ func (s Step) Run(r *report.Report) {
 	}
 	fmt.Fprintf(r.Out, "%-8s %s\n", s.Label, s.Folder)
 	defer fmt.Fprintln(r.Out)
+	folder, err := filepath.EvalSymlinks(s.Folder)
+	if err != nil {
+		r.Fail("resolve %s: %v", s.Folder, err)
+		return
+	}
 
 	var set candidates.Set
 	var walkErrors []error
-	err := filepath.WalkDir(s.Folder, func(path string, entry fs.DirEntry, err error) error {
+	err = filepath.WalkDir(folder, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			walkErrors = append(walkErrors, err)
 			return nil

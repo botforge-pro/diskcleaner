@@ -12,13 +12,21 @@ Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.17.0`.
 ### Fixed
 
 - `projects` deleted the output of a build that was still running, so the
-  build failed or started over. Now a `.build`, a Gradle `build` folder or an
-  `.apk`/`.aab` stays, with a `SKIPPED` line, when something in it was
-  written within the last hour (`DISKCLEANER_TMP_MINUTES`) or a process has
-  a file in it open or works in it. When `lsof` cannot answer, the output
-  stays and the step fails.
+  build failed or had to compile everything again. Now a SwiftPM `.build`, a
+  Gradle `build` folder or an `.apk`/`.aab` file stays when it is in use:
+  - it, or anything in a folder at any depth, was modified within
+    `DISKCLEANER_TMP_MINUTES` minutes (an environment variable, 60 by
+    default, shared with `temp-leftovers`, `system-temp` and
+    `code-sign-clones`);
+  - or `lsof` shows one of your processes with it or a file in it open, or
+    with its current folder in it, such as a shell or a dev server.
+- Each item kept this way gets a `SKIPPED` line naming the reason, and the
+  rest of the step goes on.
+- If `lsof` fails, prints any warning or does not answer within 30 seconds,
+  that one item stays and gets a `FAILED` line; the other items and steps
+  still run, and the run ends with exit status 1.
 - `node-modules` deleted a `node_modules` folder while `npm install` was
-  still writing it. It now keeps such a folder by the same two signs.
+  still writing it. It now keeps such a folder by the same check.
 
 ## [0.16.0] - 2026-10-28
 

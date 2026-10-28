@@ -5,6 +5,21 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.17.1] - 2026-10-28
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.17.1`.
+
+### Changed
+
+- `temp-leftovers`, `system-temp`, `claude-logs`, `codex-logs` and
+  `code-sign-clones` decide whether something is open the same way as
+  `projects` in 0.17.0. Each of them used to call `lsof` with the names of
+  the files to check, up to 200 at a time, so a folder with thousands of
+  files took dozens of calls. Now one call lists every file your processes
+  have open: one call per entry for the temporary-folder steps and
+  `code-sign-clones`, and one call per 50 logs for `claude-logs` and
+  `codex-logs`. What the steps keep and delete does not change.
+
 ## [0.17.0] - 2026-10-28
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.17.0`.
@@ -606,6 +621,7 @@ this release removes one kind of them. Install it with a Go toolchain:
   status 1.
 - `diskcleaner version` prints the installed version.
 
+[0.17.1]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.17.1
 [0.17.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.17.0
 [0.16.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.16.0
 [0.15.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.15.0

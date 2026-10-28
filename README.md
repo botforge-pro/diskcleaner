@@ -117,10 +117,19 @@ In each Git repository one level below `~/Developer`, removes:
 - Git LFS objects `git lfs prune --verify-remote` would prune: only those the
   remote has.
 
+A build that is running keeps its output (`SKIPPED`). A `.build`, a Gradle
+`build` or a package stays when either holds:
+
+- something in it was written within `DISKCLEANER_TMP_MINUTES` (60) minutes;
+- `lsof` sees a process with a file in it open, or working in it.
+
+When `lsof` fails, warns or does not answer within 30 seconds, the output
+stays and the step fails.
+
 `node_modules` folders are not looked into.
 
-Settings: `DISKCLEANER_REPOS_DIR`, `DISKCLEANER_GIT_TMP_MINUTES`,
-`DISKCLEANER_GIT_LSOF_TIMEOUT`.
+Settings: `DISKCLEANER_REPOS_DIR`, `DISKCLEANER_TMP_MINUTES`,
+`DISKCLEANER_GIT_TMP_MINUTES`, `DISKCLEANER_GIT_LSOF_TIMEOUT`.
 
 ### gradle-caches
 
@@ -360,12 +369,14 @@ What it keeps and cannot undo:
 
 - keeps a `node_modules` with no lockfile (`SKIPPED`): a reinstall would not
   bring back the same versions;
+- keeps a `node_modules` that an install or a running program still uses
+  (`SKIPPED`), by the same two signs as the build output in `projects`;
 - a reinstall cannot bring back packages installed with `--no-save`,
-  unpublished, or from a registry you can no longer reach;
-- it does not check whether `npm install` is running.
+  unpublished, or from a registry you can no longer reach.
 
 Settings: `DISKCLEANER_NODE_DIR`, `DISKCLEANER_REPOS_DIR`,
-`DISKCLEANER_GIT_TMP_MINUTES`, `DISKCLEANER_GIT_LSOF_TIMEOUT`.
+`DISKCLEANER_TMP_MINUTES`, `DISKCLEANER_GIT_TMP_MINUTES`,
+`DISKCLEANER_GIT_LSOF_TIMEOUT`.
 
 ## Lines of Code
 

@@ -5,6 +5,21 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.17.0] - 2026-10-28
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.17.0`.
+
+### Fixed
+
+- `projects` deleted the output of a build that was still running, so the
+  build failed or started over. Now a `.build`, a Gradle `build` folder or an
+  `.apk`/`.aab` stays, with a `SKIPPED` line, when something in it was
+  written within the last hour (`DISKCLEANER_TMP_MINUTES`) or a process has
+  a file in it open or works in it. When `lsof` cannot answer, the output
+  stays and the step fails.
+- `node-modules` deleted a `node_modules` folder while `npm install` was
+  still writing it. It now keeps such a folder by the same two signs.
+
 ## [0.16.0] - 2026-10-28
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.16.0`.
@@ -583,6 +598,7 @@ this release removes one kind of them. Install it with a Go toolchain:
   status 1.
 - `diskcleaner version` prints the installed version.
 
+[0.17.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.17.0
 [0.13.1]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.13.1
 [0.13.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.13.0
 [0.12.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.12.0

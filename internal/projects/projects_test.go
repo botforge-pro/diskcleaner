@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/botforge-pro/diskcleaner/internal/inuse"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -90,7 +91,11 @@ func newRepos(t *testing.T) string {
 
 func step(t *testing.T, repos string) Step {
 	return Step{
-		Repos:   repos,
+		Repos: repos,
+		InUse: inuse.Check{
+			Minutes: 60, Now: func() time.Time { return time.Now().Add(2 * time.Hour) },
+			Lsof: script(t, "lsof", "printf 'p1\\nfcwd\\nn/\\n'\n"), LsofTimeoutSeconds: 5,
+		},
 		Garbage: GitGarbage{Minutes: 60, LsofTimeoutSeconds: 5, Now: time.Now, Lsof: script(t, "lsof", "exit 1\n")},
 		LFS:     LFS{Git: "git", GitLFS: "diskcleaner-test-absent-git-lfs"},
 	}
@@ -145,6 +150,56 @@ func TestRemovesBuildOutputAndGitGarbage(t *testing.T) {
 	} {
 		assert.Contains(t, stderr, line)
 	}
+}
+
+func TestKeepsBuildOutputThatABuildStillUses(t *testing.T) {
+	repos := newRepos(t)
+	swift := filepath.Join(repos, "swiftapp")
+	touch(t, swift, "Packages/Running/Package.swift", "Packages/Running/.build/debug/Running.o",
+		"Packages/Linking/Package.swift", "Packages/Linking/.build/debug/Linking.o",
+		"Packages/Testing/Package.swift", "Packages/Testing/.build/debug/Testing.o")
+	age(t, swift, "Packages/Core/.build/debug/Core.o", "Packages/Core/.build/debug", "Packages/Core/.build",
+		"Packages/Linking/.build/debug/Linking.o", "Packages/Linking/.build/debug", "Packages/Linking/.build",
+		"Packages/Testing/.build/debug/Testing.o", "Packages/Testing/.build/debug", "Packages/Testing/.build")
+	linking := filepath.Join(swift, "Packages/Linking/.build")
+	file, err := os.Open(filepath.Join(linking, "debug", "Linking.o"))
+	require.NoError(t, err)
+	defer file.Close()
+	working := filepath.Join(swift, "Packages/Testing/.build")
+	sleeper := exec.Command("sleep", "60")
+	sleeper.Dir = filepath.Join(working, "debug")
+	require.NoError(t, sleeper.Start())
+	t.Cleanup(func() {
+		assert.NoError(t, sleeper.Process.Kill())
+		_ = sleeper.Wait()
+	})
+	s := step(t, repos)
+	s.InUse.Now, s.InUse.Lsof = time.Now, "lsof"
+
+	r, _, stderr := run(s, false)
+
+	assert.Empty(t, r.Failures)
+	assert.NoDirExists(t, filepath.Join(swift, "Packages/Core/.build"), "nothing uses it")
+	running := filepath.Join(swift, "Packages/Running/.build")
+	assert.DirExists(t, running)
+	assert.Contains(t, stderr, "SKIPPED       "+running+": written within 60 minutes")
+	assert.DirExists(t, linking)
+	assert.Contains(t, stderr, "SKIPPED       "+linking+": a process still has something in it open")
+	assert.DirExists(t, working, "a process works in it")
+	assert.Contains(t, stderr, "SKIPPED       "+working+": a process still has something in it open")
+}
+
+func TestLsofFailureKeepsTheBuildOutputAndFails(t *testing.T) {
+	repos := newRepos(t)
+	s := step(t, repos)
+	s.InUse.Lsof = script(t, "lsof", "echo 'lsof: broken' >&2\nexit 2\n")
+
+	r, _, _ := run(s, false)
+
+	assert.DirExists(t, filepath.Join(repos, "androidapp", "app", "build"))
+	assert.DirExists(t, filepath.Join(repos, "swiftapp", "Packages", "Core", ".build"))
+	assert.True(t, strings.Contains(strings.Join(r.Failures, "\n"), "lsof: exit 2: lsof: broken"), r.Failures)
+	assert.NoFileExists(t, filepath.Join(repos, "swiftapp", ".git", "objects", "tmp_obj_died"), "git garbage has checks of its own")
 }
 
 func TestLinkedRepositoriesAreNotEntered(t *testing.T) {

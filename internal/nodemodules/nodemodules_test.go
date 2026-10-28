@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/botforge-pro/diskcleaner/internal/inuse"
 	"github.com/botforge-pro/diskcleaner/internal/projects"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/stretchr/testify/assert"
@@ -51,7 +52,35 @@ func newRoot(t *testing.T) string {
 func step(t *testing.T, root string) Step {
 	lsof := filepath.Join(t.TempDir(), "lsof")
 	require.NoError(t, os.WriteFile(lsof, []byte("#!/bin/sh\nexit 1\n"), 0o755))
-	return Step{Root: root, Garbage: projects.GitGarbage{Minutes: 60, LsofTimeoutSeconds: 5, Now: time.Now, Lsof: lsof}}
+	listing := filepath.Join(t.TempDir(), "lsof")
+	require.NoError(t, os.WriteFile(listing, []byte("#!/bin/sh\nprintf 'p1\\nfcwd\\nn/\\n'\n"), 0o755))
+	return Step{
+		Root: root,
+		InUse: inuse.Check{
+			Minutes: 60, Now: func() time.Time { return time.Now().Add(2 * time.Hour) },
+			Lsof: listing, LsofTimeoutSeconds: 5,
+		},
+		Garbage: projects.GitGarbage{Minutes: 60, LsofTimeoutSeconds: 5, Now: time.Now, Lsof: lsof},
+	}
+}
+
+func TestKeepsNodeModulesAnInstallIsWriting(t *testing.T) {
+	root := newRoot(t)
+	s := step(t, root)
+	s.InUse.Now = time.Now
+	installed := filepath.Join(root, "workspace", "packages", "web", "node_modules")
+	old := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	for _, path := range []string{filepath.Join(installed, "left-pad", "index.js"), filepath.Join(installed, "left-pad"), installed} {
+		require.NoError(t, os.Chtimes(path, old, old))
+	}
+
+	r, _, stderr := run(s, false)
+
+	assert.Empty(t, r.Failures)
+	assert.NoDirExists(t, installed)
+	writing := filepath.Join(root, "locked", "node_modules")
+	assert.DirExists(t, writing)
+	assert.Contains(t, stderr, "SKIPPED       "+writing+": written within 60 minutes")
 }
 
 func run(s Step, dryRun bool) (*report.Report, string, string) {

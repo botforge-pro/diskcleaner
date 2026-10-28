@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/botforge-pro/diskcleaner/internal/candidates"
+	"github.com/botforge-pro/diskcleaner/internal/inuse"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/botforge-pro/diskcleaner/internal/settings"
 )
@@ -18,6 +19,7 @@ var gradleFiles = []string{"build.gradle", "build.gradle.kts", "settings.gradle"
 
 type Step struct {
 	Repos   string
+	InUse   inuse.Check
 	Garbage GitGarbage
 	LFS     LFS
 }
@@ -31,11 +33,15 @@ func Default(home string) (Step, error) {
 	if !isDir(resolved) {
 		return Step{}, fmt.Errorf("repositories directory not found: %s (set DISKCLEANER_REPOS_DIR)", repos)
 	}
+	check, err := inuse.Default()
+	if err != nil {
+		return Step{}, err
+	}
 	garbage, err := DefaultGitGarbage()
 	if err != nil {
 		return Step{}, err
 	}
-	return Step{Repos: resolved, Garbage: garbage, LFS: DefaultLFS()}, nil
+	return Step{Repos: resolved, InUse: check, Garbage: garbage, LFS: DefaultLFS()}, nil
 }
 
 func (s Step) Run(r *report.Report) {
@@ -49,10 +55,11 @@ func (s Step) Run(r *report.Report) {
 			name = repo
 		}
 		fmt.Fprintf(r.Out, "PROJECT  %s\n", name)
-		var set candidates.Set
-		s.collectBuilds(r, &set, repo)
-		s.Garbage.Collect(r, &set, repo)
-		set.Remove(r)
+		var builds, garbage candidates.Set
+		s.collectBuilds(r, &builds, repo)
+		builds.RemoveUnless(r, func(path string) bool { return s.InUse.Keep(r, path) })
+		s.Garbage.Collect(r, &garbage, repo)
+		garbage.Remove(r)
 		s.LFS.Prune(r, repo)
 		fmt.Fprintln(r.Out)
 	}

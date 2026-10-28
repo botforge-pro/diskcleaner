@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/botforge-pro/diskcleaner/internal/lock"
 	"github.com/botforge-pro/diskcleaner/internal/report"
@@ -205,6 +206,10 @@ func TestCleanCountsWhatTwoStepsBothFindOnce(t *testing.T) {
 	require.NoError(t, err, string(output))
 	for _, file := range []string{filepath.Join(app, "Package.swift"), filepath.Join(app, ".build", "pkg", "package-lock.json")} {
 		require.NoError(t, os.WriteFile(file, nil, 0o644))
+	}
+	old := time.Now().Add(-2 * time.Hour)
+	for _, path := range []string{modules, filepath.Join(app, ".build", "pkg", "package-lock.json"), filepath.Dir(modules), filepath.Join(app, ".build")} {
+		require.NoError(t, os.Chtimes(path, old, old))
 	}
 	t.Setenv("DISKCLEANER_REPOS_DIR", dir)
 	t.Setenv("DISKCLEANER_NODE_DIR", dir)

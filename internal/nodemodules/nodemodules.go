@@ -10,6 +10,7 @@ import (
 	"slices"
 
 	"github.com/botforge-pro/diskcleaner/internal/candidates"
+	"github.com/botforge-pro/diskcleaner/internal/inuse"
 	"github.com/botforge-pro/diskcleaner/internal/projects"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/botforge-pro/diskcleaner/internal/settings"
@@ -20,10 +21,15 @@ var lockfiles = []string{"package-lock.json", "npm-shrinkwrap.json", "yarn.lock"
 type Step struct {
 	Root      string
 	ReposRoot string
+	InUse     inuse.Check
 	Garbage   projects.GitGarbage
 }
 
 func Default(home string) (Step, error) {
+	check, err := inuse.Default()
+	if err != nil {
+		return Step{}, err
+	}
 	garbage, err := projects.DefaultGitGarbage()
 	if err != nil {
 		return Step{}, err
@@ -31,6 +37,7 @@ func Default(home string) (Step, error) {
 	return Step{
 		Root:      resolve(settings.Env("DISKCLEANER_NODE_DIR", filepath.Join(home, "GolandProjects"))),
 		ReposRoot: resolve(settings.Env("DISKCLEANER_REPOS_DIR", filepath.Join(home, "Developer"))),
+		InUse:     check,
 		Garbage:   garbage,
 	}, nil
 }
@@ -47,7 +54,7 @@ func (s Step) Run(r *report.Report) {
 	fmt.Fprintf(r.Out, "NODE     %s\n", s.Root)
 	defer fmt.Fprintln(r.Out)
 
-	var set candidates.Set
+	var modules, garbage candidates.Set
 	var walkErrors []error
 	err := filepath.WalkDir(s.Root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -58,7 +65,7 @@ func (s Step) Run(r *report.Report) {
 			return nil
 		}
 		if s.hasLockfile(filepath.Dir(path)) {
-			set.Add(r, path)
+			modules.Add(r, path)
 		} else {
 			r.Skip("%s: no lockfile, reinstall would not restore the same versions", path)
 		}
@@ -70,6 +77,7 @@ func (s Step) Run(r *report.Report) {
 	if len(walkErrors) > 0 {
 		r.Fail("scan %s: %v", s.Root, errors.Join(walkErrors...))
 	}
+	modules.RemoveUnless(r, func(path string) bool { return s.InUse.Keep(r, path) })
 
 	if s.Root != s.ReposRoot {
 		repos, err := projects.Repositories(s.Root)
@@ -77,10 +85,10 @@ func (s Step) Run(r *report.Report) {
 			r.Fail("scan %s: %v", s.Root, err)
 		}
 		for _, repo := range repos {
-			s.Garbage.Collect(r, &set, repo)
+			s.Garbage.Collect(r, &garbage, repo)
 		}
 	}
-	set.Remove(r)
+	garbage.Remove(r)
 }
 
 func (s Step) hasLockfile(dir string) bool {

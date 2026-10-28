@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -32,4 +34,9 @@ func OpenNames(seconds int, lsof string) ([]string, error) {
 		return nil, fmt.Errorf("listed no open files at all, not even its own")
 	}
 	return names, nil
+}
+
+func Holds(names []string, path string) bool {
+	inside := path + string(filepath.Separator)
+	return slices.ContainsFunc(names, func(name string) bool { return name == path || strings.HasPrefix(name, inside) })
 }

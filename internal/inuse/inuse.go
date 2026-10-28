@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
-	"slices"
-	"strings"
 	"time"
 
 	"github.com/botforge-pro/diskcleaner/internal/process"
@@ -104,8 +102,7 @@ func (c Check) open(path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("lsof: %w", err)
 	}
-	inside := path + string(filepath.Separator)
-	if slices.ContainsFunc(names, func(name string) bool { return name == path || strings.HasPrefix(name, inside) }) {
+	if process.Holds(names, path) {
 		return "a process still has something in it open", nil
 	}
 	return "", nil

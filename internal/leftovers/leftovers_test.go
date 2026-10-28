@@ -60,7 +60,7 @@ func run(s Step, dryRun bool) (*report.Report, string, string) {
 	return r, stdout.String(), stderr.String()
 }
 
-const noneOpen = "testdata/lsof-none-open"
+const noneOpen = "../process/testdata/lsof-none-open"
 
 func TestRemovesOldFoldersOfEveryKind(t *testing.T) {
 	temp := newTemp(t)

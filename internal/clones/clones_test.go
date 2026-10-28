@@ -43,6 +43,8 @@ func fakeLsof(t *testing.T, body string) string {
 	return path
 }
 
+const noneOpen = "../process/testdata/lsof-none-open"
+
 func step(dir, lsof string) Step {
 	return Step{Dir: dir, Minutes: 60, Now: func() time.Time { return now }, Lsof: lsof, LsofTimeoutSeconds: 5}
 }
@@ -58,7 +60,7 @@ func TestRemovesACloneNoProcessHasOpen(t *testing.T) {
 	dir := newDir(t)
 	clone := makeClone(t, dir, "code_sign_clone.3qjzL5", 9*24*time.Hour)
 
-	r, stdout, stderr := run(step(dir, "/usr/bin/false"), false)
+	r, stdout, stderr := run(step(dir, noneOpen), false)
 
 	assert.Empty(t, stderr)
 	assert.NoDirExists(t, clone)
@@ -72,9 +74,7 @@ func TestKeepsTheCloneARunningAppWasStartedFrom(t *testing.T) {
 	used := makeClone(t, dir, "code_sign_clone.57JIhs", 23*24*time.Hour)
 	dead := makeClone(t, dir, "code_sign_clone.QnXXha", 18*24*time.Hour)
 	running := filepath.Join(used, executable)
-	lsof := fakeLsof(t, "for file in \"$@\"; do\n"+
-		"  if [ \"$file\" = '"+running+"' ]; then printf 'p1326\\nftxt\\nn%s\\n' \"$file\"; exit 1; fi\n"+
-		"done\nexit 1\n")
+	lsof := fakeLsof(t, "printf 'p1326\\nftxt\\nn"+running+"\\n'\n")
 
 	r, _, stderr := run(step(dir, lsof), false)
 
@@ -102,7 +102,7 @@ func TestDryRunRemovesNothing(t *testing.T) {
 	dir := newDir(t)
 	clone := makeClone(t, dir, "code_sign_clone.a", 2*time.Hour)
 
-	r, stdout, _ := run(step(dir, "/usr/bin/false"), true)
+	r, stdout, _ := run(step(dir, noneOpen), true)
 
 	assert.DirExists(t, clone)
 	assert.Equal(t, 1, r.Count)
@@ -113,7 +113,7 @@ func TestKeepsACloneMadeWithinTheLimit(t *testing.T) {
 	dir := newDir(t)
 	clone := makeClone(t, dir, "code_sign_clone.new", 10*time.Minute)
 
-	r, _, stderr := run(step(dir, "/usr/bin/false"), false)
+	r, _, stderr := run(step(dir, noneOpen), false)
 
 	assert.DirExists(t, clone)
 	assert.Zero(t, r.Count)
@@ -128,7 +128,7 @@ func TestKeepsACloneWithNoProgramToAskAbout(t *testing.T) {
 	require.NoError(t, os.WriteFile(program, make([]byte, 8192), 0o755))
 	require.NoError(t, os.Chtimes(clone, now.Add(-48*time.Hour), now.Add(-48*time.Hour)))
 
-	r, _, stderr := run(step(dir, "/usr/bin/false"), false)
+	r, _, stderr := run(step(dir, noneOpen), false)
 
 	assert.FileExists(t, program)
 	assert.Zero(t, r.Count)
@@ -153,7 +153,7 @@ func TestLeavesOtherFoldersAlone(t *testing.T) {
 	require.NoError(t, os.MkdirAll(other, 0o755))
 	require.NoError(t, os.Chtimes(other, now.Add(-48*time.Hour), now.Add(-48*time.Hour)))
 
-	r, stdout, stderr := run(step(dir, "/usr/bin/false"), false)
+	r, stdout, stderr := run(step(dir, noneOpen), false)
 
 	assert.DirExists(t, other)
 	assert.Zero(t, r.Count)
@@ -167,7 +167,7 @@ func TestNothingToLookAtIsQuiet(t *testing.T) {
 		"no such folder on the OS": "",
 	} {
 		t.Run(name, func(t *testing.T) {
-			r, stdout, stderr := run(step(dir, "/usr/bin/false"), false)
+			r, stdout, stderr := run(step(dir, noneOpen), false)
 
 			assert.Zero(t, r.Count)
 			assert.Empty(t, stdout)

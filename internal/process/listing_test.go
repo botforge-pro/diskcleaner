@@ -10,6 +10,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func fakeLsof(t *testing.T, body string) string {
+	path := filepath.Join(t.TempDir(), "lsof")
+	require.NoError(t, os.WriteFile(path, []byte("#!/bin/sh\n"+body), 0o755))
+	return path
+}
+
+func TestHoldsMatchesThePathAndWhatIsInsideIt(t *testing.T) {
+	names := []string{"/", "/work/.build-old/a.o", "/work"}
+
+	assert.True(t, Holds(names, "/work"))
+	assert.True(t, Holds([]string{"/work/.build/debug/a.o"}, "/work/.build"))
+	assert.False(t, Holds(names, "/work/.build"), "a sibling sharing the prefix is not inside it")
+	assert.False(t, Holds(names, "/work/x"))
+}
+
 func TestOpenNamesListsEveryNameLsofPrints(t *testing.T) {
 	lsof := fakeLsof(t, "printf 'p42\\nfcwd\\nn/work\\nf3\\nn/work/a.o\\np43\\nf4\\nn->0x1234\\n'\nexit 0\n")
 

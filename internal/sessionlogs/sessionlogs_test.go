@@ -56,7 +56,7 @@ func step(folder string) Step {
 		Folder:             folder,
 		Days:               30,
 		Now:                func() time.Time { return now },
-		Lsof:               "testdata/lsof-none-open",
+		Lsof:               "../process/testdata/lsof-none-open",
 		LsofTimeoutSeconds: 5,
 		Batch:              50,
 	}

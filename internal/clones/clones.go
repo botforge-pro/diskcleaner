@@ -104,12 +104,12 @@ func (s Step) check(r *report.Report, clone string) {
 		r.Skip("%s: no app program found in it to ask lsof about", clone)
 		return
 	}
-	open, err := process.OpenFiles(s.LsofTimeoutSeconds, s.Lsof, files)
+	names, err := process.OpenNames(s.LsofTimeoutSeconds, s.Lsof)
 	if err != nil {
 		r.Fail("lsof in %s: %v", clone, err)
 		return
 	}
-	if len(open) > 0 {
+	if slices.ContainsFunc(files, func(file string) bool { return process.Holds(names, file) }) {
 		r.Skip("%s: a running app was started from it", clone)
 		return
 	}

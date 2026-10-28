@@ -191,7 +191,7 @@ Settings: `DISKCLEANER_REPOS_DIR`, `DISKCLEANER_GIT_TMP_MINUTES`,
   - nothing in it was written within `DISKCLEANER_TMP_MINUTES` (60) minutes;
   - `lsof` sees no process with a file or folder in it open, so a running
     test binary or `go run` server keeps its folder (`SKIPPED`).
-- Keeps a folder with a socket in it (`SKIPPED`).
+- Keeps a folder with a socket or a mounted volume in it (`SKIPPED`).
 - When `lsof` fails, warns or does not answer within 30 seconds, the folder
   stays and the step fails.
 - Settings: `DISKCLEANER_USER_TMP`, `DISKCLEANER_TMP_MINUTES`.
@@ -204,6 +204,9 @@ Settings: `DISKCLEANER_REPOS_DIR`, `DISKCLEANER_GIT_TMP_MINUTES`,
   - it takes at least `DISKCLEANER_SYSTEM_TMP_MIN_KB` (1024) KB on disk;
   - nothing in it was written within `DISKCLEANER_TMP_MINUTES` (60) minutes;
   - there is no socket in it (`SKIPPED`);
+  - it is not a mounted volume and holds none (`SKIPPED`), such as the
+    `dmg.*` folders where disk images are attached: removing it would empty
+    the image or fail on a read-only one, and free nothing on this disk;
   - `lsof` sees no process with it, or anything in it, open.
 - Keeps what belongs to another user, symbolic links, sockets, every name
   that starts with a dot, and the `claude-*` folders of Claude Code sessions,

@@ -18,7 +18,8 @@ After upgrading, `diskcleaner clean` also deletes your old files in
   put straight into `/private/tmp` stayed there until macOS removed them days
   later, and no step looked at them. The step deletes a file or folder of
   yours there that takes at least 1 MB, that nothing wrote within an hour,
-  that holds no socket and that no process has open. Smaller entries stay,
+  that holds no socket, that is not a mounted disk image and that no process
+  has open. Smaller entries stay,
   because the lock and pid files of running programs weigh a few bytes. Other
   users' entries, symbolic links, names starting with a dot (the lock files of
   services such as PostgreSQL) and the `claude-*` folders of Claude Code
@@ -30,7 +31,7 @@ After upgrading, `diskcleaner clean` also deletes your old files in
 - `temp-leftovers` no longer fails when a `go-build` folder disappears while
   the step looks into it. The `go` command that made the folder removed it
   itself, so there is nothing left to remove.
-- `temp-leftovers` keeps a folder with a socket in it.
+- `temp-leftovers` keeps a folder with a socket or a mounted volume in it.
 
 ## [0.15.0] - 2026-10-26
 

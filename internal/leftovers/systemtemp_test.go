@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -136,14 +137,28 @@ func TestAFolderRemovedDuringTheWalkIsNotAFailure(t *testing.T) {
 		gone: "b002",
 	}
 
-	found, err := walkFS(fsys, "/tmp/go-build1")
+	found, err := walkFS(fsys, "/tmp/go-build1", 1)
 
 	require.NoError(t, err, "a go command removing its own folder mid-walk leaves nothing to remove")
 	assert.Contains(t, found.entries, "/tmp/go-build1/b001/a.out")
 	assert.NotContains(t, found.entries, "/tmp/go-build1/b002/importcfg")
 
-	_, err = walk(filepath.Join(t.TempDir(), "gone"))
+	_, err = walk(filepath.Join(t.TempDir(), "gone"), 1)
 	assert.ErrorIs(t, err, fs.ErrNotExist)
+}
+
+func TestAMountedDiskImageIsNotSpaceToFree(t *testing.T) {
+	image := &syscall.Stat_t{Dev: 7, Blocks: 2 << 12}
+	fsys := fstest.MapFS{
+		"Restore":               {Mode: fs.ModeDir, Sys: image},
+		"Restore/BuildManifest": {Data: make([]byte, 8192), Sys: image},
+	}
+
+	found, err := walkFS(fsys, "/private/tmp/dmg.cPCLVT", 1)
+
+	require.NoError(t, err)
+	assert.Equal(t, "/private/tmp/dmg.cPCLVT/Restore", found.mounted, "removing it would empty the image or fail on a read-only one")
+	assert.Zero(t, found.kb, "the image's blocks are not on this disk")
 }
 
 func TestSystemTempLooksInTheSharedTemporaryFolder(t *testing.T) {

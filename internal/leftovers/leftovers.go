@@ -107,16 +107,29 @@ func (s Step) Run(r *report.Report) {
 	if len(paths) == 0 {
 		return
 	}
+	volume, err := os.Stat(dir)
+	if err != nil {
+		r.Fail("stat %s: %v", dir, err)
+		return
+	}
 	fmt.Fprintf(r.Out, "TEMP     %s\n", dir)
 	defer fmt.Fprintln(r.Out)
 
 	slices.Sort(paths)
 	for _, path := range paths {
-		s.check(r, path)
+		s.check(r, path, device(volume))
 	}
 }
 
-func (s Step) check(r *report.Report, path string) {
+func device(info fs.FileInfo) int64 {
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return -1
+	}
+	return int64(stat.Dev)
+}
+
+func (s Step) check(r *report.Report, path string, volume int64) {
 	info, err := os.Lstat(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return
@@ -128,10 +141,10 @@ func (s Step) check(r *report.Report, path string) {
 	if !s.owns(info) {
 		return
 	}
-	var found tree
+	found := tree{volume: volume}
 	switch {
 	case info.IsDir():
-		found, err = walk(path)
+		found, err = walk(path, volume)
 		if errors.Is(err, fs.ErrNotExist) {
 			return
 		}
@@ -142,6 +155,14 @@ func (s Step) check(r *report.Report, path string) {
 	case s.Files && info.Mode().IsRegular():
 		found.add(path, info)
 	default:
+		return
+	}
+	if found.mounted == path {
+		r.Skip("%s: a mounted volume, not space on this disk", path)
+		return
+	}
+	if found.mounted != "" {
+		r.Skip("%s: %s in it is a mounted volume, not space on this disk", path, found.mounted)
 		return
 	}
 	if found.kb < s.MinKB {
@@ -185,13 +206,19 @@ func (s Step) owns(info fs.FileInfo) bool {
 }
 
 type tree struct {
+	volume  int64
 	entries []string
 	latest  time.Time
 	kb      int64
 	socket  string
+	mounted string
 }
 
 func (t *tree) add(path string, info fs.FileInfo) {
+	if on := device(info); on != -1 && on != t.volume {
+		t.mounted = path
+		return
+	}
 	t.entries = append(t.entries, path)
 	if info.ModTime().After(t.latest) {
 		t.latest = info.ModTime()
@@ -204,12 +231,12 @@ func (t *tree) add(path string, info fs.FileInfo) {
 	}
 }
 
-func walk(root string) (tree, error) {
-	return walkFS(os.DirFS(root), root)
+func walk(root string, volume int64) (tree, error) {
+	return walkFS(os.DirFS(root), root, volume)
 }
 
-func walkFS(fsys fs.FS, root string) (tree, error) {
-	var found tree
+func walkFS(fsys fs.FS, root string, volume int64) (tree, error) {
+	found := tree{volume: volume}
 	err := fs.WalkDir(fsys, ".", func(name string, entry fs.DirEntry, err error) error {
 		if errors.Is(err, fs.ErrNotExist) && name != "." {
 			return nil
@@ -225,6 +252,9 @@ func walkFS(fsys fs.FS, root string) (tree, error) {
 			return err
 		}
 		found.add(filepath.Join(root, name), info)
+		if found.mounted != "" {
+			return fs.SkipAll
+		}
 		return nil
 	})
 	return found, err

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/botforge-pro/diskcleaner/internal/inuse"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,13 +41,9 @@ func backdate(t *testing.T, root string, age time.Duration) {
 
 func step(temp, lsof string) Step {
 	return Step{
-		Dir:                temp,
-		Patterns:           patterns,
-		Minutes:            60,
-		Now:                func() time.Time { return now },
-		Lsof:               lsof,
-		LsofTimeoutSeconds: 5,
-		Batch:              lsofBatch,
+		Dir:      temp,
+		Patterns: patterns,
+		InUse:    inuse.Check{Minutes: 60, Now: func() time.Time { return now }, Lsof: lsof, LsofTimeoutSeconds: 5},
 	}
 }
 
@@ -63,7 +60,7 @@ func run(s Step, dryRun bool) (*report.Report, string, string) {
 	return r, stdout.String(), stderr.String()
 }
 
-const noneOpen = "/usr/bin/false"
+const noneOpen = "testdata/lsof-none-open"
 
 func TestRemovesOldFoldersOfEveryKind(t *testing.T) {
 	temp := newTemp(t)
@@ -126,10 +123,7 @@ func TestKeepsAFolderAProcessHasAFileOpenIn(t *testing.T) {
 	file, err := os.Open(filepath.Join(build, "b002", "_pkg_.a"))
 	require.NoError(t, err)
 	defer file.Close()
-	s := step(temp, "lsof")
-	s.Batch = 2
-
-	r, _, stderr := run(s, false)
+	r, _, stderr := run(step(temp, "lsof"), false)
 
 	assert.DirExists(t, build)
 	assert.NoDirExists(t, export)

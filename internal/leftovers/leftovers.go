@@ -10,14 +10,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/botforge-pro/diskcleaner/internal/process"
+	"github.com/botforge-pro/diskcleaner/internal/inuse"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/botforge-pro/diskcleaner/internal/settings"
-)
-
-const (
-	lsofTimeoutSeconds = 30
-	lsofBatch          = 200
 )
 
 var patterns = []string{"go-build*", "go-link-*", "XcodeDistPipeline.*"}
@@ -25,21 +20,17 @@ var patterns = []string{"go-build*", "go-link-*", "XcodeDistPipeline.*"}
 var keptInSystemTemp = []string{".*", "claude-*"}
 
 type Step struct {
-	Dir                string
-	Patterns           []string
-	Exclude            []string
-	Files              bool
-	Owner              *int
-	MinKB              int64
-	Minutes            int
-	Now                func() time.Time
-	Lsof               string
-	LsofTimeoutSeconds int
-	Batch              int
+	Dir      string
+	Patterns []string
+	Exclude  []string
+	Files    bool
+	Owner    *int
+	MinKB    int64
+	InUse    inuse.Check
 }
 
 func SystemTemp() (Step, error) {
-	minutes, err := settings.PositiveDuration("DISKCLEANER_TMP_MINUTES", 60, time.Minute, "minutes")
+	check, err := inuse.Default()
 	if err != nil {
 		return Step{}, err
 	}
@@ -48,17 +39,13 @@ func SystemTemp() (Step, error) {
 		return Step{}, err
 	}
 	return Step{
-		Dir:                settings.Env("DISKCLEANER_SYSTEM_TMP", "/private/tmp"),
-		Patterns:           []string{"*"},
-		Exclude:            keptInSystemTemp,
-		Files:              true,
-		Owner:              new(os.Getuid()),
-		MinKB:              int64(minKB),
-		Minutes:            minutes,
-		Now:                time.Now,
-		Lsof:               "lsof",
-		LsofTimeoutSeconds: lsofTimeoutSeconds,
-		Batch:              lsofBatch,
+		Dir:      settings.Env("DISKCLEANER_SYSTEM_TMP", "/private/tmp"),
+		Patterns: []string{"*"},
+		Exclude:  keptInSystemTemp,
+		Files:    true,
+		Owner:    new(os.Getuid()),
+		MinKB:    int64(minKB),
+		InUse:    check,
 	}, nil
 }
 
@@ -71,19 +58,11 @@ func Default() (Step, error) {
 		}
 		dir = temp
 	}
-	minutes, err := settings.PositiveDuration("DISKCLEANER_TMP_MINUTES", 60, time.Minute, "minutes")
+	check, err := inuse.Default()
 	if err != nil {
 		return Step{}, err
 	}
-	return Step{
-		Dir:                dir,
-		Patterns:           patterns,
-		Minutes:            minutes,
-		Now:                time.Now,
-		Lsof:               "lsof",
-		LsofTimeoutSeconds: lsofTimeoutSeconds,
-		Batch:              lsofBatch,
-	}, nil
+	return Step{Dir: dir, Patterns: patterns, InUse: check}, nil
 }
 
 func (s Step) Run(r *report.Report) {
@@ -172,20 +151,14 @@ func (s Step) check(r *report.Report, path string, volume int64) {
 		r.Skip("%s: holds the socket %s, which a process may be listening on", path, found.socket)
 		return
 	}
-	if s.Now().Sub(found.latest) <= time.Duration(s.Minutes)*time.Minute {
-		r.Skip("%s: written within %d minutes", path, s.Minutes)
+	reason, err := s.InUse.ReasonAfter(path, found.latest)
+	if err != nil {
+		r.Fail("%s: %v", path, err)
 		return
 	}
-	for batch := range slices.Chunk(found.entries, s.Batch) {
-		open, err := process.OpenFiles(s.LsofTimeoutSeconds, s.Lsof, batch)
-		if err != nil {
-			r.Fail("lsof in %s: %v", path, err)
-			return
-		}
-		if len(open) > 0 {
-			r.Skip("%s: a process still has something in it open", path)
-			return
-		}
+	if reason != "" {
+		r.Skip("%s: %s", path, reason)
+		return
 	}
 	r.Remove(path)
 }
@@ -207,7 +180,6 @@ func (s Step) owns(info fs.FileInfo) bool {
 
 type tree struct {
 	volume  int64
-	entries []string
 	latest  time.Time
 	kb      int64
 	socket  string
@@ -219,7 +191,6 @@ func (t *tree) add(path string, info fs.FileInfo) {
 		t.mounted = path
 		return
 	}
-	t.entries = append(t.entries, path)
 	if info.ModTime().After(t.latest) {
 		t.latest = info.ModTime()
 	}

@@ -57,6 +57,10 @@ var catalog = []stepInfo{
 		s, err := leftovers.Default()
 		return s, err
 	}},
+	{"system-temp", "your files and folders left in /private/tmp", func(string) (step, error) {
+		s, err := leftovers.SystemTemp()
+		return s, err
+	}},
 	{"code-sign-clones", "copies of Chrome and other apps no running app uses", func(string) (step, error) {
 		s, err := clones.Default()
 		return s, err

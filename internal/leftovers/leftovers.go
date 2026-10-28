@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"syscall"
 	"time"
 
 	"github.com/botforge-pro/diskcleaner/internal/process"
@@ -21,14 +22,38 @@ const (
 
 var patterns = []string{"go-build*", "go-link-*", "XcodeDistPipeline.*"}
 
+var keptInSystemTemp = []string{".*", "claude-*"}
+
 type Step struct {
 	Dir                string
 	Patterns           []string
+	Exclude            []string
+	Files              bool
+	Owner              *int
 	Minutes            int
 	Now                func() time.Time
 	Lsof               string
 	LsofTimeoutSeconds int
 	Batch              int
+}
+
+func SystemTemp() (Step, error) {
+	minutes, err := settings.PositiveDuration("DISKCLEANER_TMP_MINUTES", 60, time.Minute, "minutes")
+	if err != nil {
+		return Step{}, err
+	}
+	return Step{
+		Dir:                settings.Env("DISKCLEANER_SYSTEM_TMP", "/private/tmp"),
+		Patterns:           []string{"*"},
+		Exclude:            keptInSystemTemp,
+		Files:              true,
+		Owner:              new(os.Getuid()),
+		Minutes:            minutes,
+		Now:                time.Now,
+		Lsof:               "lsof",
+		LsofTimeoutSeconds: lsofTimeoutSeconds,
+		Batch:              lsofBatch,
+	}, nil
 }
 
 func Default() (Step, error) {
@@ -71,7 +96,7 @@ func (s Step) Run(r *report.Report) {
 			r.Fail("glob %s: %v", pattern, err)
 			continue
 		}
-		paths = append(paths, matches...)
+		paths = append(paths, slices.DeleteFunc(matches, s.excluded)...)
 	}
 	if len(paths) == 0 {
 		return
@@ -94,12 +119,21 @@ func (s Step) check(r *report.Report, path string) {
 		r.Fail("stat %s: %v", path, err)
 		return
 	}
-	if !info.IsDir() {
+	if !s.owns(info) {
 		return
 	}
-	entries, latest, err := walk(path)
-	if err != nil {
-		r.Fail("look into %s: %v", path, err)
+	var entries []string
+	var latest time.Time
+	switch {
+	case info.IsDir():
+		entries, latest, err = walk(path)
+		if err != nil {
+			r.Fail("look into %s: %v", path, err)
+			return
+		}
+	case s.Files && info.Mode().IsRegular():
+		entries, latest = []string{path}, info.ModTime()
+	default:
 		return
 	}
 	if s.Now().Sub(latest) <= time.Duration(s.Minutes)*time.Minute {
@@ -118,6 +152,21 @@ func (s Step) check(r *report.Report, path string) {
 		}
 	}
 	r.Remove(path)
+}
+
+func (s Step) excluded(path string) bool {
+	return slices.ContainsFunc(s.Exclude, func(pattern string) bool {
+		matched, _ := filepath.Match(pattern, filepath.Base(path))
+		return matched
+	})
+}
+
+func (s Step) owns(info fs.FileInfo) bool {
+	if s.Owner == nil {
+		return true
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	return ok && int(stat.Uid) == *s.Owner
 }
 
 func walk(root string) ([]string, time.Time, error) {

@@ -5,6 +5,24 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.16.0] - 2026-10-28
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.16.0`.
+
+After upgrading, `diskcleaner clean` also deletes your old files in
+`/private/tmp`. Run `diskcleaner clean --dry-run` first to see the list.
+
+### Added
+
+- New step `system-temp`. Copies, dumps and downloads that programs and agents
+  put straight into `/private/tmp` stayed there until macOS removed them days
+  later, and no step looked at them. The step deletes a file or folder of
+  yours there that nothing wrote within an hour and no process has open.
+  Other users' entries, symbolic links, sockets, names starting with a dot
+  (the lock files of services such as PostgreSQL) and the `claude-*` folders
+  of Claude Code sessions stay. A Chrome profile kept in `/private/tmp` is
+  deleted too once Chrome is closed.
+
 ## [0.15.0] - 2026-10-26
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.15.0`.

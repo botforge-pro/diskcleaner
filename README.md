@@ -18,6 +18,7 @@ and the table says which.
 | `swiftpm-cache` | the SwiftPM package cache | yes: the next package resolution |
 | `xcode-derived-data` | Xcode DerivedData | yes: the next build |
 | `temp-leftovers` | temporary folders of killed Go builds and of Xcode exports | nothing reads them again |
+| `system-temp` | your files and folders in `/private/tmp` that nothing wrote or opened for an hour | **no**, and macOS deletes them after three days anyway |
 | `code-sign-clones` | copies of Chrome and other apps that no running app was started from | nothing reads them again |
 | `ide-old-versions` | data of IDE versions older than the installed one: JetBrains IDEs, Android Studio, VS Code and its forks | **no** for old IntelliJ-platform settings and logs; the VS Code code cache comes again |
 | `simulator-data` | apps and data of iOS simulators not used for 3 days | **no**: the simulator is reset to new |
@@ -193,6 +194,25 @@ Settings: `DISKCLEANER_REPOS_DIR`, `DISKCLEANER_GIT_TMP_MINUTES`,
 - When `lsof` fails, warns or does not answer within 30 seconds, the folder
   stays and the step fails.
 - Settings: `DISKCLEANER_USER_TMP`, `DISKCLEANER_TMP_MINUTES`.
+
+### system-temp
+
+- Looks in the shared temporary folder `/private/tmp`, where programs and
+  agents put copies, dumps and downloads that outlive the work they were for.
+- Removes a file or folder of yours there when both hold:
+  - nothing in it was written within `DISKCLEANER_TMP_MINUTES` (60) minutes;
+  - `lsof` sees no process with it, or anything in it, open.
+- Keeps what belongs to another user, symbolic links, sockets, every name
+  that starts with a dot, and the `claude-*` folders of Claude Code sessions,
+  which `claude-scratchpads` handles. Services name their lock files that
+  way: PostgreSQL keeps `.s.PGSQL.5432.lock` without holding it open and shuts
+  down when it disappears.
+- Nothing is recoverable afterwards; macOS itself deletes such files after
+  three days. A Chrome profile kept in `/private/tmp` goes too once Chrome is
+  closed, so keep a profile you sign in to elsewhere.
+- When `lsof` fails, warns or does not answer within 30 seconds, the entry
+  stays and the step fails.
+- Settings: `DISKCLEANER_SYSTEM_TMP`, `DISKCLEANER_TMP_MINUTES`.
 
 ### code-sign-clones
 

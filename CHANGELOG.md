@@ -11,16 +11,19 @@ Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.17.1`.
 
 ### Changed
 
-- Fewer `lsof` calls in `temp-leftovers`, `system-temp`, `claude-logs`,
-  `codex-logs` and `code-sign-clones`. Before, each `lsof` call named the
-  files to check, up to 200 of them, so a folder of thousands of files took
-  dozens of calls. Now each call takes the whole list of files open on the
-  machine (about half a second) and the step looks its paths up in it:
+- `temp-leftovers`, `system-temp`, `claude-logs`, `codex-logs` and
+  `code-sign-clones` ask `lsof` differently, and never more often than
+  before. Before, each call named the files to check, up to 200 of them,
+  so one folder of thousands of files took dozens of calls. Now each call
+  takes the list of every file your processes have open (about half a
+  second on a developer's Mac) and the step looks its paths up in it. A
+  fresh list is taken right before each removal decision:
   - `temp-leftovers`, `system-temp`: one call for each folder or file
-    found directly in the temporary folder;
-  - `code-sign-clones`: one call for each copy;
-  - `claude-logs`, `codex-logs`: one call for each 50 old `.jsonl` files,
-    taken right before they are removed.
+    found directly in the temporary folder, where before it was at least
+    one;
+  - `code-sign-clones`: one call for each Chrome copy, as before;
+  - `claude-logs`, `codex-logs`: one call for each 50 logs about to be
+    removed, as before.
 - What stays the same: a file or folder counts as open if one of your
   processes has it or something inside it open, or works inside it (as
   before, `lsof` run by you does not see other users' files). When `lsof`

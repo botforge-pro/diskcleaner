@@ -19,11 +19,10 @@ After upgrading, `diskcleaner clean` also deletes your old files in
   later, and no step looked at them. The step deletes a file or folder of
   yours there that takes at least 1 MB, that nothing wrote within an hour,
   that holds no socket, that is not a mounted disk image and that no process
-  has open. Smaller entries stay,
-  because the lock and pid files of running programs weigh a few bytes. Other
-  users' entries, symbolic links, names starting with a dot (the lock files of
-  services such as PostgreSQL) and the `claude-*` folders of Claude Code
-  sessions stay too. A Chrome profile kept in `/private/tmp` is deleted once
+  has open. Smaller entries stay, because the lock and pid files of running
+  programs weigh a few bytes. Other users' entries, symbolic links, names
+  starting with a dot (the lock files of services such as PostgreSQL) and the
+  `claude-*` folders of Claude Code sessions stay too. A Chrome profile kept in `/private/tmp` is deleted once
   Chrome is closed.
 
 ### Fixed

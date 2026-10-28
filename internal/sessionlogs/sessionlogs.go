@@ -128,16 +128,17 @@ func (c *openChecks) checkBatchFrom(path string) bool {
 	c.pending = c.pending[start:]
 	batch := c.pending[:min(c.step.Batch, len(c.pending))]
 	c.pending = c.pending[len(batch):]
-	open, err := process.OpenFiles(c.step.LsofTimeoutSeconds, c.step.Lsof, batch)
+	names, err := process.OpenNames(c.step.LsofTimeoutSeconds, c.step.Lsof)
 	if err != nil {
 		c.report.Fail("lsof %s: %v", c.step.Folder, err)
 		c.failed = true
 		return false
 	}
-	c.open = open
+	c.open = map[string]bool{}
 	c.checked = map[string]bool{}
 	for _, path := range batch {
 		c.checked[path] = true
+		c.open[path] = process.Holds(names, path)
 	}
 	return true
 }

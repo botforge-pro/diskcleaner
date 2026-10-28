@@ -56,7 +56,7 @@ func step(folder string) Step {
 		Folder:             folder,
 		Days:               30,
 		Now:                func() time.Time { return now },
-		Lsof:               "/usr/bin/false",
+		Lsof:               "testdata/lsof-none-open",
 		LsofTimeoutSeconds: 5,
 		Batch:              50,
 	}
@@ -79,7 +79,7 @@ func TestALogOpenInAProcessStays(t *testing.T) {
 func TestALogWrittenAgainAfterTheScanStays(t *testing.T) {
 	folder := newFolder(t)
 	s := step(folder)
-	s.Lsof = fakeLsof(t, "shift\ntouch \"$@\"\nexit 1\n")
+	s.Lsof = fakeLsof(t, "find '"+folder+"' -name '*.jsonl' -exec touch {} +\nprintf 'n/\\n'\n")
 
 	r, _, stderr := run(s, false)
 
@@ -98,14 +98,14 @@ func TestLogsAreCheckedForOpenWritersBatchByBatchRightBeforeRemoval(t *testing.T
 	calls := filepath.Join(t.TempDir(), "calls")
 	s := step(folder)
 	s.Batch = 2
-	s.Lsof = fakeLsof(t, "shift 2\necho \"$#\" >>"+calls+"\nexit 1\n")
+	s.Lsof = fakeLsof(t, "echo listed >>"+calls+"\nprintf 'n/\\n'\n")
 
 	r, _, _ := run(s, false)
 
 	assert.Equal(t, 3, r.Count)
 	recorded, err := os.ReadFile(calls)
 	require.NoError(t, err)
-	assert.Equal(t, "2\n1\n", string(recorded))
+	assert.Equal(t, "listed\nlisted\n", string(recorded), "one fresh listing for each batch of two")
 }
 
 func TestABatchStartsAtTheLogBeingRemovedWhenEarlierOnesVanished(t *testing.T) {
@@ -119,7 +119,7 @@ func TestABatchStartsAtTheLogBeingRemovedWhenEarlierOnesVanished(t *testing.T) {
 	}
 	s := step(folder)
 	s.Batch = 2
-	s.Lsof = fakeLsof(t, "shift 2\nfor f in \"$@\"; do if [ \"$f\" = "+logs[2]+" ]; then printf 'p42\\nf3\\nn%s\\n' \"$f\"; exit 0; fi; done\nexit 1\n")
+	s.Lsof = fakeLsof(t, "printf 'p42\\nf3\\nn"+logs[2]+"\\n'\n")
 	var stdout, stderr bytes.Buffer
 	r := &report.Report{Out: &stdout, Err: &stderr}
 	checks := openChecks{step: s, report: r, pending: logs}

@@ -11,14 +11,22 @@ Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.17.1`.
 
 ### Changed
 
-- `temp-leftovers`, `system-temp`, `claude-logs`, `codex-logs` and
-  `code-sign-clones` decide whether something is open the same way as
-  `projects` in 0.17.0. Each of them used to call `lsof` with the names of
-  the files to check, up to 200 at a time, so a folder with thousands of
-  files took dozens of calls. Now one call lists every file your processes
-  have open: one call per entry for the temporary-folder steps and
-  `code-sign-clones`, and one call per 50 logs for `claude-logs` and
-  `codex-logs`. What the steps keep and delete does not change.
+- Fewer `lsof` calls in `temp-leftovers`, `system-temp`, `claude-logs`,
+  `codex-logs` and `code-sign-clones`. Before, each `lsof` call named the
+  files to check, up to 200 of them, so a folder of thousands of files took
+  dozens of calls. Now each call takes the whole list of files open on the
+  machine (about half a second) and the step looks its paths up in it:
+  - `temp-leftovers`, `system-temp`: one call for each folder or file
+    found directly in the temporary folder;
+  - `code-sign-clones`: one call for each copy;
+  - `claude-logs`, `codex-logs`: one call for each 50 old `.jsonl` files,
+    taken right before they are removed.
+- What stays the same: a file or folder counts as open if one of your
+  processes has it or something inside it open, or works inside it (as
+  before, `lsof` run by you does not see other users' files). When `lsof`
+  fails, prints a warning or does not answer within 30 seconds, the item
+  stays and the step fails, as it already did in these steps. What the
+  steps keep and delete does not change.
 
 ## [0.17.0] - 2026-10-28
 

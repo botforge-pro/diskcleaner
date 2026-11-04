@@ -17,7 +17,7 @@ and the table says which.
 | `homebrew` | old Homebrew versions and all its downloads | **no** for the old versions; downloads come again |
 | `swiftpm-cache` | the SwiftPM package cache | yes: the next package resolution |
 | `xcode-derived-data` | Xcode DerivedData | yes: the next build |
-| `xcode-archives` | Xcode archives older than 14 days, except the newest of each app | **no**: neither the signed build nor its debug symbols, unless App Store Connect or Crashlytics got them with the upload |
+| `xcode-archives` | Xcode archives 15 whole days old or older, except the newest of each app | **no**: the signed build is gone for good; its debug symbols remain only where App Store Connect or Crashlytics got them with the upload |
 | `temp-leftovers` | temporary folders of killed Go builds and of Xcode exports | nothing reads them again |
 | `system-temp` | your files and folders in `/private/tmp` that nothing wrote or opened for an hour | **no**, and macOS deletes them after three days anyway |
 | `code-sign-clones` | copies of Chrome and other apps that no running app was started from | nothing reads them again |
@@ -203,11 +203,13 @@ Settings: `DISKCLEANER_REPOS_DIR`, `DISKCLEANER_TMP_MINUTES`,
   `CreationDate`.
 - For each app keeps the newest `DISKCLEANER_XCODE_ARCHIVE_KEEP` archives (1),
   whatever their age. Of the rest, an archive `DISKCLEANER_XCODE_ARCHIVE_DAYS`
-  whole days old or younger stays (14), an older one goes. There is no switch
+  whole days old or younger stays (14), an older one goes. Age counts whole
+  24-hour periods: an archive made on 1 November at 10:00 stays until 16 November
+  at 09:59 and goes from 10:00. There is no switch
   to turn the step off: `DISKCLEANER_XCODE_ARCHIVE_DAYS=3650` keeps archives
   for ten years.
-- An archive whose `Info.plist` cannot be read stays (`SKIPPED`) and is a
-  failure.
+- An archive whose `Info.plist` cannot be read, or names no `CreationDate` or
+  app, stays (`SKIPPED`) and is a failure until you delete or fix it.
 - Skips while Xcode (any `Xcode*.app`), `xcodebuild` or `XCBBuildService` run.
 - Settings: `DISKCLEANER_XCODE_ARCHIVES` (the folder),
   `DISKCLEANER_XCODE_ARCHIVE_DAYS`, `DISKCLEANER_XCODE_ARCHIVE_KEEP`,

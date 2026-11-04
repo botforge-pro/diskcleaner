@@ -33,15 +33,17 @@ upgrading, run `diskcleaner clean --dry-run` to see the list.
     how many.
   - Of the rest, an archive whose `CreationDate` is
     `DISKCLEANER_XCODE_ARCHIVE_DAYS` whole days ago or less (14) stays, and an
-    older one goes. Both take a whole number above zero; any other value stops
+    older one goes. Age counts whole 24-hour periods: an archive made on
+    1 November at 10:00 stays until 16 November at 09:59 and goes from 10:00. Both take a whole number above zero; any other value stops
     `clean` and `run` before anything is deleted. There is no switch to turn
     the step off: `DISKCLEANER_XCODE_ARCHIVE_DAYS=3650` keeps archives for ten
     years.
   - An archive with no readable `Info.plist`, `CreationDate` or app stays, and
     every run reports it as a failure (exit status 1) until you delete or fix
     that archive yourself.
-  - Nothing is deleted while Xcode, `xcodebuild` or `XCBBuildService` runs; the
-    step prints a `SKIPPED` line instead. An upload from another program, such
+  - The archive step deletes nothing while Xcode, `xcodebuild` or
+    `XCBBuildService` runs and prints a `SKIPPED` line instead; the other steps of
+    `clean` go on. An upload from another program, such
     as Transporter, after Xcode has quit is not noticed.
 - A deleted archive takes with it the build as it was signed, ready to export
   or upload again, and its debug symbols (dSYMs). A build made again from the

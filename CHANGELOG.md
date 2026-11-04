@@ -5,6 +5,51 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.18.0] - 2026-11-04
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.18.0`.
+
+After upgrading, `diskcleaner clean` also deletes your old Xcode archives, as
+described below, and they do not come back. Before you upgrade, set the
+environment variables below wherever `clean` runs, a scheduled run included, if
+you keep archives longer, and copy the debug symbols you still need. After
+upgrading, run `diskcleaner clean --dry-run` to see the list.
+
+### Added
+
+- New step `xcode-archives`, which `clean` runs after `xcode-derived-data` and
+  `diskcleaner run xcode-archives` runs alone. It looks at the `.xcarchive`
+  folders straight in `~/Library/Developer/Xcode/Archives`, or in the folder
+  named by `DISKCLEANER_XCODE_ARCHIVES`, and in the folders there named by a date
+  (`2026-11-04`), as Xcode makes them, and deletes them for good, not into the
+  Trash. The dated folders themselves stay, even when empty. To keep an archive
+  for good, move it into a folder there whose name is not a date, such as
+  `Keep`: the step never looks inside one.
+  - The app of an archive is the `CFBundleIdentifier` in its `Info.plist`, or
+    the `Name` there when it has none. One identifier is one app, so iOS and
+    macOS archives of an app that shares an identifier count together.
+  - In each app the newest archives by the `CreationDate` in `Info.plist` stay
+    whatever their age: one by default, `DISKCLEANER_XCODE_ARCHIVE_KEEP` sets
+    how many.
+  - Of the rest, an archive whose `CreationDate` is
+    `DISKCLEANER_XCODE_ARCHIVE_DAYS` whole days ago or less (14) stays, and an
+    older one goes. Both take a whole number above zero; any other value stops
+    `clean` and `run` before anything is deleted. There is no switch to turn
+    the step off: `DISKCLEANER_XCODE_ARCHIVE_DAYS=3650` keeps archives for ten
+    years.
+  - An archive with no readable `Info.plist`, `CreationDate` or app stays, and
+    every run reports it as a failure (exit status 1) until you delete or fix
+    that archive yourself.
+  - Nothing is deleted while Xcode, `xcodebuild` or `XCBBuildService` runs; the
+    step prints a `SKIPPED` line instead. An upload from another program, such
+    as Transporter, after Xcode has quit is not noticed.
+- A deleted archive takes with it the build as it was signed, ready to export
+  or upload again, and its debug symbols (dSYMs). A build made again from the
+  same commit has different symbols and cannot read the crash reports of the
+  build people run. App Store Connect has the symbols only if they were
+  included in the upload, and Crashlytics only if its upload step ran, so copy
+  the `dSYMs` folder of an archive elsewhere first if neither has them.
+
 ## [0.17.1] - 2026-10-28
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.17.1`.
@@ -632,6 +677,7 @@ this release removes one kind of them. Install it with a Go toolchain:
   status 1.
 - `diskcleaner version` prints the installed version.
 
+[0.18.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.18.0
 [0.17.1]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.17.1
 [0.17.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.17.0
 [0.16.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.16.0

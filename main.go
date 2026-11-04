@@ -53,6 +53,10 @@ var catalog = []stepInfo{
 	}},
 	{"swiftpm-cache", "the Swift Package Manager cache", func(home string) (step, error) { return swiftpm.Default(home), nil }},
 	{"xcode-derived-data", "Xcode DerivedData", func(home string) (step, error) { return xcode.Default(home), nil }},
+	{"xcode-archives", "old Xcode archives, the newest of each app kept", func(home string) (step, error) {
+		s, err := xcode.DefaultArchives(home)
+		return s, err
+	}},
 	{"temp-leftovers", "temporary folders of killed Go builds and of Xcode exports", func(string) (step, error) {
 		s, err := leftovers.Default()
 		return s, err

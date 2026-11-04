@@ -17,6 +17,7 @@ and the table says which.
 | `homebrew` | old Homebrew versions and all its downloads | **no** for the old versions; downloads come again |
 | `swiftpm-cache` | the SwiftPM package cache | yes: the next package resolution |
 | `xcode-derived-data` | Xcode DerivedData | yes: the next build |
+| `xcode-archives` | Xcode archives older than 14 days, except the newest of each app | **no**: neither the signed build nor its debug symbols, unless App Store Connect or Crashlytics got them with the upload |
 | `temp-leftovers` | temporary folders of killed Go builds and of Xcode exports | nothing reads them again |
 | `system-temp` | your files and folders in `/private/tmp` that nothing wrote or opened for an hour | **no**, and macOS deletes them after three days anyway |
 | `code-sign-clones` | copies of Chrome and other apps that no running app was started from | nothing reads them again |
@@ -187,6 +188,30 @@ Settings: `DISKCLEANER_REPOS_DIR`, `DISKCLEANER_TMP_MINUTES`,
   directories go and the link stays.
 - Skips while Xcode (any `Xcode*.app`), `xcodebuild` or `XCBBuildService` run.
 - Settings: `DISKCLEANER_XCODE_DERIVED_DATA`, `DISKCLEANER_XCODE_PROCESSES`.
+
+### xcode-archives
+
+- Looks for `*.xcarchive` straight in `~/Library/Developer/Xcode/Archives`,
+  where `xcodebuild -archivePath` scripts put them, and in its folders named by
+  a date (`2026-11-04`), where the Organizer puts them; the dated folders stay.
+  An archive moved into any other folder there, such as `Archives/Keep`, is
+  never touched.
+- Reads only the top-level keys of an archive's `Info.plist` and those in its
+  `ApplicationProperties`; nothing inside a list such as `Distributions` counts.
+- Tells apps apart by the `CFBundleIdentifier` in each archive's `Info.plist`,
+  or by the `Name` there when there is none, and dates an archive by its
+  `CreationDate`.
+- For each app keeps the newest `DISKCLEANER_XCODE_ARCHIVE_KEEP` archives (1),
+  whatever their age. Of the rest, an archive `DISKCLEANER_XCODE_ARCHIVE_DAYS`
+  whole days old or younger stays (14), an older one goes. There is no switch
+  to turn the step off: `DISKCLEANER_XCODE_ARCHIVE_DAYS=3650` keeps archives
+  for ten years.
+- An archive whose `Info.plist` cannot be read stays (`SKIPPED`) and is a
+  failure.
+- Skips while Xcode (any `Xcode*.app`), `xcodebuild` or `XCBBuildService` run.
+- Settings: `DISKCLEANER_XCODE_ARCHIVES` (the folder),
+  `DISKCLEANER_XCODE_ARCHIVE_DAYS`, `DISKCLEANER_XCODE_ARCHIVE_KEEP`,
+  `DISKCLEANER_XCODE_PROCESSES`.
 
 ### temp-leftovers
 

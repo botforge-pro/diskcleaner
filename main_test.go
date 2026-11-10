@@ -12,22 +12,24 @@ import (
 	"testing"
 	"time"
 
+	"github.com/botforge-pro/diskcleaner/internal/config"
 	"github.com/botforge-pro/diskcleaner/internal/lock"
 	"github.com/botforge-pro/diskcleaner/internal/report"
+	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type fakeStep struct {
-	fail      bool
-	gitTmpNow bool
+	fail   bool
+	minAge time.Duration
 }
 
 func (f fakeStep) Run(r *report.Report) {
-	if f.gitTmpNow {
-		fmt.Fprintln(r.Out, "FAKE GIT TMP NOW")
-	} else {
+	if f.minAge == time.Hour {
 		fmt.Fprintln(r.Out, "FAKE")
+	} else {
+		fmt.Fprintf(r.Out, "FAKE min-age %s\n", f.minAge)
 	}
 	r.Count += 2
 	r.KB += 3072
@@ -36,16 +38,21 @@ func (f fakeStep) Run(r *report.Report) {
 	}
 }
 
+var fakeTable = config.NewTable([]config.Step{
+	{Name: "fake", Undoable: true}, {Name: "misconfigured", Undoable: true}, {Name: "kept"},
+})
+
 func findFake(fail bool, names ...string) registry {
 	if len(names) == 0 {
 		names = []string{"fake", "fake"}
 	}
 	return registry{
 		names: names,
-		find: func(name string, o options) (step, error) {
+		table: fakeTable,
+		find: func(name string, c *config.Config) (step, error) {
 			switch name {
-			case "fake":
-				return fakeStep{fail: fail, gitTmpNow: o.gitTmpNow}, nil
+			case "fake", "kept":
+				return fakeStep{fail: fail, minAge: c.Duration("min-age")}, nil
 			case "misconfigured":
 				return nil, errors.New("DISKCLEANER_FAKE must be a whole number above zero, got: 1.5")
 			}
@@ -70,7 +77,8 @@ func TestRun(t *testing.T) {
 		{"unknown step", []string{"run", "nothing"}, 2, "", "unknown step \"nothing\"\n" + usage},
 		{"step argument", []string{"run", "fake", "now"}, 2, "", usage},
 		{"step", []string{"run", "fake", "--dry-run"}, 0, "FAKE\n", ""},
-		{"step without waiting for Git temporary files", []string{"run", "fake", "--git-tmp-now", "--dry-run"}, 0, "FAKE GIT TMP NOW\n", ""},
+		{"step with a setting", []string{"run", "fake", "--min-age=0", "--dry-run"}, 0, "FAKE min-age 0s\n", ""},
+		{"wrong setting", []string{"run", "fake", "--min-age=soon"}, 2, "", "min-age: want a duration like 1h or 15d, got \"soon\"\n"},
 		{"misconfigured step", []string{"run", "misconfigured"}, 2, "", "DISKCLEANER_FAKE must be a whole number above zero, got: 1.5\n"},
 		{"check", []string{"check", "fake", "fake"}, 0, "", ""},
 		{"check without steps", []string{"check"}, 2, "", usage},
@@ -97,8 +105,12 @@ func TestUsageListsEveryStepInCleanOrder(t *testing.T) {
 
 func TestEveryStepIsFound(t *testing.T) {
 	t.Setenv("DISKCLEANER_REPOS_DIR", t.TempDir())
+	set := pflag.NewFlagSet("clean", pflag.ContinueOnError)
+	settingsTable.Flags(set)
+	c, err := config.Load(settingsTable, set, t.TempDir())
+	require.NoError(t, err)
 	for _, name := range stepNames() {
-		_, err := steps(name, options{})
+		_, err := steps(name, c)
 		assert.NoError(t, err, name)
 	}
 }
@@ -143,15 +155,33 @@ func TestCleanDryRunAddsUpEveryStep(t *testing.T) {
 	assert.Empty(t, stderr.String())
 }
 
-func TestCleanPassesGitTmpNowToEveryStep(t *testing.T) {
+func TestCleanPassesSettingsToEveryStep(t *testing.T) {
 	cleanLock(t)
 	var stdout, stderr bytes.Buffer
 
-	status := run([]string{"clean", "--dry-run", "--git-tmp-now"}, &stdout, &stderr, findFake(false))
+	status := run([]string{"clean", "--dry-run", "--min-age=0"}, &stdout, &stderr, findFake(false))
 
 	assert.Equal(t, 0, status)
-	assert.Contains(t, stdout.String(), "FAKE GIT TMP NOW\nFAKE GIT TMP NOW\n")
+	assert.Contains(t, stdout.String(), "FAKE min-age 0s\nFAKE min-age 0s\n")
 	assert.Empty(t, stderr.String())
+}
+
+func TestCleanLeavesAStepThatIsOffAndSaysHowToTurnItOn(t *testing.T) {
+	cleanLock(t)
+	var stdout, stderr bytes.Buffer
+
+	status := run([]string{"clean", "--dry-run"}, &stdout, &stderr, findFake(false, "fake", "kept"))
+
+	assert.Equal(t, 0, status, stderr.String())
+	assert.Equal(t, 1, strings.Count(stdout.String(), "FAKE\n"))
+	assert.Contains(t, stdout.String(), "OFF           kept: turn on with --kept.enabled\n")
+
+	stdout.Reset()
+	status = run([]string{"clean", "--dry-run", "--kept.enabled"}, &stdout, &stderr, findFake(false, "fake", "kept"))
+
+	assert.Equal(t, 0, status, stderr.String())
+	assert.Equal(t, 2, strings.Count(stdout.String(), "FAKE\n"))
+	assert.NotContains(t, stdout.String(), "OFF")
 }
 
 func TestCleanSaysWhatItFreedAndWhatIsFree(t *testing.T) {
@@ -232,7 +262,7 @@ func TestCleanCountsWhatTwoStepsBothFindOnce(t *testing.T) {
 	t.Setenv("DISKCLEANER_NODE_DIR", dir)
 	var stdout, stderr bytes.Buffer
 
-	status := run([]string{"clean", "--dry-run"}, &stdout, &stderr, registry{names: []string{"projects", "node-modules"}, find: steps})
+	status := run([]string{"clean", "--dry-run"}, &stdout, &stderr, registry{names: []string{"projects", "node-modules"}, table: settingsTable, find: steps})
 
 	assert.Equal(t, 0, status, stderr.String())
 	assert.Equal(t, 1, strings.Count(stdout.String(), "WOULD REMOVE"), stdout.String())

@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -12,15 +11,18 @@ import (
 	"github.com/botforge-pro/diskcleaner/internal/lock"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/botforge-pro/diskcleaner/internal/settings"
+	"github.com/spf13/pflag"
 )
 
 func clean(args []string, stdout, stderr io.Writer, steps registry) int {
-	flags := flag.NewFlagSet("clean", flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	dryRun := flags.Bool("dry-run", false, "list what would be removed, remove nothing")
-	gitTmpNow := flags.Bool("git-tmp-now", false, "remove dead Git temporary files without waiting for them to age")
-	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
-		fmt.Fprint(stderr, usage)
+	var dryRun *bool
+	c, set, ok := loadSettings("clean", args, stderr, steps.table, func(set *pflag.FlagSet) {
+		dryRun = set.Bool("dry-run", false, "list what would be removed, remove nothing")
+	})
+	if !ok || set.NArg() != 0 {
+		if ok {
+			fmt.Fprint(stderr, usage)
+		}
 		return 2
 	}
 	home, err := os.UserHomeDir()
@@ -29,8 +31,13 @@ func clean(args []string, stdout, stderr io.Writer, steps registry) int {
 		return 2
 	}
 	var all []step
+	var off []string
 	for _, name := range steps.names {
-		s, ok := findStep(name, options{gitTmpNow: *gitTmpNow}, stderr, steps.find)
+		if !c.Bool(name + ".enabled") {
+			off = append(off, name)
+			continue
+		}
+		s, ok := findStep(name, c, stderr, steps.find)
 		if !ok {
 			return 2
 		}
@@ -52,6 +59,9 @@ func clean(args []string, stdout, stderr io.Writer, steps registry) int {
 	}
 	for _, s := range all {
 		s.Run(r)
+	}
+	for _, name := range off {
+		fmt.Fprintf(stdout, "OFF           %s: turn on with --%s.enabled\n", name, name)
 	}
 	if err := held.Release(); err != nil {
 		r.Fail("release the lock: %v", err)

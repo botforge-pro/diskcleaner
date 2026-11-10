@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/botforge-pro/diskcleaner/internal/candidates"
 	"github.com/botforge-pro/diskcleaner/internal/inuse"
@@ -24,7 +25,7 @@ type Step struct {
 	LFS     LFS
 }
 
-func Default(home string, gitTmpNow bool) (Step, error) {
+func Default(home string, gitTmpMinAge time.Duration) (Step, error) {
 	repos := settings.Env("DISKCLEANER_REPOS_DIR", filepath.Join(home, "Developer"))
 	resolved, err := settings.Canonical(repos)
 	if err != nil {
@@ -37,7 +38,7 @@ func Default(home string, gitTmpNow bool) (Step, error) {
 	if err != nil {
 		return Step{}, err
 	}
-	garbage, err := DefaultGitGarbage(gitTmpNow)
+	garbage, err := DefaultGitGarbage(gitTmpMinAge)
 	if err != nil {
 		return Step{}, err
 	}

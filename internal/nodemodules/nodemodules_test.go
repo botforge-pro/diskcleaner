@@ -60,7 +60,7 @@ func step(t *testing.T, root string) Step {
 			Minutes: 60, Now: func() time.Time { return time.Now().Add(2 * time.Hour) },
 			Lsof: listing, LsofTimeoutSeconds: 5,
 		},
-		Garbage: projects.GitGarbage{Minutes: 60, LsofTimeoutSeconds: 5, Now: time.Now, Lsof: lsof},
+		Garbage: projects.GitGarbage{MinAge: time.Hour, LsofTimeoutSeconds: 5, Now: time.Now, Lsof: lsof},
 	}
 }
 
@@ -83,12 +83,8 @@ func TestKeepsNodeModulesAnInstallIsWriting(t *testing.T) {
 	assert.Contains(t, stderr, "SKIPPED       "+writing+": written within 60 minutes")
 }
 
-func TestGitTmpNowRemovesAFreshDeadTemporaryFile(t *testing.T) {
+func TestNoMinAgeRemovesAFreshDeadTemporaryFile(t *testing.T) {
 	root := newRoot(t)
-	t.Setenv("DISKCLEANER_NODE_DIR", root)
-	defaults, err := Default(t.TempDir(), true)
-	require.NoError(t, err)
-	assert.True(t, defaults.Garbage.IgnoreAge)
 	fresh := filepath.Join(root, "octo", ".git", "objects", "pack", "tmp_pack_fresh")
 	write(t, filepath.Join(root, "octo"), ".git/objects/pack/tmp_pack_fresh", "x")
 	s := step(t, root)
@@ -96,9 +92,9 @@ func TestGitTmpNowRemovesAFreshDeadTemporaryFile(t *testing.T) {
 	_, _, stderr := run(s, false)
 
 	assert.FileExists(t, fresh)
-	assert.Contains(t, stderr, "SKIPPED       "+fresh+": written within 60 minutes")
+	assert.Contains(t, stderr, "SKIPPED       "+fresh+": written within 1h")
 
-	s.Garbage.IgnoreAge = true
+	s.Garbage.MinAge = 0
 	r, _, _ := run(s, false)
 
 	assert.Empty(t, r.Failures)
@@ -168,7 +164,7 @@ func TestDefaultSeesAnotherSpellingOfTheRepositoriesFolderAsIt(t *testing.T) {
 		t.Setenv("DISKCLEANER_NODE_DIR", pair[0])
 		t.Setenv("DISKCLEANER_REPOS_DIR", pair[1])
 
-		s, err := Default(t.TempDir(), false)
+		s, err := Default(t.TempDir(), time.Hour)
 
 		require.NoError(t, err, pair)
 		assert.Equal(t, filepath.Join(dir, "repos"), s.Root, pair)

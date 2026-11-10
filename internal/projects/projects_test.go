@@ -96,7 +96,7 @@ func step(t *testing.T, repos string) Step {
 			Minutes: 60, Now: func() time.Time { return time.Now().Add(2 * time.Hour) },
 			Lsof: script(t, "lsof", "printf 'p1\\nfcwd\\nn/\\n'\n"), LsofTimeoutSeconds: 5,
 		},
-		Garbage: GitGarbage{Minutes: 60, LsofTimeoutSeconds: 5, Now: time.Now, Lsof: script(t, "lsof", "exit 1\n")},
+		Garbage: GitGarbage{MinAge: time.Hour, LsofTimeoutSeconds: 5, Now: time.Now, Lsof: script(t, "lsof", "exit 1\n")},
 		LFS:     LFS{Git: "git", GitLFS: "diskcleaner-test-absent-git-lfs"},
 	}
 }
@@ -145,7 +145,7 @@ func TestRemovesBuildOutputAndGitGarbage(t *testing.T) {
 	for _, line := range []string{
 		"swiftapp/tools/.build: no Package.swift next to it",
 		"androidapp/lib/build: contains files tracked by git",
-		"tmp_pack_fetching: written within 60 minutes",
+		"tmp_pack_fetching: written within 1h",
 		"pack-repacking.pack: the git repack that writes it is still running",
 	} {
 		assert.Contains(t, stderr, line)
@@ -236,15 +236,6 @@ func TestUnreadableGitObjectsFailAndOtherRepositoriesGoOn(t *testing.T) {
 	assert.True(t, strings.Contains(strings.Join(r.Failures, "\n"), "read "+pack), r.Failures)
 	assert.NoDirExists(t, filepath.Join(repos, "androidapp", "app", "build"))
 	assert.NoFileExists(t, filepath.Join(repos, "swiftapp", ".git", "objects", "tmp_obj_died"))
-}
-
-func TestDefaultRefusesAMinuteCountThatWouldOverflow(t *testing.T) {
-	t.Setenv("DISKCLEANER_REPOS_DIR", t.TempDir())
-	t.Setenv("DISKCLEANER_GIT_TMP_MINUTES", "153722868")
-
-	_, err := Default(t.TempDir(), false)
-
-	assert.ErrorContains(t, err, "DISKCLEANER_GIT_TMP_MINUTES must be at most 153722867 minutes")
 }
 
 func TestDryRunRemovesNothing(t *testing.T) {
@@ -382,28 +373,15 @@ func TestLFSWithoutGitLFSFails(t *testing.T) {
 func TestDefaultRefusesAMissingReposFolder(t *testing.T) {
 	t.Setenv("DISKCLEANER_REPOS_DIR", filepath.Join(t.TempDir(), "absent"))
 
-	_, err := Default(t.TempDir(), false)
+	_, err := Default(t.TempDir(), time.Hour)
 
 	assert.ErrorContains(t, err, "repositories directory not found")
 }
 
-func TestDefaultRefusesAFractionalMinuteCount(t *testing.T) {
-	t.Setenv("DISKCLEANER_REPOS_DIR", t.TempDir())
-	t.Setenv("DISKCLEANER_GIT_TMP_MINUTES", "1.5")
-
-	_, err := Default(t.TempDir(), false)
-
-	assert.EqualError(t, err, "DISKCLEANER_GIT_TMP_MINUTES must be a whole number above zero, got: 1.5")
-}
-
-func TestGitTmpNowRemovesAFreshDeadTemporaryFileAndKeepsALiveRepack(t *testing.T) {
+func TestNoMinAgeRemovesAFreshDeadTemporaryFileAndKeepsALiveRepack(t *testing.T) {
 	repos := newRepos(t)
-	t.Setenv("DISKCLEANER_REPOS_DIR", repos)
-	defaults, err := Default(t.TempDir(), true)
-	require.NoError(t, err)
-	assert.True(t, defaults.Garbage.IgnoreAge)
 	s := step(t, repos)
-	s.Garbage.IgnoreAge = true
+	s.Garbage.MinAge = 0
 
 	r, _, stderr := run(s, false)
 

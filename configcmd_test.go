@@ -28,7 +28,7 @@ func TestConfigPrintsEachSettingWithItsSource(t *testing.T) {
 	require.NoError(t, os.WriteFile(path, []byte("[xcode-archives]\nmin-age = \"30d\"\n"), 0o644))
 	var stdout, stderr bytes.Buffer
 
-	status := run([]string{"config", "--min-age=2h"}, &stdout, &stderr, findFake(false))
+	status := run([]string{"config", "--min-age=2h"}, &stdout, &stderr, realSteps)
 
 	assert.Equal(t, 0, status, stderr.String())
 	lines := strings.Split(stdout.String(), "\n")
@@ -43,11 +43,13 @@ func TestConfigRefusesAWrongValue(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "")
 	var stdout, stderr bytes.Buffer
 
-	status := run([]string{"config", "--min-age=soon"}, &stdout, &stderr, findFake(false))
+	status := run([]string{"config", "--min-age=soon"}, &stdout, &stderr, realSteps)
 
 	assert.Equal(t, 2, status)
 	assert.Equal(t, "min-age: want a duration like 1h or 15d, got \"soon\"\n", stderr.String())
 }
+
+var realSteps = registry{names: stepNames(), table: settingsTable, find: steps}
 
 func fieldsOf(lines []string, key string) []string {
 	for _, line := range lines {

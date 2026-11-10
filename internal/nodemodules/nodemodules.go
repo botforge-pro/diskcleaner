@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"time"
 
 	"github.com/botforge-pro/diskcleaner/internal/candidates"
 	"github.com/botforge-pro/diskcleaner/internal/inuse"
@@ -25,12 +26,12 @@ type Step struct {
 	Garbage   projects.GitGarbage
 }
 
-func Default(home string, gitTmpNow bool) (Step, error) {
+func Default(home string, gitTmpMinAge time.Duration) (Step, error) {
 	check, err := inuse.Default()
 	if err != nil {
 		return Step{}, err
 	}
-	garbage, err := projects.DefaultGitGarbage(gitTmpNow)
+	garbage, err := projects.DefaultGitGarbage(gitTmpMinAge)
 	if err != nil {
 		return Step{}, err
 	}

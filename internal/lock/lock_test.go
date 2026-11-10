@@ -39,13 +39,13 @@ func TestALockFileLeftBehindDoesNotHoldTheLock(t *testing.T) {
 	require.NoError(t, l.Release())
 }
 
-func TestTheShellLockLinkIsRefused(t *testing.T) {
+func TestALinkAtTheLockPathIsNotFollowed(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "lock")
 	require.NoError(t, os.Symlink("99999", path))
 
 	_, err := Take(path, io.Discard)
 
-	assert.ErrorContains(t, err, "is a link, as the shell version of diskcleaner left its lock")
+	assert.ErrorContains(t, err, "cannot open the lock")
 	assert.NotErrorIs(t, err, ErrHeld)
 	_, statErr := os.Lstat(filepath.Join(filepath.Dir(path), "99999"))
 	assert.ErrorIs(t, statErr, os.ErrNotExist)

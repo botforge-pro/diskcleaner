@@ -17,8 +17,7 @@ import (
 const bigEnough = 2 << 20
 
 func systemStep(t *testing.T, temp, lsof string) Step {
-	s, err := SystemTemp(time.Hour, 1<<20)
-	require.NoError(t, err)
+	s := SystemTemp(time.Hour, 1<<20)
 	s.Dir, s.InUse.Now, s.InUse.Lsof, s.InUse.LsofTimeoutSeconds = temp, func() time.Time { return now }, lsof, 5
 	return s
 }
@@ -160,9 +159,8 @@ func TestAMountedDiskImageIsNotSpaceToFree(t *testing.T) {
 }
 
 func TestSystemTempLooksInTheSharedTemporaryFolder(t *testing.T) {
-	s, err := SystemTemp(time.Hour, 1<<20)
+	s := SystemTemp(time.Hour, 1<<20)
 
-	require.NoError(t, err)
 	assert.Equal(t, "/private/tmp", s.Dir)
 	require.NotNil(t, s.Owner)
 	assert.Equal(t, os.Getuid(), *s.Owner)

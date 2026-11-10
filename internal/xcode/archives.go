@@ -26,7 +26,7 @@ type Archives struct {
 	Running   func(pattern string) (bool, error)
 }
 
-func DefaultArchives(home string, minAge time.Duration, kept int) (Archives, error) {
+func DefaultArchives(home string, minAge time.Duration, kept int) Archives {
 	return Archives{
 		Folder:    filepath.Join(home, "Library/Developer/Xcode/Archives"),
 		MinAge:    minAge,
@@ -34,7 +34,7 @@ func DefaultArchives(home string, minAge time.Duration, kept int) (Archives, err
 		Now:       time.Now,
 		Processes: process.Xcode,
 		Running:   process.Running,
-	}, nil
+	}
 }
 
 type archive struct {

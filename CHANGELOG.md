@@ -10,12 +10,13 @@ is 0.x, commands and output may still change.
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.20.0`.
 
 Before you upgrade, unset every `DISKCLEANER_*` variable wherever `clean` runs,
-a scheduled run included: a run that finds one stops with status 2 and names
-the setting that replaces it. After upgrading, `clean` no longer deletes old
+a scheduled run included: a run that finds one stops with status 2 and says
+what to write instead. After upgrading, `clean` no longer deletes old
 Homebrew versions, Xcode archives, simulator data, files in `/private/tmp`,
-old IDE data or session logs until you turn those steps on; `clean` lists each
-as `OFF` with what it would free. Run `diskcleaner clean --dry-run` and
-`diskcleaner config` to see the new behaviour.
+old IDE data or session logs until you turn those steps on; `clean --dry-run`
+lists each as `OFF` with what it would free. Run `diskcleaner clean --dry-run`
+and `diskcleaner config` to see the new behaviour. Once no 0.19 runs, remove
+its lock `~/.diskcleaner.lock`.
 
 ### Added
 
@@ -44,7 +45,9 @@ as `OFF` with what it would free. Run `diskcleaner clean --dry-run` and
 - The lock moved from `~/.diskcleaner.lock` to
   `~/.local/state/diskcleaner/lock`.
 - Where a tool says where its data is, diskcleaner asks it: Xcode's own
-  DerivedData location, `CLAUDE_CONFIG_DIR` and `CODEX_HOME`.
+  DerivedData location, `CLAUDE_CONFIG_DIR` and `CODEX_HOME`. In a DerivedData
+  folder picked in Xcode only what Xcode made there goes; anything else is
+  `SKIPPED`.
 
 ### Removed
 

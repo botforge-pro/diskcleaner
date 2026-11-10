@@ -24,8 +24,6 @@ func Take(path string, stderr io.Writer) (*Lock, error) {
 	case errors.Is(err, syscall.ENOSPC):
 		fmt.Fprintf(stderr, "The disk is full, so the lock %s cannot be made; running without it.\n", path)
 		return &Lock{}, nil
-	case errors.Is(err, syscall.ELOOP):
-		return nil, fmt.Errorf("%s is a link, as the shell version of diskcleaner left its lock; remove it once no cleanup runs, and run again", path)
 	case err != nil:
 		return nil, fmt.Errorf("cannot open the lock %s: %w", path, err)
 	}

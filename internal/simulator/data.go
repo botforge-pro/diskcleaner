@@ -26,7 +26,7 @@ type DataStep struct {
 	Now       func() time.Time
 }
 
-func DefaultData(home string, idle time.Duration) (DataStep, error) {
+func DefaultData(home string, idle time.Duration) DataStep {
 	caches := Default(home)
 	return DataStep{
 		Devices:   caches.Devices,
@@ -36,7 +36,7 @@ func DefaultData(home string, idle time.Duration) (DataStep, error) {
 		Running:   process.Running,
 		Value:     plutilValue,
 		Now:       time.Now,
-	}, nil
+	}
 }
 
 func (s DataStep) Run(r *report.Report) {

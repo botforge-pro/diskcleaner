@@ -32,8 +32,8 @@ When `lsof` or Git cannot answer, the path stays and the step fails. Each kept
 path is listed as `SKIPPED` with the reason; `--report FILE` writes the totals.
 
 `--only` and `--skip` choose among the steps that are on; a step that is off
-runs only with `--<step>.enabled`, and `clean` lists it as `OFF` with what it
-would free. One `clean` runs at a time; its lock is
+runs only with `--<step>.enabled`, and `clean` lists it as `OFF`, with what it
+would free under `--dry-run`. One `clean` runs at a time; its lock is
 `~/.local/state/diskcleaner/lock` (or under `$XDG_STATE_HOME`).
 
 | Exit | Means |
@@ -50,7 +50,7 @@ Everything works without a config. To change a setting, put it in
 `~/.config/diskcleaner.toml` (or `$XDG_CONFIG_HOME/diskcleaner.toml`, or
 `--config FILE`), or pass it as `--key=value` for one run; a flag wins over the
 file. The `DISKCLEANER_*` variables of 0.19 and before are not read: a run that
-finds one stops and names the setting that replaces it.
+finds one stops and says what to write instead.
 
 ```toml
 project-dirs = ["~/Developer", "~/work"]
@@ -64,12 +64,14 @@ min-age = "30d"
 
 | Setting | Default | |
 |---|---|---|
-| `project-dirs` | those of `~/Developer`, `~/Projects`, `~/src`, `~/code`, `~/GolandProjects`, `~/IdeaProjects`, `~/AndroidStudioProjects` that exist | where Git repositories sit, one level down |
-| `min-age` | `1h` | anything written more recently stays |
+| `project-dirs` | those of `~/Developer`, `~/Projects`, `~/src`, `~/code`, `~/GolandProjects`, `~/IdeaProjects`, `~/AndroidStudioProjects` that exist | where Git repositories sit, one level down; `node_modules` is found at any depth |
+| `min-age` | `1h` | in projects, temporary folders and app copies, anything written more recently stays |
 | `min-free` | `0` (off) | exit 4 when less is free after `clean` |
 | `<step>.enabled` | on, off for the steps marked below | |
 
-Durations take `m`, `h` and `d`. Each step's own settings are under it below.
+A duration is like `90m`, `1h30m` or `15d`; a size like `500KB` or `5GB`, where
+1KB is 1024 bytes; a folder starts with `/` or `~/`. Each step's own settings
+are under it below.
 
 ## Steps
 
@@ -82,7 +84,7 @@ Durations take `m`, `h` and `d`. Each step's own settings are under it below.
 | `docker-images` | images no container uses (`timeout`, `30s`; `prune-timeout`, `15m`) | volumes | an image neither a registry nor a Dockerfile still has |
 | `go-cache` | the Go module and build caches | all while `go` builds | |
 | `swiftpm-cache` | the SwiftPM package cache | all while Swift or Xcode build | |
-| `xcode-derived-data` | Xcode DerivedData | all while Xcode builds | |
+| `xcode-derived-data` | Xcode DerivedData | all while Xcode builds; in a folder you picked in Xcode, what Xcode did not make | |
 | `simulator-caches` | Core ML caches of shut-down simulators | app data | |
 | `temp-leftovers` | work folders of killed Go builds, Xcode export leftovers | | |
 | `code-sign-clones` | copies of Chrome and other apps no running app was started from | | |

@@ -23,13 +23,13 @@ type Step struct {
 	Running        func(pattern string) (bool, error)
 }
 
-func Default(timeout time.Duration) (Step, error) {
+func Default(timeout time.Duration) Step {
 	return Step{
 		Brew:           "brew",
 		Processes:      `/Library/Homebrew/brew\.(sh|rb)`,
 		TimeoutSeconds: int(timeout / time.Second),
 		Running:        process.Running,
-	}, nil
+	}
 }
 
 func (s Step) Run(r *report.Report) {

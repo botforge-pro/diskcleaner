@@ -311,9 +311,8 @@ func TestWithoutDockerDoesNothing(t *testing.T) {
 }
 
 func TestDefaultTakesTheTimeoutsInSeconds(t *testing.T) {
-	s, err := Default(t.TempDir(), 30*time.Second, 15*time.Minute)
+	s := Default(t.TempDir(), 30*time.Second, 15*time.Minute)
 
-	require.NoError(t, err)
 	assert.Equal(t, 30, s.TimeoutSeconds)
 	assert.Equal(t, 900, s.PruneTimeoutSeconds)
 }

@@ -37,9 +37,9 @@ type Setting struct {
 }
 
 type Step struct {
-	Name     string
-	Undoable bool
-	Settings []Setting
+	Name       string
+	Reversible bool
+	Settings   []Setting
 }
 
 type Table []Setting
@@ -57,7 +57,7 @@ func NewTable(steps []Step) Table {
 	}
 	for _, step := range steps {
 		enabled, help := "true", "run "+step.Name
-		if !step.Undoable {
+		if !step.Reversible {
 			enabled, help = "false", "run "+step.Name+", whose deletions cannot be undone"
 		}
 		table = append(table, Setting{step.Name + ".enabled", Bool, enabled, help})
@@ -78,14 +78,26 @@ func (t Table) Find(key string) (Setting, bool) {
 }
 
 func (t Table) Flags(set *pflag.FlagSet) {
-	set.String("config", "", "read settings from this file instead of ~/.config/diskcleaner.toml")
+	set.String("config", "", "read settings from this file instead of diskcleaner.toml in $XDG_CONFIG_HOME or ~/.config")
 	for _, s := range t {
-		set.String(s.Key, s.Default, s.Help)
+		set.Var(&text{value: s.Default, kind: kindNames[s.Kind]}, s.Key, s.Help)
 		if s.Kind == Bool {
 			set.Lookup(s.Key).NoOptDefVal = "true"
 		}
 	}
 }
+
+var kindNames = map[Kind]string{
+	Bool: "bool", Duration: "duration", Timeout: "duration", Size: "size", Count: "count", Dirs: "folders",
+}
+
+type text struct {
+	value, kind string
+}
+
+func (t *text) String() string     { return t.value }
+func (t *text) Set(s string) error { t.value = s; return nil }
+func (t *text) Type() string       { return t.kind }
 
 type Source string
 
@@ -120,6 +132,9 @@ func Load(t Table, set *pflag.FlagSet, home string) (*Config, error) {
 			return nil, fmt.Errorf("%s: %w", path, err)
 		}
 		for key, value := range k.All() {
+			if emptySection, ok := value.(map[string]any); ok && len(emptySection) == 0 {
+				continue
+			}
 			if _, known := t.Find(key); !known {
 				return nil, fmt.Errorf("%s: unknown setting %q", path, key)
 			}
@@ -152,6 +167,9 @@ func (c *Config) Text(key string) string { return c.texts[key] }
 
 func configPath(set *pflag.FlagSet, home string) (string, error) {
 	if f := set.Lookup("config"); f != nil && f.Changed {
+		if f.Value.String() == "" {
+			return "", errors.New("--config: want a file")
+		}
 		return f.Value.String(), nil
 	}
 	dir := os.Getenv("XDG_CONFIG_HOME")
@@ -184,8 +202,8 @@ func parse(s Setting, raw any, home string) (any, error) {
 		return duration(text)
 	case Timeout:
 		value, err := duration(text)
-		if err == nil && value <= 0 {
-			return nil, fmt.Errorf("want a timeout above 0, got %q", text)
+		if err == nil && value < time.Second {
+			return nil, fmt.Errorf("want a timeout of 1s or more, got %q", text)
 		}
 		return value, err
 	case Size:
@@ -262,8 +280,11 @@ func dirs(raw any, home string) ([]string, error) {
 	}
 	for i, dir := range list {
 		dir = strings.TrimSpace(dir)
-		if rest, ok := strings.CutPrefix(dir, "~"); ok {
-			dir = filepath.Join(home, rest)
+		if dir == "~" || strings.HasPrefix(dir, "~/") {
+			dir = filepath.Join(home, dir[1:])
+		}
+		if !filepath.IsAbs(dir) {
+			return nil, fmt.Errorf("want folders starting with / or ~/, got %q", dir)
 		}
 		list[i] = dir
 	}

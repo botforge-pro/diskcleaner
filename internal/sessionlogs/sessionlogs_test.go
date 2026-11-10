@@ -244,9 +244,8 @@ func TestAMissingFolderIsQuiet(t *testing.T) {
 func TestClaudeLooksInItsProjectsFolder(t *testing.T) {
 	home := t.TempDir()
 
-	s, err := Claude(home, 20*24*time.Hour)
+	s := Claude(home, 20*24*time.Hour)
 
-	require.NoError(t, err)
 	assert.Equal(t, "CLAUDE", s.Label)
 	assert.Equal(t, filepath.Join(home, ".claude", "projects"), s.Folder)
 	assert.Equal(t, 20*24*time.Hour, s.MinAge)
@@ -255,9 +254,8 @@ func TestClaudeLooksInItsProjectsFolder(t *testing.T) {
 func TestCodexLooksInItsSessionsFolder(t *testing.T) {
 	home := t.TempDir()
 
-	s, err := Codex(home, 7*24*time.Hour)
+	s := Codex(home, 7*24*time.Hour)
 
-	require.NoError(t, err)
 	assert.Equal(t, "CODEX", s.Label)
 	assert.Equal(t, filepath.Join(home, ".codex", "sessions"), s.Folder)
 	assert.Equal(t, 7*24*time.Hour, s.MinAge)

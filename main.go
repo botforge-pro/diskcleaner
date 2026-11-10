@@ -6,85 +6,15 @@ import (
 	"io"
 	"os"
 	"runtime/debug"
-	"slices"
 	"strings"
 
-	"github.com/botforge-pro/diskcleaner/internal/clones"
 	"github.com/botforge-pro/diskcleaner/internal/config"
-	"github.com/botforge-pro/diskcleaner/internal/docker"
-	"github.com/botforge-pro/diskcleaner/internal/gocache"
-	"github.com/botforge-pro/diskcleaner/internal/gradle"
-	"github.com/botforge-pro/diskcleaner/internal/homebrew"
-	"github.com/botforge-pro/diskcleaner/internal/ide"
-	"github.com/botforge-pro/diskcleaner/internal/leftovers"
-	"github.com/botforge-pro/diskcleaner/internal/projects"
 	"github.com/botforge-pro/diskcleaner/internal/report"
-	"github.com/botforge-pro/diskcleaner/internal/scratchpads"
-	"github.com/botforge-pro/diskcleaner/internal/sessionlogs"
-	"github.com/botforge-pro/diskcleaner/internal/simulator"
-	"github.com/botforge-pro/diskcleaner/internal/swiftpm"
-	"github.com/botforge-pro/diskcleaner/internal/xcode"
 	"github.com/spf13/pflag"
 )
 
 type step interface {
 	Run(r *report.Report)
-}
-
-type stepInfo struct {
-	name      string
-	describes string
-	construct func(home string, c *config.Config) (step, error)
-}
-
-var catalog = []stepInfo{
-	{"projects", "build output, node_modules and Git leftovers in your projects", func(_ string, c *config.Config) (step, error) {
-		s, err := projects.Default(c.Dirs("project-dirs"), c.Duration("min-age"), c.Duration("projects.git-tmp-min-age"))
-		return s, err
-	}},
-	{"gradle-caches", "the Gradle caches", func(home string, _ *config.Config) (step, error) { return gradle.Default(home), nil }},
-	{"docker-images", "Docker images not used by any container", func(home string, c *config.Config) (step, error) {
-		s, err := docker.Default(home, c.Duration("docker-images.timeout"), c.Duration("docker-images.prune-timeout"))
-		return s, err
-	}},
-	{"go-cache", "the Go module and build caches", func(string, *config.Config) (step, error) { return gocache.Default(), nil }},
-	{"homebrew", "old Homebrew versions and downloads", func(_ string, c *config.Config) (step, error) {
-		s, err := homebrew.Default(c.Duration("homebrew.timeout"))
-		return s, err
-	}},
-	{"swiftpm-cache", "the Swift Package Manager cache", func(home string, _ *config.Config) (step, error) { return swiftpm.Default(home), nil }},
-	{"xcode-derived-data", "Xcode DerivedData", func(home string, _ *config.Config) (step, error) { return xcode.Default(home), nil }},
-	{"xcode-archives", "old Xcode archives, the newest of each app kept", func(home string, c *config.Config) (step, error) {
-		s, err := xcode.DefaultArchives(home, c.Duration("xcode-archives.min-age"), c.Count("xcode-archives.keep"))
-		return s, err
-	}},
-	{"temp-leftovers", "temporary folders of killed Go builds and of Xcode exports", func(_ string, c *config.Config) (step, error) {
-		s, err := leftovers.Default(c.Duration("min-age"))
-		return s, err
-	}},
-	{"system-temp", "your files and folders left in /private/tmp", func(_ string, c *config.Config) (step, error) {
-		s, err := leftovers.SystemTemp(c.Duration("min-age"), c.Size("system-temp.min-size"))
-		return s, err
-	}},
-	{"code-sign-clones", "copies of Chrome and other apps no running app uses", func(_ string, c *config.Config) (step, error) {
-		s, err := clones.Default(c.Duration("min-age"))
-		return s, err
-	}},
-	{"ide-old-versions", "settings, caches and logs of IDE versions older than the installed one", func(home string, _ *config.Config) (step, error) { return ide.Default(home), nil }},
-	{"simulator-data", "data of iOS simulators not used for days", func(home string, c *config.Config) (step, error) {
-		s, err := simulator.DefaultData(home, c.Duration("simulator-data.idle"))
-		return s, err
-	}},
-	{"simulator-caches", "Core ML caches of shut-down iOS simulators", func(home string, _ *config.Config) (step, error) { return simulator.Default(home), nil }},
-	{"claude-logs", "old Claude Code session logs", func(home string, c *config.Config) (step, error) {
-		s, err := sessionlogs.Claude(home, c.Duration("claude-logs.min-age"))
-		return s, err
-	}},
-	{"codex-logs", "old Codex session logs", func(home string, c *config.Config) (step, error) {
-		s, err := sessionlogs.Codex(home, c.Duration("codex-logs.min-age"))
-		return s, err
-	}},
-	{"claude-scratchpads", "build output in Claude Code scratchpads", func(string, *config.Config) (step, error) { return scratchpads.Default(), nil }},
 }
 
 var usage = buildUsage()
@@ -105,17 +35,17 @@ Examples:
 
 clean takes --dry-run, --only STEPS, --skip STEPS, --report FILE and
 --config FILE. Every setting that diskcleaner config prints is also a flag of
-clean and config, and lives in ~/.config/diskcleaner.toml.
+clean and config, and lives in diskcleaner.toml.
 
 Steps, in the order clean runs them; off ones delete what cannot be undone and
 run only with --STEP.enabled:
 `)
 	for _, info := range catalog {
 		state := ""
-		if i := slices.IndexFunc(configSteps, func(s config.Step) bool { return s.Name == info.name }); i >= 0 && !configSteps[i].Undoable {
+		if !info.Reversible {
 			state = " (off)"
 		}
-		fmt.Fprintf(&b, "  %-20s %s%s\n", info.name, info.describes, state)
+		fmt.Fprintf(&b, "  %-20s %s%s\n", info.Name, info.describes, state)
 	}
 	return b.String()
 }
@@ -138,7 +68,7 @@ func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr, registry{names: stepNames(), table: settingsTable, find: steps}))
 }
 
-func loadSettings(name string, args []string, stderr io.Writer, table config.Table, extra func(*pflag.FlagSet)) (*config.Config, *pflag.FlagSet, bool) {
+func loadSettings(name string, args []string, stderr io.Writer, table config.Table, extra func(*pflag.FlagSet)) (*config.Config, *pflag.FlagSet, int) {
 	set := pflag.NewFlagSet(name, pflag.ContinueOnError)
 	set.SetOutput(stderr)
 	table.Flags(set)
@@ -146,37 +76,40 @@ func loadSettings(name string, args []string, stderr io.Writer, table config.Tab
 		extra(set)
 	}
 	if err := set.Parse(args); err != nil {
+		if errors.Is(err, pflag.ErrHelp) {
+			return nil, nil, 0
+		}
 		fmt.Fprint(stderr, usage)
-		return nil, nil, false
+		return nil, nil, 2
 	}
 	if err := oldSettings(os.Environ()); err != nil {
 		fmt.Fprintln(stderr, err)
-		return nil, nil, false
+		return nil, nil, 2
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Fprintf(stderr, "no home directory: %v\n", err)
-		return nil, nil, false
+		return nil, nil, 2
 	}
 	c, err := config.Load(table, set, home)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
-		return nil, nil, false
+		return nil, nil, 2
 	}
-	return c, set, true
+	return c, set, 0
 }
 
 func stepNames() []string {
 	names := make([]string, len(catalog))
 	for i, info := range catalog {
-		names[i] = info.name
+		names[i] = info.Name
 	}
 	return names
 }
 
 func steps(name string, c *config.Config) (step, error) {
 	for _, info := range catalog {
-		if info.name != name {
+		if info.Name != name {
 			continue
 		}
 		home, err := os.UserHomeDir()

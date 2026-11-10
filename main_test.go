@@ -39,7 +39,7 @@ func (f fakeStep) Run(r *report.Report) {
 }
 
 var fakeTable = config.NewTable([]config.Step{
-	{Name: "fake", Undoable: true}, {Name: "misconfigured", Undoable: true}, {Name: "kept"},
+	{Name: "fake", Reversible: true}, {Name: "misconfigured", Reversible: true}, {Name: "kept"},
 })
 
 func findFake(fail bool, names ...string) registry {
@@ -54,7 +54,7 @@ func findFake(fail bool, names ...string) registry {
 			case "fake", "kept":
 				return fakeStep{fail: fail, minAge: c.Duration("min-age")}, nil
 			case "misconfigured":
-				return nil, errors.New("DISKCLEANER_FAKE must be a whole number above zero, got: 1.5")
+				return nil, errors.New("misconfigured: no tool to run")
 			}
 			return nil, unknownStepError{name: name}
 		},
@@ -215,6 +215,26 @@ func TestCleanLeavesAStepThatIsOffAndSaysHowToTurnItOn(t *testing.T) {
 	assert.NotContains(t, stdout.String(), "OFF")
 }
 
+func TestOnlyADryRunEstimatesAStepThatIsOff(t *testing.T) {
+	cleanLock(t)
+	var stdout, stderr bytes.Buffer
+
+	status := run([]string{"clean"}, &stdout, &stderr, findFake(false, "fake", "kept"))
+
+	assert.Equal(t, 0, status, stderr.String())
+	assert.Equal(t, 1, strings.Count(stdout.String(), "FAKE\n"))
+	assert.Contains(t, stdout.String(), "OFF           kept: turn on with --kept.enabled\n")
+}
+
+func TestAnEstimateThatFailsSaysSo(t *testing.T) {
+	cleanLock(t)
+	var stdout, stderr bytes.Buffer
+
+	run([]string{"clean", "--dry-run"}, &stdout, &stderr, findFake(true, "fake", "kept"))
+
+	assert.Contains(t, stdout.String(), "OFF           kept: cannot estimate (")
+}
+
 func TestCleanSaysWhatItFreedAndWhatIsFree(t *testing.T) {
 	cleanLock(t)
 	var stdout, stderr bytes.Buffer
@@ -245,7 +265,7 @@ func TestCleanChecksEveryStepBeforeRunningAny(t *testing.T) {
 
 	assert.Equal(t, 2, status)
 	assert.Empty(t, stdout.String())
-	assert.Equal(t, "DISKCLEANER_FAKE must be a whole number above zero, got: 1.5\n", stderr.String())
+	assert.Equal(t, "misconfigured: no tool to run\n", stderr.String())
 	assert.NoFileExists(t, path)
 }
 

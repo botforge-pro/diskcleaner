@@ -208,9 +208,8 @@ func TestMissingArchivesFolderIsQuiet(t *testing.T) {
 }
 
 func TestArchiveSettingsAreTheGivenOnes(t *testing.T) {
-	s, err := DefaultArchives("/home", 30*day, 2)
+	s := DefaultArchives("/home", 30*day, 2)
 
-	require.NoError(t, err)
 	assert.Equal(t, 30*day, s.MinAge)
 	assert.Equal(t, 2, s.Kept)
 	assert.Equal(t, "/home/Library/Developer/Xcode/Archives", s.Folder)

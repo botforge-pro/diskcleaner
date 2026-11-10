@@ -25,7 +25,7 @@ type Step struct {
 	Running             func(pattern string) (bool, error)
 }
 
-func Default(home string, timeout, pruneTimeout time.Duration) (Step, error) {
+func Default(home string, timeout, pruneTimeout time.Duration) Step {
 	return Step{
 		Docker:              "docker",
 		Data:                filepath.Join(home, "Library/Containers/com.docker.docker"),
@@ -33,7 +33,7 @@ func Default(home string, timeout, pruneTimeout time.Duration) (Step, error) {
 		PruneTimeoutSeconds: int(pruneTimeout / time.Second),
 		Backend:             `com\.docker\.backend`,
 		Running:             process.Running,
-	}, nil
+	}
 }
 
 func (s Step) docker(seconds int, args ...string) process.Result {

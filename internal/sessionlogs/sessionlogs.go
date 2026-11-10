@@ -31,15 +31,15 @@ type Step struct {
 	Batch              int
 }
 
-func Claude(home string, minAge time.Duration) (Step, error) {
+func Claude(home string, minAge time.Duration) Step {
 	return logs("CLAUDE", filepath.Join(settings.Env("CLAUDE_CONFIG_DIR", filepath.Join(home, ".claude")), "projects"), minAge)
 }
 
-func Codex(home string, minAge time.Duration) (Step, error) {
+func Codex(home string, minAge time.Duration) Step {
 	return logs("CODEX", filepath.Join(settings.Env("CODEX_HOME", filepath.Join(home, ".codex")), "sessions"), minAge)
 }
 
-func logs(label, folder string, minAge time.Duration) (Step, error) {
+func logs(label, folder string, minAge time.Duration) Step {
 	return Step{
 		Label:              label,
 		Folder:             folder,
@@ -48,7 +48,7 @@ func logs(label, folder string, minAge time.Duration) (Step, error) {
 		Lsof:               "lsof",
 		LsofTimeoutSeconds: lsofTimeoutSeconds,
 		Batch:              lsofBatch,
-	}, nil
+	}
 }
 
 func (s Step) old(modified time.Time) bool {

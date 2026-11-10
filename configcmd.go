@@ -8,11 +8,12 @@ import (
 )
 
 func showConfig(args []string, stdout, stderr io.Writer, table config.Table) int {
-	c, set, ok := loadSettings("config", args, stderr, table, nil)
-	if !ok || set.NArg() != 0 {
-		if ok {
-			fmt.Fprint(stderr, usage)
-		}
+	c, set, exit := loadSettings("config", args, stderr, table, nil)
+	if c == nil {
+		return exit
+	}
+	if set.NArg() != 0 {
+		fmt.Fprint(stderr, usage)
 		return 2
 	}
 	if c.File == "" {

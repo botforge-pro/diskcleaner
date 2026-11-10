@@ -12,7 +12,7 @@ import (
 )
 
 var steps = []Step{
-	{Name: "go-cache", Undoable: true},
+	{Name: "go-cache", Reversible: true},
 	{Name: "xcode-archives", Settings: []Setting{
 		{"min-age", Duration, "15d", "remove archives older than this"},
 		{"keep", Count, "1", "keep this many newest archives of each app"},
@@ -130,13 +130,27 @@ func TestAnUnknownKeyInTheFileIsRefused(t *testing.T) {
 	assert.ErrorContains(t, err, `unknown setting "xcode-archives.min-aeg"`)
 }
 
+func TestASectionWithEveryLineCommentedOutIsNoSetting(t *testing.T) {
+	home := t.TempDir()
+	writeConfig(t, home, "[xcode-archives]\n# enabled = true\n")
+
+	c, err := load(t, home)
+
+	require.NoError(t, err)
+	assert.False(t, c.Bool("xcode-archives.enabled"))
+}
+
 func TestAWrongValueNamesItsSetting(t *testing.T) {
 	for args, want := range map[string]string{
-		"--min-age=1x":               `min-age: want a duration like 1h or 15d, got "1x"`,
-		"--min-free=lots":            `min-free: want a size like 500MB or 5GB, got "lots"`,
-		"--xcode-archives.keep=-1":   `xcode-archives.keep: want a whole number, got "-1"`,
-		"--go-cache.enabled=yes":     `go-cache.enabled: want true or false, got "yes"`,
-		"--xcode-archives.timeout=0": `xcode-archives.timeout: want a timeout above 0, got "0"`,
+		"--min-age=1x":                   `min-age: want a duration like 1h or 15d, got "1x"`,
+		"--min-free=lots":                `min-free: want a size like 500MB or 5GB, got "lots"`,
+		"--xcode-archives.keep=-1":       `xcode-archives.keep: want a whole number, got "-1"`,
+		"--go-cache.enabled=yes":         `go-cache.enabled: want true or false, got "yes"`,
+		"--xcode-archives.timeout=0":     `xcode-archives.timeout: want a timeout of 1s or more, got "0"`,
+		"--xcode-archives.timeout=500ms": `xcode-archives.timeout: want a timeout of 1s or more, got "500ms"`,
+		"--project-dirs=Developer":       `project-dirs: want folders starting with / or ~/, got "Developer"`,
+		"--project-dirs=~bob/src":        `project-dirs: want folders starting with / or ~/, got "~bob/src"`,
+		"--config=":                      `--config: want a file`,
 	} {
 		_, err := load(t, t.TempDir(), args)
 

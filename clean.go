@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"syscall"
 
 	"github.com/botforge-pro/diskcleaner/internal/config"
@@ -19,16 +20,17 @@ func clean(args []string, stdout, stderr io.Writer, steps registry) int {
 	var dryRun *bool
 	var only, skip *[]string
 	var summaryPath *string
-	c, set, ok := loadSettings("clean", args, stderr, steps.table, func(set *pflag.FlagSet) {
+	c, set, exit := loadSettings("clean", args, stderr, steps.table, func(set *pflag.FlagSet) {
 		dryRun = set.Bool("dry-run", false, "list what would be removed, remove nothing")
 		only = set.StringSlice("only", nil, "run only these steps, of those that are on")
 		skip = set.StringSlice("skip", nil, "leave these steps out")
 		summaryPath = set.String("report", "", "write the count, size and failures to this file")
 	})
-	if !ok || set.NArg() != 0 {
-		if ok {
-			fmt.Fprint(stderr, usage)
-		}
+	if c == nil {
+		return exit
+	}
+	if set.NArg() != 0 {
+		fmt.Fprint(stderr, usage)
 		return 2
 	}
 	for _, name := range append(slices.Clone(*only), *skip...) {
@@ -60,12 +62,7 @@ func clean(args []string, stdout, stderr io.Writer, steps registry) int {
 		all = append(all, s)
 	}
 
-	path, err := lockPath(home)
-	if err != nil {
-		fmt.Fprintln(stderr, err)
-		return 2
-	}
-	held, err := lock.Take(path, stderr)
+	held, err := takeLock(home, stderr)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		if errors.Is(err, lock.ErrHeld) {
@@ -82,7 +79,11 @@ func clean(args []string, stdout, stderr io.Writer, steps registry) int {
 		s.Run(r)
 	}
 	for _, name := range off {
-		fmt.Fprintf(stdout, "OFF           %s:%s turn on with --%s.enabled\n", name, wouldFree(name, c, steps), name)
+		estimate := ""
+		if *dryRun {
+			estimate = wouldFree(name, c, steps)
+		}
+		fmt.Fprintf(stdout, "OFF           %s:%s turn on with --%s.enabled\n", name, estimate, name)
 	}
 	if err := held.Release(); err != nil {
 		r.Fail("release the lock: %v", err)
@@ -117,26 +118,31 @@ func clean(args []string, stdout, stderr io.Writer, steps registry) int {
 func wouldFree(name string, c *config.Config, steps registry) string {
 	s, err := steps.find(name, c)
 	if err != nil {
-		return ""
+		return fmt.Sprintf(" cannot estimate (%v);", err)
 	}
 	r := &report.Report{Out: io.Discard, Err: io.Discard, DryRun: true}
 	s.Run(r)
-	if r.KB == 0 {
-		return ""
+	if len(r.Failures) > 0 {
+		first, _, _ := strings.Cut(r.Failures[0], "\n")
+		return fmt.Sprintf(" cannot estimate (%s);", first)
 	}
 	return fmt.Sprintf(" would free about %s;", report.FormatKB(r.KB))
 }
 
-func lockPath(home string) (string, error) {
+func takeLock(home string, stderr io.Writer) (*lock.Lock, error) {
 	state := os.Getenv("XDG_STATE_HOME")
 	if state == "" {
 		state = filepath.Join(home, ".local", "state")
 	}
 	dir := filepath.Join(state, "diskcleaner")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", fmt.Errorf("cannot make the folder of the lock: %w", err)
+		if errors.Is(err, syscall.ENOSPC) {
+			fmt.Fprintf(stderr, "The disk is full, so the lock folder %s cannot be made; running without it.\n", dir)
+			return &lock.Lock{}, nil
+		}
+		return nil, fmt.Errorf("cannot make the folder of the lock: %w", err)
 	}
-	return filepath.Join(dir, "lock"), nil
+	return lock.Take(filepath.Join(dir, "lock"), stderr)
 }
 
 func printFreeSpace(r *report.Report, home string) int64 {

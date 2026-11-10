@@ -29,16 +29,16 @@ type Step struct {
 	InUse    inuse.Check
 }
 
-func SystemTemp(minAge time.Duration, minSize int64) (Step, error) {
+func SystemTemp(minAge time.Duration, minSize int64) Step {
 	return Step{
 		Dir:      "/private/tmp",
 		Patterns: []string{"*"},
 		Exclude:  keptInSystemTemp,
 		Files:    true,
 		Owner:    new(os.Getuid()),
-		MinKB:    minSize / 1024,
+		MinKB:    (minSize + 1023) / 1024,
 		InUse:    inuse.Default(minAge),
-	}, nil
+	}
 }
 
 func Default(minAge time.Duration) (Step, error) {

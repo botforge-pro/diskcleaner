@@ -11,12 +11,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestEveryStepHasItsSettingsAndNoOtherStepDoes(t *testing.T) {
-	var names []string
-	for _, s := range configSteps {
-		names = append(names, s.Name)
+func TestHelpIsNoError(t *testing.T) {
+	for _, command := range []string{"clean", "config"} {
+		var stdout, stderr bytes.Buffer
+
+		status := run([]string{command, "--help"}, &stdout, &stderr, realSteps)
+
+		assert.Equal(t, 0, status, command)
+		assert.Contains(t, stderr.String(), "--min-age duration", command)
+		assert.Contains(t, stderr.String(), "--homebrew.enabled ", command)
 	}
-	assert.Equal(t, stepNames(), names)
 }
 
 func TestConfigPrintsEachSettingWithItsSource(t *testing.T) {

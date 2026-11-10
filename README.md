@@ -2,35 +2,9 @@
 
 [![CI](https://github.com/botforge-pro/diskcleaner/actions/workflows/ci.yml/badge.svg)](https://github.com/botforge-pro/diskcleaner/actions/workflows/ci.yml)
 
-Frees disk space on a developer's Mac. Most of what it deletes, builds and
-tools make again on demand; a few steps delete what cannot be brought back,
-and the table says which.
-
-## What gets deleted
-
-| Step | Deletes | Can it come back |
-|---|---|---|
-| `projects` | build output, `.apk`/`.aab`, dead Git temporary files and old Git LFS objects in your repositories | yes: the next build, the LFS remote |
-| `gradle-caches` | `~/.gradle/caches` | yes: the next Gradle build |
-| `docker-images` | Docker images no container uses | when a registry or a Dockerfile still has it |
-| `go-cache` | Go module and build caches | yes: the next Go build |
-| `homebrew` | old Homebrew versions and all its downloads | **no** for the old versions; downloads come again |
-| `swiftpm-cache` | the SwiftPM package cache | yes: the next package resolution |
-| `xcode-derived-data` | Xcode DerivedData | yes: the next build |
-| `xcode-archives` | Xcode archives 15 whole days old or older, except the newest of each app | **no**: the signed build is gone for good; its debug symbols remain only where App Store Connect or Crashlytics got them with the upload |
-| `temp-leftovers` | temporary folders of killed Go builds and of Xcode exports | nothing reads them again |
-| `system-temp` | your files and folders in `/private/tmp` that nothing wrote or opened for an hour | **no**, and macOS deletes them after three days anyway |
-| `code-sign-clones` | copies of Chrome and other apps that no running app was started from | nothing reads them again |
-| `ide-old-versions` | data of IDE versions older than the installed one: JetBrains IDEs, Android Studio, VS Code and its forks | **no** for old IntelliJ-platform settings and logs; the VS Code code cache comes again |
-| `simulator-data` | apps and data of iOS simulators not used for 3 days | **no**: the simulator is reset to new |
-| `simulator-caches` | Core ML caches of iOS simulators | yes: the app compiles its models again |
-| `claude-logs` | Claude Code session logs older than 20 days | **no**: such a session can no longer be resumed |
-| `codex-logs` | Codex session logs older than 20 days | **no**: such a session can no longer be resumed |
-| `claude-scratchpads` | build output in Claude Code scratchpads | yes: the next build |
-| `node-modules` | `node_modules` that have a lockfile, and dead Git temporary files in Node projects | usually, by `npm install` and the like; exceptions under the step |
-
-`diskcleaner clean` runs them all in this order. Run it with `--dry-run` first
-to see the list. After a cleanup the first build is slower.
+Frees disk space on a developer's Mac: build output, caches and leftovers that
+the tools make again. Steps that delete what cannot come back are off until you
+turn them on.
 
 ## Install
 
@@ -38,380 +12,78 @@ to see the list. After a cleanup the first build is slower.
 go install github.com/botforge-pro/diskcleaner@latest
 ```
 
-The binary lands in `$(go env GOBIN)`, or in `$(go env GOPATH)/bin` (usually
-`~/go/bin`) when `GOBIN` is not set; put that directory on your `PATH`.
-
-## Usage
+## Use
 
 ```sh
-diskcleaner clean --dry-run            # list what every step would remove
-diskcleaner clean                      # remove it, then say how much is free
-diskcleaner run STEP --dry-run         # the same for one step
-diskcleaner run STEP --report FILE     # also write the totals to FILE
-diskcleaner clean --git-tmp-now        # do not wait for dead Git temporary files to age
-diskcleaner check STEP...              # check the settings of these steps
-diskcleaner version
+diskcleaner clean --dry-run                        # what would go, nothing removed
+diskcleaner clean                                  # remove it, say what is free
+diskcleaner clean --only projects,go-cache         # just these steps
+diskcleaner clean --projects.git-tmp-min-age=0     # any setting, for this run
+diskcleaner config                                 # every setting and where it came from
 ```
 
-`--git-tmp-now`, for `clean` and `run`, is for a full disk: it removes the
-temporary files of a dead `git fetch` or `git repack` (see `projects`) however
-recently they were written. The `lsof` and repack checks still keep a file a
-running git writes, but a git run by another user, such as `sudo git`, is
-guarded only by the age, so it loses that guard.
+`clean` keeps whatever a running tool uses: it skips a cache while its tool
+runs and anything a process holds open, written within `min-age`, or tracked
+by Git. Each kept path is listed as `SKIPPED` with the reason; `--report FILE`
+writes the totals.
 
-### Output
-
-```text
-XCODE    /Users/me/Library/Developer/Xcode/DerivedData
-REMOVE        2.1 GiB  /Users/me/Library/Developer/Xcode/DerivedData/App-abc
-
-TEMP     /private/var/folders/p2/.../T
-REMOVE        124 MiB  /private/var/folders/p2/.../T/go-build1218894811
-SKIPPED       /private/var/folders/p2/.../T/XcodeDistPipeline.~~~17otKp: written within 60 minutes
-
-Removed 2 paths; freed approximately 2.2 GiB.
-Free on the disk of /Users/me: 14 GiB.
-```
-
-- `REMOVE` / `WOULD REMOVE`: a path and its size;
-- `RUN` / `WOULD RUN`: a cleanup command and the size it works on;
-- `SKIPPED`: kept on purpose, with the reason;
-- `FAILED`: a failure; `clean` repeats every failure at the end.
-
-`--report FILE` writes `count N` (paths removed or cleaned), `kb N` (KiB freed)
-and a `failure ...` line per failure.
-
-### Exit status
-
-| Status | Means |
+| Exit | Means |
 |---|---|
-| 0 | done, no failures |
-| 1 | done, with at least one `FAILED` line |
-| 2 | nothing touched: a wrong setting, a missing repositories folder or home directory, or a wrong command |
-| 3 | nothing touched: another `clean` is running |
+| 0 | done |
+| 1 | done, some paths failed (`FAILED` lines) |
+| 2 | nothing touched: a wrong setting or command |
+| 3 | nothing touched: another `clean` runs; its PID and start are printed |
+| 4 | done, but less than `min-free` is free |
 
-`clean` takes the lock `~/.diskcleaner.lock` (`DISKCLEANER_LOCK`). The file
-stays and is free once the run ends, however it ends. On a disk too full to
-create it, `clean` runs without it and says so. `run` takes no lock.
+## Configure
 
-### Safety rules all steps share
+Everything works without a config. To change a setting, put it in
+`~/.config/diskcleaner.toml` (or `$XDG_CONFIG_HOME/diskcleaner.toml`, or
+`--config FILE`), or pass it as `--key=value` for one run; a flag wins over the
+file.
 
-- Settings are checked before anything is touched. A wrong number (a timeout,
-  a day or minute count) stops `clean`, `run` and `check` with status 2;
-  other settings, such as `pgrep -f` patterns, fail only when their step runs.
-- Steps that look inside projects (`projects`, `claude-logs`, `codex-logs`,
-  `claude-scratchpads`, `node-modules`) keep a path holding a file Git tracks
-  (`SKIPPED`), and a path Git cannot answer for (`SKIPPED` and `FAILED`). The
-  cache steps do not ask Git.
-- A step that checks for running tools does not see a build started after the
-  check.
+```toml
+project-dirs = ["~/Developer", "~/work"]
+min-age = "1h"
+min-free = "5GB"
 
-## Steps in detail
+[xcode-archives]
+enabled = true
+min-age = "30d"
+```
 
-### projects
-
-In each Git repository one level below `~/Developer`, removes:
-
-- `.build` next to a `Package.swift`;
-- Gradle `build` next to a `build.gradle(.kts)` or `settings.gradle(.kts)`;
-- `.apk` and `.aab` files, when the repository has a `gradlew`;
-- temporary files a dead `git fetch` or `git repack` left in `.git/objects`
-  (`tmp_*`, `*/tmp_*`, `pack/.tmp-*`), once all of these hold:
-  - older than `DISKCLEANER_GIT_TMP_MINUTES` (60), unless `--git-tmp-now` is
-    given;
-  - the `git repack` named in it has ended;
-  - `lsof` sees no process of yours holding it within
-    `DISKCLEANER_GIT_LSOF_TIMEOUT` seconds (30); other users' processes, such
-    as `sudo git`, are guarded only by the age;
-- Git LFS objects `git lfs prune --verify-remote` would prune: only those the
-  remote has.
-
-A build that is running keeps its output (`SKIPPED`). A `.build`, a Gradle
-`build` or a package stays when either holds:
-
-- something in it was written within `DISKCLEANER_TMP_MINUTES` (60) minutes;
-- `lsof` sees a process with a file in it open, or working in it.
-
-When `lsof` fails, warns or does not answer within 30 seconds, the output
-stays and the step fails.
-
-`node_modules` folders are not looked into.
-
-Settings: `DISKCLEANER_REPOS_DIR`, `DISKCLEANER_TMP_MINUTES`,
-`DISKCLEANER_GIT_TMP_MINUTES`, `DISKCLEANER_GIT_LSOF_TIMEOUT`.
-
-### gradle-caches
-
-- Removes `$GRADLE_USER_HOME/caches` (default `~/.gradle/caches`).
-- Skips while `gradlew`, `gradle`, Android Studio or IntelliJ IDEA run, or while
-  a Gradle or Kotlin daemon used CPU during a two-second check.
-- Stops idle daemons with `SIGTERM` first; daemons alive ten seconds later keep
-  the cache and are a failure.
-- Settings: `DISKCLEANER_GRADLE_DAEMONS`, `DISKCLEANER_GRADLE_CLIENTS`.
-
-### docker-images
-
-- Runs `docker image prune --all --force` when `docker system df` reports
-  images to free. Volumes are never touched.
-- Does nothing without `docker` on the `PATH`; skips when `docker info` fails
-  and Docker Desktop is not running.
-- Docker that does not answer within `DISKCLEANER_DOCKER_TIMEOUT` seconds (30),
-  or a prune longer than `DISKCLEANER_DOCKER_PRUNE_TIMEOUT` (900), is a
-  failure: the `docker` command and any process it started are killed; Docker
-  Desktop itself is left alone.
-- The space counted is how much Docker Desktop's data directory shrank, which
-  can lag behind what Docker reports.
-- Settings: `DISKCLEANER_DOCKER_DATA`, `DISKCLEANER_DOCKER_PROCESS`.
-
-### go-cache
-
-- Runs `go clean -modcache` and `go clean -cache`.
-- Does nothing without `go` on the `PATH`.
-- Skips while `go build`, `test`, `run`, `install`, `get`, `mod`, `generate`,
-  `vet` or `list` run.
-- Settings: `DISKCLEANER_GO_PROCESSES`.
-
-### homebrew
-
-- Runs `brew cleanup --prune=all`: removes versions of formulae and casks
-  older than the installed ones and every cached download, whatever its age.
-- Does nothing without `brew` on the `PATH`; skips while another `brew` runs.
-- The space counted is what `brew` reports it freed. A cleanup longer than
-  `DISKCLEANER_BREW_TIMEOUT` seconds (900) is a failure, and `brew` with every
-  process it started is killed.
-- Settings: `DISKCLEANER_BREW_PROCESSES`, `DISKCLEANER_BREW_TIMEOUT`.
-
-### swiftpm-cache
-
-- Removes `~/Library/Caches/org.swift.swiftpm`, the downloaded package
-  dependencies; if it is a symbolic link, only the link.
-- Skips while `swift build`, `package`, `test`, `run`, `xcodebuild`, Xcode or
-  `XCBBuildService` run.
-- Settings: `DISKCLEANER_SWIFTPM_CACHE`, `DISKCLEANER_SWIFT_PROCESSES`.
-
-### xcode-derived-data
-
-- Removes every directory in `~/Library/Developer/Xcode/DerivedData`. Files and
-  symbolic links in it stay; if DerivedData is itself a link, its target's
-  directories go and the link stays.
-- Skips while Xcode (any `Xcode*.app`), `xcodebuild` or `XCBBuildService` run.
-- Settings: `DISKCLEANER_XCODE_DERIVED_DATA`, `DISKCLEANER_XCODE_PROCESSES`.
-
-### xcode-archives
-
-- Looks for `*.xcarchive` straight in `~/Library/Developer/Xcode/Archives`,
-  where `xcodebuild -archivePath` scripts put them, and in its folders named by
-  a date (`2026-11-04`), where the Organizer puts them; the dated folders stay.
-  An archive moved into any other folder there, such as `Archives/Keep`, is
-  never touched.
-- Reads only the top-level keys of an archive's `Info.plist` and those in its
-  `ApplicationProperties`; nothing inside a list such as `Distributions` counts.
-- Tells apps apart by the `CFBundleIdentifier` in each archive's `Info.plist`,
-  or by the `Name` there when there is none, and dates an archive by its
-  `CreationDate`.
-- For each app keeps the newest `DISKCLEANER_XCODE_ARCHIVE_KEEP` archives (1),
-  whatever their age. Of the rest, an archive `DISKCLEANER_XCODE_ARCHIVE_DAYS`
-  whole days old or younger stays (14), an older one goes. Age counts whole
-  24-hour periods: an archive made on 1 November at 10:00 stays until 16 November
-  at 09:59 and goes from 10:00. There is no switch
-  to turn the step off: `DISKCLEANER_XCODE_ARCHIVE_DAYS=3650` keeps archives
-  for ten years.
-- An archive whose `Info.plist` cannot be read, or names no `CreationDate` or
-  app, stays (`SKIPPED`) and is a failure until you delete or fix it.
-- Skips while Xcode (any `Xcode*.app`), `xcodebuild` or `XCBBuildService` run.
-- Settings: `DISKCLEANER_XCODE_ARCHIVES` (the folder),
-  `DISKCLEANER_XCODE_ARCHIVE_DAYS`, `DISKCLEANER_XCODE_ARCHIVE_KEEP`,
-  `DISKCLEANER_XCODE_PROCESSES`.
-
-### temp-leftovers
-
-- Looks in your temporary folder, `getconf DARWIN_USER_TEMP_DIR` (the one in
-  `/var/folders`, whatever `TMPDIR` says), for:
-  - `go-build*` and `go-link-*`: the work folders of `go build`, `test` and
-    `run`. Go removes them when it exits, so the ones left behind belong to
-    commands that were killed;
-  - `XcodeDistPipeline.*`: what an archive export for upload leaves behind.
-- Removes such a folder when both hold:
-  - nothing in it was written within `DISKCLEANER_TMP_MINUTES` (60) minutes;
-  - `lsof` sees no process with a file or folder in it open, so a running
-    test binary or `go run` server keeps its folder (`SKIPPED`).
-- Keeps a folder with a socket or a mounted volume in it (`SKIPPED`).
-- When `lsof` fails, warns or does not answer within 30 seconds, the folder
-  stays and the step fails.
-- Settings: `DISKCLEANER_USER_TMP`, `DISKCLEANER_TMP_MINUTES`.
-
-### system-temp
-
-- Looks in the shared temporary folder `/private/tmp`, where programs and
-  agents put copies, dumps and downloads that outlive the work they were for.
-- Removes a file or folder of yours there, with everything in it, when all
-  of these hold:
-  - with everything in it, it takes at least `DISKCLEANER_SYSTEM_TMP_MIN_KB`
-    (1024) KB on disk;
-  - nothing in it was written within `DISKCLEANER_TMP_MINUTES` (60) minutes;
-  - it neither is nor holds a socket (`SKIPPED`), however old;
-  - it is not a mounted volume and holds none (`SKIPPED`), such as the
-    `dmg.*` folders where disk images are attached: removing it would empty
-    the image or fail on a read-only one, and free nothing on this disk;
-  - `lsof` sees no process with it, or anything in it, open.
-- Keeps what belongs to another user, symbolic links, every name that starts
-  with a dot, and the `claude-*` folders of Claude Code sessions, which
-  `claude-scratchpads` handles. These rules apply to what sits directly in
-  `/private/tmp`.
-- These rules keep what running programs need without holding it open.
-  Services name their lock files with a dot: PostgreSQL shuts down when
-  `.s.PGSQL.5432.lock` disappears. Other lock and pid files weigh a few bytes
-  and fall under the size limit. A socket is kept whatever `lsof` says:
-  `lsof` finds an open file by either path, `/tmp` or `/private/tmp`, but a
-  socket only by the path it was created under.
-- What the step removes cannot be recovered. macOS itself removes files in
-  `/tmp` that nobody opened or changed for three days, so nothing there was
-  meant to last.
-- A Chrome profile kept in `/private/tmp` goes on the first `clean` that runs
-  more than an hour after Chrome closed. Keep a profile you sign in with in
-  your home folder instead.
-- When `lsof` fails, warns or does not answer within 30 seconds, the entry
-  stays and the step fails.
-- Settings: `DISKCLEANER_SYSTEM_TMP`, `DISKCLEANER_SYSTEM_TMP_MIN_KB`,
-  `DISKCLEANER_TMP_MINUTES`.
-
-### code-sign-clones
-
-- Chrome copies itself into
-  `/var/folders/.../X/com.google.Chrome.code_sign_clone/code_sign_clone.*`
-  each time it starts and removes the copy when it quits. A copy outlives a
-  Chrome that crashed, was killed or was restarted by an update. Other apps
-  that do the same have their own `*.code_sign_clone` folder next to it.
-- Removes each copy made more than `DISKCLEANER_TMP_MINUTES` (60) minutes ago
-  that no running process was started from: `lsof` finds none of the
-  programs in its `Contents/MacOS` and frameworks open. A Chrome running from
-  a copy, including one started for remote debugging, keeps it (`SKIPPED`).
-- Keeps a copy with no such program inside (`SKIPPED`): without one, `lsof`
-  cannot tell whether an app runs from it.
-- When `lsof` fails, warns or does not answer within 30 seconds, the copy
-  stays and the step fails.
-- Settings: `DISKCLEANER_CODE_SIGN_CLONES` (the `X` folder),
-  `DISKCLEANER_TMP_MINUTES`.
-
-### ide-old-versions
-
-An upgrade of an IDE leaves the data of the old version behind. The step
-counts as installed every app it finds in `/Applications` and
-`~/Applications` (one folder deep), under the JetBrains Toolbox `apps` folder
-(any depth), and every app Spotlight knows of, such as one in `~/Downloads`
-or on another disk. It handles two families:
-
-| Family | How it is recognised | What it removes |
+| Setting | Default | |
 |---|---|---|
-| IntelliJ platform: every JetBrains IDE, Android Studio and other IDEs built on it | `Contents/Resources/product-info.json` names the vendor and the data folder, such as `JetBrains` and `GoLand2026.2` | folders of older versions of the same product, such as `GoLand2025.3`, in `~/Library/Application Support`, `Caches` and `Logs` under the vendor's name |
-| VS Code and its forks: Cursor, Windsurf, VSCodium and others | `Contents/Resources/app/product.json` names the data folder and the build's commit | `~/Library/Application Support/<name>/CachedData/<commit>` of builds no longer installed |
+| `project-dirs` | those of `~/Developer`, `~/Projects`, `~/src`, `~/code`, `~/GolandProjects`, `~/IdeaProjects`, `~/AndroidStudioProjects` that exist | where Git repositories sit, one level down |
+| `min-age` | `1h` | anything written more recently stays |
+| `min-free` | `0` (off) | exit 4 when less is free after `clean` |
+| `<step>.enabled` | on, off for the steps marked below | |
 
-- A folder of an older version goes only when the same product has a newer
-  installed version and the older version is no longer installed. Folders of
-  products not installed, of newer versions and of every installed version
-  stay; so does the cache of every installed build of a VS Code-family
-  editor, even when two builds share a folder.
-- An app Spotlight does not index, on a disk with indexing off, is not seen:
-  its data counts as that of a version no longer installed.
-- When `mdfind` fails or lists no apps at all, the step removes nothing
-  (`FAILED`).
-- Nothing goes until the installed version has run and made its own folder
-  next to the old one, so it had the chance to copy the settings it wants
-  (`SKIPPED` until then).
-- An app whose description cannot be read, or names a folder oddly, stops the
-  step before anything is removed (`FAILED`).
-- Downloaded extensions (`CachedExtensionVSIXs`) and the extensions
-  themselves stay.
+Durations take `m`, `h` and `d`. Each step's own settings are under it below.
 
-### simulator-data
+## Steps
 
-- Runs `xcrun simctl erase` on each iOS simulator in
-  `~/Library/Developer/CoreSimulator/Devices` whose `lastUsedAt` is more than
-  `DISKCLEANER_SIMULATOR_IDLE_DAYS` whole days ago (3). The simulator stays in
-  Xcode's list; every app installed on it and all their data are gone, as on a
-  new one.
-- Keeps a simulator not booted since it was created or erased (it has no
-  `data/Containers` yet): erasing it again frees nothing.
-- `--dry-run` shows the whole `data` folder of a simulator, while the erase
-  leaves a fresh one of about 20 megabytes, so the size it shows is an
-  upper bound; a real run counts what was actually freed.
-- Skips all simulators while Simulator, DeviceHub, `simctl` or `xcodebuild` run.
-- Skips a simulator that is not Shutdown or has a running process; one whose
-  `device.plist` `plutil` cannot read is a failure.
-- Settings: `DISKCLEANER_SIMULATOR_DEVICES`, `DISKCLEANER_SIMULATOR_PROCESSES`,
-  `DISKCLEANER_SIMULATOR_IDLE_DAYS`.
+`clean` runs them in this order. **Off by default:** delete what cannot come back.
 
-### simulator-caches
-
-- Removes `com.apple.e5rt.e5bundlecache` under `Library/Caches` of each iOS
-  simulator in `~/Library/Developer/CoreSimulator/Devices`: the Core ML models
-  compiled for its apps. App data is not touched.
-- Skips all simulators while Simulator, DeviceHub, `simctl` or `xcodebuild` run.
-- Skips a simulator that is not Shutdown or has a running process; one whose
-  state `plutil` cannot read is a failure.
-- Settings: `DISKCLEANER_SIMULATOR_DEVICES`, `DISKCLEANER_SIMULATOR_PROCESSES`.
-
-### claude-logs
-
-- Removes `*.jsonl` session logs, agents' included, under `~/.claude/projects`
-  last modified more than `DISKCLEANER_CLAUDE_LOG_DAYS` whole days ago (20, so
-  21 days or more).
-- Keeps a log that was written again after the scan found it old, and a log
-  that `lsof` finds open (`SKIPPED`). `lsof` looks at the logs 50 at a time,
-  right before those 50 are removed, so a session that opens an old log in
-  that moment and has not yet written to it can still lose it.
-- When `lsof` does not answer within 30 seconds, or warns, no further log is
-  removed (`FAILED`).
-- Settings: `DISKCLEANER_CLAUDE_PROJECTS`, `DISKCLEANER_CLAUDE_LOG_DAYS`.
-
-### codex-logs
-
-- Removes `*.jsonl` session logs under `~/.codex/sessions` last modified more
-  than `DISKCLEANER_CODEX_LOG_DAYS` whole days ago (20, so 21 days or more).
-  `~/.codex/history.jsonl`, `session_index.jsonl` and the databases next to
-  `sessions` stay.
-- Keeps open and rewritten logs the same way as `claude-logs`.
-- Settings: `DISKCLEANER_CODEX_SESSIONS`, `DISKCLEANER_CODEX_LOG_DAYS`.
-
-### claude-scratchpads
-
-- Looks in the `scratchpad` folders of Claude Code sessions under
-  `/private/tmp/claude-<uid>` and removes:
-  - Xcode derived data: `Build`, `Index.noindex`, `ModuleCache.noindex` and
-    `SourcePackages` next to a `Build/Intermediates.noindex`;
-  - `checkouts` and `repositories` next to a `workspace-state.json`;
-  - `.build` next to a `Package.swift`.
-- The folders these sit in stay; running sessions are cleaned too, including a
-  `.build` an agent keeps as test data.
-- Skips while `swift build`, `package`, `test`, `run` or `xcodebuild` run.
-- Settings: `DISKCLEANER_CLAUDE_TMP`, `DISKCLEANER_SWIFT_PROCESSES`.
-
-### node-modules
-
-Below `DISKCLEANER_NODE_DIR` (`~/GolandProjects`), removes:
-
-- each `node_modules` (not those inside it) whose folder has a lockfile:
-  `package-lock.json`, `npm-shrinkwrap.json`, `yarn.lock` or
-  `pnpm-lock.yaml`;
-- or whose workspace root above it, up to `DISKCLEANER_NODE_DIR`, has one; a
-  workspace root has a `pnpm-workspace.yaml` or `"workspaces"` in its
-  `package.json`;
-- temporary files of a dead `git fetch` or `git repack` in each Git repository
-  one level below, by the same rules as in `projects`; when
-  `DISKCLEANER_NODE_DIR` is the repositories folder, `projects` covers them.
-
-What it keeps and cannot undo:
-
-- keeps a `node_modules` with no lockfile (`SKIPPED`): a reinstall would not
-  bring back the same versions;
-- keeps a `node_modules` that an install or a running program still uses
-  (`SKIPPED`), by the same two signs as the build output in `projects`;
-- a reinstall cannot bring back packages installed with `--no-save`,
-  unpublished, or from a registry you can no longer reach.
-
-Settings: `DISKCLEANER_NODE_DIR`, `DISKCLEANER_REPOS_DIR`,
-`DISKCLEANER_TMP_MINUTES`, `DISKCLEANER_GIT_TMP_MINUTES`,
-`DISKCLEANER_GIT_LSOF_TIMEOUT`.
+| Step | Removes | Keeps |
+|---|---|---|
+| `projects` | in each project: `.build` of Swift packages, Gradle `build`, `.apk`/`.aab`, `node_modules` with a lockfile, temporary files of a dead `git fetch` or `git repack` (`git-tmp-min-age`, `1h`), Git LFS objects the remote has | `node_modules` without a lockfile (a reinstall would bring other versions) |
+| `gradle-caches` | `$GRADLE_USER_HOME/caches` | everything while Gradle, Android Studio or IntelliJ run |
+| `docker-images` | images no container uses (`timeout`, `30s`; `prune-timeout`, `15m`) | volumes |
+| `go-cache` | the Go module and build caches | everything while `go` builds |
+| `swiftpm-cache` | the SwiftPM package cache | everything while Swift or Xcode build |
+| `xcode-derived-data` | Xcode DerivedData | everything while Xcode builds |
+| `simulator-caches` | Core ML caches of shut-down simulators | app data |
+| `temp-leftovers` | work folders of killed Go builds, Xcode export leftovers | |
+| `code-sign-clones` | copies of Chrome and other apps no running app was started from | |
+| `claude-scratchpads` | build output in Claude Code scratchpads | the scratchpads |
+| **`homebrew`** | old versions of formulae and casks, every download (`timeout`, `15m`) | installed versions |
+| **`xcode-archives`** | archives older than `min-age` (`15d`) | the newest `keep` (`1`) of each app; anything moved to a folder not named by a date |
+| **`ide-old-versions`** | settings, caches and logs of IDE versions older than the installed one | data of every installed version |
+| **`simulator-data`** | apps and data of simulators idle for `idle` (`3d`); the simulator stays, as new | |
+| **`system-temp`** | your files in `/private/tmp` larger than `min-size` (`1MB`) | sockets, mounted volumes, dot files, what a process holds open |
+| **`claude-logs`** | Claude Code session logs older than `min-age` (`20d`); such a session can no longer be resumed | open logs |
+| **`codex-logs`** | Codex session logs older than `min-age` (`20d`) | open logs |
 
 ## Lines of Code
 

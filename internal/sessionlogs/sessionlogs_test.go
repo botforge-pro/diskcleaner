@@ -54,7 +54,7 @@ func step(folder string) Step {
 	return Step{
 		Label:              "CLAUDE",
 		Folder:             folder,
-		Days:               30,
+		MinAge:             31 * 24 * time.Hour,
 		Now:                func() time.Time { return now },
 		Lsof:               "../process/testdata/lsof-none-open",
 		LsofTimeoutSeconds: 5,
@@ -160,7 +160,7 @@ func TestAFailedOpenCheckRemovesNothing(t *testing.T) {
 	assert.Contains(t, r.Failures[0], "lsof "+folder+": exit 1: lsof: status error")
 }
 
-func TestRemovesLogsOlderThanTheDays(t *testing.T) {
+func TestRemovesLogsAtLeastMinAgeOld(t *testing.T) {
 	folder := newFolder(t)
 
 	r, stdout, stderr := run(step(folder), false)
@@ -241,52 +241,22 @@ func TestAMissingFolderIsQuiet(t *testing.T) {
 	assert.Empty(t, stderr)
 }
 
-func TestClaudeKeepsTwentyDaysOfProjectLogsByDefault(t *testing.T) {
+func TestClaudeLooksInItsProjectsFolder(t *testing.T) {
 	home := t.TempDir()
 
-	s, err := Claude(home)
+	s := Claude(home, 20*24*time.Hour)
 
-	require.NoError(t, err)
 	assert.Equal(t, "CLAUDE", s.Label)
 	assert.Equal(t, filepath.Join(home, ".claude", "projects"), s.Folder)
-	assert.Equal(t, 20, s.Days)
+	assert.Equal(t, 20*24*time.Hour, s.MinAge)
 }
 
-func TestCodexKeepsTwentyDaysOfSessionLogsByDefault(t *testing.T) {
+func TestCodexLooksInItsSessionsFolder(t *testing.T) {
 	home := t.TempDir()
 
-	s, err := Codex(home)
+	s := Codex(home, 7*24*time.Hour)
 
-	require.NoError(t, err)
 	assert.Equal(t, "CODEX", s.Label)
 	assert.Equal(t, filepath.Join(home, ".codex", "sessions"), s.Folder)
-	assert.Equal(t, 20, s.Days)
-}
-
-func TestSettingsChooseTheFolderAndTheDays(t *testing.T) {
-	t.Setenv("DISKCLEANER_CLAUDE_PROJECTS", "/claude")
-	t.Setenv("DISKCLEANER_CLAUDE_LOG_DAYS", "7")
-	t.Setenv("DISKCLEANER_CODEX_SESSIONS", "/codex")
-	t.Setenv("DISKCLEANER_CODEX_LOG_DAYS", "9")
-
-	claude, err := Claude(t.TempDir())
-	require.NoError(t, err)
-	codex, err := Codex(t.TempDir())
-	require.NoError(t, err)
-
-	assert.Equal(t, "/claude", claude.Folder)
-	assert.Equal(t, 7, claude.Days)
-	assert.Equal(t, "/codex", codex.Folder)
-	assert.Equal(t, 9, codex.Days)
-}
-
-func TestAFractionalDayCountIsRejected(t *testing.T) {
-	t.Setenv("DISKCLEANER_CLAUDE_LOG_DAYS", "1.5")
-	t.Setenv("DISKCLEANER_CODEX_LOG_DAYS", "2.5")
-
-	_, claudeErr := Claude(t.TempDir())
-	_, codexErr := Codex(t.TempDir())
-
-	assert.EqualError(t, claudeErr, "DISKCLEANER_CLAUDE_LOG_DAYS must be a whole number above zero, got: 1.5")
-	assert.EqualError(t, codexErr, "DISKCLEANER_CODEX_LOG_DAYS must be a whole number above zero, got: 2.5")
+	assert.Equal(t, 7*24*time.Hour, s.MinAge)
 }

@@ -5,17 +5,18 @@ wikilayer://wikilayer.org/smee-again/codestyle
 
 ## Who it is for
 
-Developers: it removes what builds and development tools leave behind and
-recreate on demand.
+Developers and the agents working for them: it removes what builds and
+development tools leave behind and recreate on demand. Agents run it most, so
+it never asks in the terminal, and `--help` and `config` tell everything needed
+to use it.
 
 ## Configuration is tuning
 
-- It works out of the box, as universally as possible, with no configuration.
-  A user never has to start by writing a config.
-- On the first run, unless `-y` is passed, it may ask about each kind of
-  removal ("remove this? [y/n]"), write the answers to its config and read the
-  config from then on.
-- The config selects where and which steps run and their thresholds. What
-  counts as removable stays in code with its checks; a config cannot add a
-  removal rule.
-- Before 1.0, check how it behaves with no config at all.
+- It works out of the box, on any developer's Mac, with no configuration: where
+  a tool keeps its data is asked of the tool, not written in.
+- Every setting lives in one table in the code, which gives its config key, its
+  flag and its help line; the config file and the flags set the same keys.
+- The config selects which steps run, where projects are and the thresholds.
+  What counts as removable, and what shows a tool is running, stays in code
+  with its checks; a config cannot add a removal rule.
+- A step that deletes what cannot come back runs only when turned on.

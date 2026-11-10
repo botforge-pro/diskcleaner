@@ -58,7 +58,7 @@ func (f *dataFixture) step() DataStep {
 	return DataStep{
 		Devices:   f.devices,
 		Processes: "simulator-ui",
-		IdleDays:  3,
+		Idle:      3 * 24 * time.Hour,
 		Xcrun:     f.xcrun,
 		Running: func(pattern string) (bool, error) {
 			return f.running[pattern], nil
@@ -113,7 +113,7 @@ func TestErasesSimulatorIdleLongerThanTheLimit(t *testing.T) {
 	assert.Positive(t, r.KB)
 	assert.Empty(t, r.Failures)
 	assert.Contains(t, stdout, "RUN           "+f.xcrun+" simctl erase OLD")
-	assert.Contains(t, stderr, "RECENT: the simulator was used within 3 days")
+	assert.Contains(t, stderr, "RECENT: the simulator was used within 3d")
 }
 
 func TestKeepsSimulatorNeverBooted(t *testing.T) {

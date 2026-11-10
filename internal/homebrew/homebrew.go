@@ -10,7 +10,6 @@ import (
 
 	"github.com/botforge-pro/diskcleaner/internal/process"
 	"github.com/botforge-pro/diskcleaner/internal/report"
-	"github.com/botforge-pro/diskcleaner/internal/settings"
 )
 
 const cleanup = "brew cleanup --prune=all"
@@ -24,17 +23,13 @@ type Step struct {
 	Running        func(pattern string) (bool, error)
 }
 
-func Default() (Step, error) {
-	timeout, err := settings.PositiveDuration("DISKCLEANER_BREW_TIMEOUT", 900, time.Second, "seconds")
-	if err != nil {
-		return Step{}, err
-	}
+func Default(timeout time.Duration) Step {
 	return Step{
 		Brew:           "brew",
-		Processes:      settings.Env("DISKCLEANER_BREW_PROCESSES", `/Library/Homebrew/brew\.(sh|rb)`),
-		TimeoutSeconds: timeout,
+		Processes:      `/Library/Homebrew/brew\.(sh|rb)`,
+		TimeoutSeconds: int(timeout / time.Second),
 		Running:        process.Running,
-	}, nil
+	}
 }
 
 func (s Step) Run(r *report.Report) {

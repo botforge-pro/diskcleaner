@@ -74,7 +74,7 @@ func newArchives(t *testing.T) string {
 
 func archives(folder string) Archives {
 	return Archives{
-		Folder: folder, Days: 14, Kept: 1, Now: func() time.Time { return now },
+		Folder: folder, MinAge: 15 * day, Kept: 1, Now: func() time.Time { return now },
 		Processes: "xcode", Running: idle,
 	}
 }
@@ -114,10 +114,10 @@ func TestKeepsAsManyNewestArchivesAsSet(t *testing.T) {
 	assert.Equal(t, 1, r.Count)
 }
 
-func TestKeepsArchivesYoungerThanTheSetDays(t *testing.T) {
+func TestKeepsArchivesYoungerThanTheSetAge(t *testing.T) {
 	folder := newArchives(t)
 	s := archives(folder)
-	s.Days = 45
+	s.MinAge = 46 * day
 
 	r, _, _ := runArchives(s, false)
 
@@ -207,34 +207,10 @@ func TestMissingArchivesFolderIsQuiet(t *testing.T) {
 	assert.Empty(t, stderr)
 }
 
-func TestArchiveSettingsComeFromTheEnvironment(t *testing.T) {
-	t.Setenv("DISKCLEANER_XCODE_ARCHIVE_DAYS", "30")
-	t.Setenv("DISKCLEANER_XCODE_ARCHIVE_KEEP", "2")
+func TestArchiveSettingsAreTheGivenOnes(t *testing.T) {
+	s := DefaultArchives("/home", 30*day, 2)
 
-	s, err := DefaultArchives("/home")
-
-	require.NoError(t, err)
-	assert.Equal(t, 30, s.Days)
+	assert.Equal(t, 30*day, s.MinAge)
 	assert.Equal(t, 2, s.Kept)
 	assert.Equal(t, "/home/Library/Developer/Xcode/Archives", s.Folder)
-}
-
-func TestArchiveSettingsDefaultToTwoWeeksAndOneArchive(t *testing.T) {
-	s, err := DefaultArchives("/home")
-
-	require.NoError(t, err)
-	assert.Equal(t, 14, s.Days)
-	assert.Equal(t, 1, s.Kept)
-}
-
-func TestAWrongArchiveSettingIsAnError(t *testing.T) {
-	for _, name := range []string{"DISKCLEANER_XCODE_ARCHIVE_DAYS", "DISKCLEANER_XCODE_ARCHIVE_KEEP"} {
-		t.Run(name, func(t *testing.T) {
-			t.Setenv(name, "0")
-
-			_, err := DefaultArchives("/home")
-
-			assert.ErrorContains(t, err, name)
-		})
-	}
 }

@@ -12,22 +12,24 @@ import (
 	"testing"
 	"time"
 
+	"github.com/botforge-pro/diskcleaner/internal/config"
 	"github.com/botforge-pro/diskcleaner/internal/lock"
 	"github.com/botforge-pro/diskcleaner/internal/report"
+	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type fakeStep struct {
-	fail      bool
-	gitTmpNow bool
+	fail   bool
+	minAge time.Duration
 }
 
 func (f fakeStep) Run(r *report.Report) {
-	if f.gitTmpNow {
-		fmt.Fprintln(r.Out, "FAKE GIT TMP NOW")
-	} else {
+	if f.minAge == time.Hour {
 		fmt.Fprintln(r.Out, "FAKE")
+	} else {
+		fmt.Fprintf(r.Out, "FAKE min-age %s\n", f.minAge)
 	}
 	r.Count += 2
 	r.KB += 3072
@@ -36,18 +38,23 @@ func (f fakeStep) Run(r *report.Report) {
 	}
 }
 
+var fakeTable = config.NewTable([]config.Step{
+	{Name: "fake", Reversible: true}, {Name: "misconfigured", Reversible: true}, {Name: "kept"},
+})
+
 func findFake(fail bool, names ...string) registry {
 	if len(names) == 0 {
 		names = []string{"fake", "fake"}
 	}
 	return registry{
 		names: names,
-		find: func(name string, o options) (step, error) {
+		table: fakeTable,
+		find: func(name string, c *config.Config) (step, error) {
 			switch name {
-			case "fake":
-				return fakeStep{fail: fail, gitTmpNow: o.gitTmpNow}, nil
+			case "fake", "kept":
+				return fakeStep{fail: fail, minAge: c.Duration("min-age")}, nil
 			case "misconfigured":
-				return nil, errors.New("DISKCLEANER_FAKE must be a whole number above zero, got: 1.5")
+				return nil, errors.New("misconfigured: no tool to run")
 			}
 			return nil, unknownStepError{name: name}
 		},
@@ -67,18 +74,13 @@ func TestRun(t *testing.T) {
 		{"unknown command", []string{"tidy"}, 2, "", usage},
 		{"extra argument", []string{"version", "now"}, 2, "", usage},
 		{"clean argument", []string{"clean", "now"}, 2, "", usage},
-		{"unknown step", []string{"run", "nothing"}, 2, "", "unknown step \"nothing\"\n" + usage},
-		{"step argument", []string{"run", "fake", "now"}, 2, "", usage},
-		{"step", []string{"run", "fake", "--dry-run"}, 0, "FAKE\n", ""},
-		{"step without waiting for Git temporary files", []string{"run", "fake", "--git-tmp-now", "--dry-run"}, 0, "FAKE GIT TMP NOW\n", ""},
-		{"misconfigured step", []string{"run", "misconfigured"}, 2, "", "DISKCLEANER_FAKE must be a whole number above zero, got: 1.5\n"},
-		{"check", []string{"check", "fake", "fake"}, 0, "", ""},
-		{"check without steps", []string{"check"}, 2, "", usage},
-		{"check misconfigured", []string{"check", "fake", "misconfigured"}, 2, "", "DISKCLEANER_FAKE must be a whole number above zero, got: 1.5\n"},
-		{"check unknown", []string{"check", "nothing"}, 2, "", "unknown step \"nothing\"\n" + usage},
+		{"wrong setting", []string{"clean", "--min-age=soon"}, 2, "", "min-age: want a duration like 1h or 15d, got \"soon\"\n"},
+		{"run is gone", []string{"run", "fake"}, 2, "", usage},
+		{"check is gone", []string{"check", "fake"}, 2, "", usage},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			cleanLock(t)
 			var stdout, stderr bytes.Buffer
 			status := run(tc.args, &stdout, &stderr, findFake(false))
 			assert.Equal(t, tc.wantStatus, status)
@@ -92,44 +94,48 @@ func TestUsageListsEveryStepInCleanOrder(t *testing.T) {
 	for _, name := range stepNames() {
 		assert.Contains(t, usage, "\n  "+name+" ")
 	}
-	assert.Less(t, strings.Index(usage, "  projects "), strings.Index(usage, "  node-modules "))
+	assert.Less(t, strings.Index(usage, "  projects "), strings.Index(usage, "  claude-scratchpads "))
 }
 
 func TestEveryStepIsFound(t *testing.T) {
-	t.Setenv("DISKCLEANER_REPOS_DIR", t.TempDir())
+	set := pflag.NewFlagSet("clean", pflag.ContinueOnError)
+	settingsTable.Flags(set)
+	c, err := config.Load(settingsTable, set, t.TempDir())
+	require.NoError(t, err)
 	for _, name := range stepNames() {
-		_, err := steps(name, options{})
+		_, err := steps(name, c)
 		assert.NoError(t, err, name)
 	}
 }
 
-func TestRunWritesSummary(t *testing.T) {
+func TestCleanWritesSummary(t *testing.T) {
+	cleanLock(t)
 	summary := filepath.Join(t.TempDir(), "summary")
 	var stdout, stderr bytes.Buffer
 
-	status := run([]string{"run", "fake", "--report", summary}, &stdout, &stderr, findFake(true))
+	status := run([]string{"clean", "--dry-run", "--only=fake", "--report", summary}, &stdout, &stderr, findFake(true, "fake"))
 
 	assert.Equal(t, 1, status)
 	written, err := os.ReadFile(summary)
 	require.NoError(t, err)
 	assert.Equal(t, "count 2\nkb 3072\nfailure rm /tmp/x: permission denied; second line\n", string(written))
-	assert.Equal(t, "FAILED        rm /tmp/x: permission denied; second line\n", stderr.String())
 }
 
-func TestRunReportsUnwritableSummary(t *testing.T) {
+func TestCleanReportsUnwritableSummary(t *testing.T) {
+	cleanLock(t)
 	summary := filepath.Join(t.TempDir(), "missing", "summary")
 	var stdout, stderr bytes.Buffer
 
-	status := run([]string{"run", "fake", "--report", summary}, &stdout, &stderr, findFake(false))
+	status := run([]string{"clean", "--dry-run", "--report", summary}, &stdout, &stderr, findFake(false))
 
 	assert.Equal(t, 1, status)
 	assert.Contains(t, stderr.String(), "FAILED        report "+summary)
 }
-
 func cleanLock(t *testing.T) string {
-	path := filepath.Join(t.TempDir(), "lock")
-	t.Setenv("DISKCLEANER_LOCK", path)
-	return path
+	state := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", state)
+	require.NoError(t, os.MkdirAll(filepath.Join(state, "diskcleaner"), 0o755))
+	return filepath.Join(state, "diskcleaner", "lock")
 }
 
 func TestCleanDryRunAddsUpEveryStep(t *testing.T) {
@@ -143,15 +149,90 @@ func TestCleanDryRunAddsUpEveryStep(t *testing.T) {
 	assert.Empty(t, stderr.String())
 }
 
-func TestCleanPassesGitTmpNowToEveryStep(t *testing.T) {
+func TestCleanPassesSettingsToEveryStep(t *testing.T) {
 	cleanLock(t)
 	var stdout, stderr bytes.Buffer
 
-	status := run([]string{"clean", "--dry-run", "--git-tmp-now"}, &stdout, &stderr, findFake(false))
+	status := run([]string{"clean", "--dry-run", "--min-age=0"}, &stdout, &stderr, findFake(false))
 
 	assert.Equal(t, 0, status)
-	assert.Contains(t, stdout.String(), "FAKE GIT TMP NOW\nFAKE GIT TMP NOW\n")
+	assert.Contains(t, stdout.String(), "FAKE min-age 0s\nFAKE min-age 0s\n")
 	assert.Empty(t, stderr.String())
+}
+
+func TestCleanOnlyAndSkipChooseAmongTheSteps(t *testing.T) {
+	cleanLock(t)
+	for args, want := range map[string]int{
+		"--only=fake":                1,
+		"--skip=fake":                0,
+		"--only=fake,kept":           1,
+		"--only=kept --kept.enabled": 1,
+	} {
+		var stdout, stderr bytes.Buffer
+
+		status := run(append([]string{"clean", "--dry-run"}, strings.Fields(args)...), &stdout, &stderr, findFake(false, "fake", "kept"))
+
+		assert.Equal(t, 0, status, args+": "+stderr.String())
+		assert.Equal(t, want, strings.Count(stdout.String(), "FAKE\n"), args)
+	}
+}
+
+func TestCleanRefusesAnUnknownStepInOnly(t *testing.T) {
+	cleanLock(t)
+	var stdout, stderr bytes.Buffer
+
+	status := run([]string{"clean", "--only=nothing"}, &stdout, &stderr, findFake(false))
+
+	assert.Equal(t, 2, status)
+	assert.Equal(t, "unknown step \"nothing\"\n"+usage, stderr.String())
+}
+
+func TestCleanExitsWithFourWhenLessThanMinFreeIsFree(t *testing.T) {
+	cleanLock(t)
+	var stdout, stderr bytes.Buffer
+
+	status := run([]string{"clean", "--min-free=1000000GB"}, &stdout, &stderr, findFake(false))
+
+	assert.Equal(t, 4, status, stderr.String())
+	assert.Contains(t, stderr.String(), "Less than min-free")
+}
+
+func TestCleanLeavesAStepThatIsOffAndSaysHowToTurnItOn(t *testing.T) {
+	cleanLock(t)
+	var stdout, stderr bytes.Buffer
+
+	status := run([]string{"clean", "--dry-run"}, &stdout, &stderr, findFake(false, "fake", "kept"))
+
+	assert.Equal(t, 0, status, stderr.String())
+	assert.Equal(t, 1, strings.Count(stdout.String(), "FAKE\n"))
+	assert.Contains(t, stdout.String(), "OFF           kept: would free about 3.0 MiB; turn on with --kept.enabled\n")
+
+	stdout.Reset()
+	status = run([]string{"clean", "--dry-run", "--kept.enabled"}, &stdout, &stderr, findFake(false, "fake", "kept"))
+
+	assert.Equal(t, 0, status, stderr.String())
+	assert.Equal(t, 2, strings.Count(stdout.String(), "FAKE\n"))
+	assert.NotContains(t, stdout.String(), "OFF")
+}
+
+func TestOnlyADryRunEstimatesAStepThatIsOff(t *testing.T) {
+	cleanLock(t)
+	var stdout, stderr bytes.Buffer
+
+	status := run([]string{"clean"}, &stdout, &stderr, findFake(false, "fake", "kept"))
+
+	assert.Equal(t, 0, status, stderr.String())
+	assert.Equal(t, 1, strings.Count(stdout.String(), "FAKE\n"))
+	assert.Contains(t, stdout.String(), "OFF           kept: turn on with --kept.enabled\n")
+}
+
+func TestAnEstimateThatFailsSaysSo(t *testing.T) {
+	cleanLock(t)
+	var stdout, stderr bytes.Buffer
+
+	run([]string{"clean", "--dry-run"}, &stdout, &stderr, findFake(true, "fake", "kept"))
+
+	assert.Contains(t, stdout.String(), "OFF           kept: cannot estimate (")
 }
 
 func TestCleanSaysWhatItFreedAndWhatIsFree(t *testing.T) {
@@ -184,7 +265,7 @@ func TestCleanChecksEveryStepBeforeRunningAny(t *testing.T) {
 
 	assert.Equal(t, 2, status)
 	assert.Empty(t, stdout.String())
-	assert.Equal(t, "DISKCLEANER_FAKE must be a whole number above zero, got: 1.5\n", stderr.String())
+	assert.Equal(t, "misconfigured: no tool to run\n", stderr.String())
 	assert.NoFileExists(t, path)
 }
 
@@ -199,7 +280,8 @@ func TestCleanDoesNotStartWhileAnotherRuns(t *testing.T) {
 
 	assert.Equal(t, 3, status)
 	assert.Empty(t, stdout.String())
-	assert.Equal(t, "another cleanup is already running (lock "+path+"); not starting a second one\n", stderr.String())
+	assert.True(t, strings.HasPrefix(stderr.String(), fmt.Sprintf("another cleanup is already running (pid %d since ", os.Getpid())), stderr.String())
+	assert.True(t, strings.HasSuffix(stderr.String(), ", lock "+path+"); not starting a second one\n"), stderr.String())
 }
 
 func TestCleanReleasesTheLock(t *testing.T) {
@@ -212,7 +294,7 @@ func TestCleanReleasesTheLock(t *testing.T) {
 	require.NoError(t, held.Release())
 }
 
-func TestCleanCountsWhatTwoStepsBothFindOnce(t *testing.T) {
+func TestCleanCountsNodeModulesInsideBuildOutputOnce(t *testing.T) {
 	cleanLock(t)
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
@@ -228,11 +310,9 @@ func TestCleanCountsWhatTwoStepsBothFindOnce(t *testing.T) {
 	for _, path := range []string{modules, filepath.Join(app, ".build", "pkg", "package-lock.json"), filepath.Dir(modules), filepath.Join(app, ".build")} {
 		require.NoError(t, os.Chtimes(path, old, old))
 	}
-	t.Setenv("DISKCLEANER_REPOS_DIR", dir)
-	t.Setenv("DISKCLEANER_NODE_DIR", dir)
 	var stdout, stderr bytes.Buffer
 
-	status := run([]string{"clean", "--dry-run"}, &stdout, &stderr, registry{names: []string{"projects", "node-modules"}, find: steps})
+	status := run([]string{"clean", "--dry-run", "--project-dirs=" + dir}, &stdout, &stderr, registry{names: []string{"projects"}, table: settingsTable, find: steps})
 
 	assert.Equal(t, 0, status, stderr.String())
 	assert.Equal(t, 1, strings.Count(stdout.String(), "WOULD REMOVE"), stdout.String())

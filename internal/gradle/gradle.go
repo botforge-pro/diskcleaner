@@ -30,8 +30,8 @@ type Step struct {
 func Default(home string) Step {
 	return Step{
 		Caches:    filepath.Join(settings.Env("GRADLE_USER_HOME", filepath.Join(home, ".gradle")), "caches"),
-		Daemons:   settings.Env("DISKCLEANER_GRADLE_DAEMONS", `org\.gradle\.launcher\.daemon\.bootstrap\.GradleDaemon|org\.jetbrains\.kotlin\.daemon\.KotlinCompileDaemon`),
-		Clients:   settings.Env("DISKCLEANER_GRADLE_CLIENTS", `org\.gradle\.wrapper\.GradleWrapperMain|org\.gradle\.launcher\.GradleMain|/Contents/MacOS/studio|/Contents/MacOS/idea`),
+		Daemons:   `org\.gradle\.launcher\.daemon\.bootstrap\.GradleDaemon|org\.jetbrains\.kotlin\.daemon\.KotlinCompileDaemon`,
+		Clients:   `org\.gradle\.wrapper\.GradleWrapperMain|org\.gradle\.launcher\.GradleMain|/Contents/MacOS/studio|/Contents/MacOS/idea`,
 		Running:   process.Running,
 		Pids:      process.Pids,
 		CPUTimes:  process.CPUTimes,

@@ -2,96 +2,19 @@ package main
 
 import (
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
 	"runtime/debug"
 	"strings"
 
-	"github.com/botforge-pro/diskcleaner/internal/clones"
-	"github.com/botforge-pro/diskcleaner/internal/docker"
-	"github.com/botforge-pro/diskcleaner/internal/gocache"
-	"github.com/botforge-pro/diskcleaner/internal/gradle"
-	"github.com/botforge-pro/diskcleaner/internal/homebrew"
-	"github.com/botforge-pro/diskcleaner/internal/ide"
-	"github.com/botforge-pro/diskcleaner/internal/leftovers"
-	"github.com/botforge-pro/diskcleaner/internal/nodemodules"
-	"github.com/botforge-pro/diskcleaner/internal/projects"
+	"github.com/botforge-pro/diskcleaner/internal/config"
 	"github.com/botforge-pro/diskcleaner/internal/report"
-	"github.com/botforge-pro/diskcleaner/internal/scratchpads"
-	"github.com/botforge-pro/diskcleaner/internal/sessionlogs"
-	"github.com/botforge-pro/diskcleaner/internal/simulator"
-	"github.com/botforge-pro/diskcleaner/internal/swiftpm"
-	"github.com/botforge-pro/diskcleaner/internal/xcode"
+	"github.com/spf13/pflag"
 )
 
 type step interface {
 	Run(r *report.Report)
-}
-
-type options struct {
-	gitTmpNow bool
-}
-
-type stepInfo struct {
-	name      string
-	describes string
-	construct func(home string, o options) (step, error)
-}
-
-var catalog = []stepInfo{
-	{"projects", "build output and Git leftovers in your repositories", func(home string, o options) (step, error) {
-		s, err := projects.Default(home, o.gitTmpNow)
-		return s, err
-	}},
-	{"gradle-caches", "the Gradle caches", func(home string, _ options) (step, error) { return gradle.Default(home), nil }},
-	{"docker-images", "Docker images not used by any container", func(home string, _ options) (step, error) {
-		s, err := docker.Default(home)
-		return s, err
-	}},
-	{"go-cache", "the Go module and build caches", func(string, options) (step, error) { return gocache.Default(), nil }},
-	{"homebrew", "old Homebrew versions and downloads", func(string, options) (step, error) {
-		s, err := homebrew.Default()
-		return s, err
-	}},
-	{"swiftpm-cache", "the Swift Package Manager cache", func(home string, _ options) (step, error) { return swiftpm.Default(home), nil }},
-	{"xcode-derived-data", "Xcode DerivedData", func(home string, _ options) (step, error) { return xcode.Default(home), nil }},
-	{"xcode-archives", "old Xcode archives, the newest of each app kept", func(home string, _ options) (step, error) {
-		s, err := xcode.DefaultArchives(home)
-		return s, err
-	}},
-	{"temp-leftovers", "temporary folders of killed Go builds and of Xcode exports", func(string, options) (step, error) {
-		s, err := leftovers.Default()
-		return s, err
-	}},
-	{"system-temp", "your files and folders left in /private/tmp", func(string, options) (step, error) {
-		s, err := leftovers.SystemTemp()
-		return s, err
-	}},
-	{"code-sign-clones", "copies of Chrome and other apps no running app uses", func(string, options) (step, error) {
-		s, err := clones.Default()
-		return s, err
-	}},
-	{"ide-old-versions", "settings, caches and logs of IDE versions older than the installed one", func(home string, _ options) (step, error) { return ide.Default(home), nil }},
-	{"simulator-data", "data of iOS simulators not used for days", func(home string, _ options) (step, error) {
-		s, err := simulator.DefaultData(home)
-		return s, err
-	}},
-	{"simulator-caches", "Core ML caches of shut-down iOS simulators", func(home string, _ options) (step, error) { return simulator.Default(home), nil }},
-	{"claude-logs", "old Claude Code session logs", func(home string, _ options) (step, error) {
-		s, err := sessionlogs.Claude(home)
-		return s, err
-	}},
-	{"codex-logs", "old Codex session logs", func(home string, _ options) (step, error) {
-		s, err := sessionlogs.Codex(home)
-		return s, err
-	}},
-	{"claude-scratchpads", "build output in Claude Code scratchpads", func(string, options) (step, error) { return scratchpads.Default(), nil }},
-	{"node-modules", "node_modules of Node projects that have a lockfile", func(home string, o options) (step, error) {
-		s, err := nodemodules.Default(home, o.gitTmpNow)
-		return s, err
-	}},
 }
 
 var usage = buildUsage()
@@ -101,20 +24,28 @@ func buildUsage() string {
 	b.WriteString(`Usage: diskcleaner <command>
 
 Commands:
-  version                    print the installed version
-  clean [--dry-run] [--git-tmp-now]
-                             run every step below, one cleanup at a time
-  run STEP [--dry-run] [--git-tmp-now] [--report FILE]
-                             run one cleanup step
-  check STEP...              check the settings of these steps, change nothing
+  clean       remove what the steps below find, then say what is free
+  config      print every setting, its value and where it came from
+  version     print the installed version
 
---git-tmp-now removes dead Git temporary files at once, without waiting for
-them to age.
+Examples:
+  diskcleaner clean --dry-run                      what would go; nothing is removed
+  diskcleaner clean --only projects,go-cache       just these steps
+  diskcleaner clean --projects.git-tmp-min-age=0   dead Git temporary files at once
 
-Steps, in the order clean runs them:
+clean takes --dry-run, --only STEPS, --skip STEPS, --report FILE and
+--config FILE. Every setting that diskcleaner config prints is also a flag of
+clean and config, and lives in diskcleaner.toml.
+
+Steps, in the order clean runs them; off ones delete what cannot be undone and
+run only with --STEP.enabled:
 `)
 	for _, info := range catalog {
-		fmt.Fprintf(&b, "  %-26s %s\n", info.name, info.describes)
+		state := ""
+		if !info.Reversible {
+			state = " (off)"
+		}
+		fmt.Fprintf(&b, "  %-20s %s%s\n", info.Name, info.describes, state)
 	}
 	return b.String()
 }
@@ -129,31 +60,63 @@ func (e unknownStepError) Error() string {
 
 type registry struct {
 	names []string
-	find  func(name string, o options) (step, error)
+	table config.Table
+	find  func(name string, c *config.Config) (step, error)
 }
 
 func main() {
-	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr, registry{names: stepNames(), find: steps}))
+	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr, registry{names: stepNames(), table: settingsTable, find: steps}))
+}
+
+func loadSettings(name string, args []string, stderr io.Writer, table config.Table, extra func(*pflag.FlagSet)) (*config.Config, *pflag.FlagSet, int) {
+	set := pflag.NewFlagSet(name, pflag.ContinueOnError)
+	set.SetOutput(stderr)
+	table.Flags(set)
+	if extra != nil {
+		extra(set)
+	}
+	if err := set.Parse(args); err != nil {
+		if errors.Is(err, pflag.ErrHelp) {
+			return nil, nil, 0
+		}
+		fmt.Fprint(stderr, usage)
+		return nil, nil, 2
+	}
+	if err := oldSettings(os.Environ()); err != nil {
+		fmt.Fprintln(stderr, err)
+		return nil, nil, 2
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Fprintf(stderr, "no home directory: %v\n", err)
+		return nil, nil, 2
+	}
+	c, err := config.Load(table, set, home)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return nil, nil, 2
+	}
+	return c, set, 0
 }
 
 func stepNames() []string {
 	names := make([]string, len(catalog))
 	for i, info := range catalog {
-		names[i] = info.name
+		names[i] = info.Name
 	}
 	return names
 }
 
-func steps(name string, o options) (step, error) {
+func steps(name string, c *config.Config) (step, error) {
 	for _, info := range catalog {
-		if info.name != name {
+		if info.Name != name {
 			continue
 		}
 		home, err := os.UserHomeDir()
 		if err != nil {
 			return nil, fmt.Errorf("%s: no home directory: %w", name, err)
 		}
-		return info.construct(home, o)
+		return info.construct(home, c)
 	}
 	return nil, unknownStepError{name: name}
 }
@@ -166,18 +129,15 @@ func run(args []string, stdout, stderr io.Writer, steps registry) int {
 	if len(args) >= 1 && args[0] == "clean" {
 		return clean(args[1:], stdout, stderr, steps)
 	}
-	if len(args) >= 2 && args[0] == "run" {
-		return runStep(args[1], args[2:], stdout, stderr, steps.find)
-	}
-	if len(args) >= 2 && args[0] == "check" {
-		return checkSteps(args[1:], stderr, steps.find)
+	if len(args) >= 1 && args[0] == "config" {
+		return showConfig(args[1:], stdout, stderr, steps.table)
 	}
 	fmt.Fprint(stderr, usage)
 	return 2
 }
 
-func findStep(name string, o options, stderr io.Writer, find func(string, options) (step, error)) (step, bool) {
-	s, err := find(name, o)
+func findStep(name string, c *config.Config, stderr io.Writer, find func(string, *config.Config) (step, error)) (step, bool) {
+	s, err := find(name, c)
 	if err == nil {
 		return s, true
 	}
@@ -186,43 +146,6 @@ func findStep(name string, o options, stderr io.Writer, find func(string, option
 		fmt.Fprint(stderr, usage)
 	}
 	return nil, false
-}
-
-func checkSteps(names []string, stderr io.Writer, find func(string, options) (step, error)) int {
-	for _, name := range names {
-		if _, ok := findStep(name, options{}, stderr, find); !ok {
-			return 2
-		}
-	}
-	return 0
-}
-
-func runStep(name string, args []string, stdout, stderr io.Writer, find func(string, options) (step, error)) int {
-	flags := flag.NewFlagSet("run", flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	dryRun := flags.Bool("dry-run", false, "list what would be removed, remove nothing")
-	gitTmpNow := flags.Bool("git-tmp-now", false, "remove dead Git temporary files without waiting for them to age")
-	summaryPath := flags.String("report", "", "write the count, size and failures to this file")
-	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
-		fmt.Fprint(stderr, usage)
-		return 2
-	}
-	s, ok := findStep(name, options{gitTmpNow: *gitTmpNow}, stderr, find)
-	if !ok {
-		return 2
-	}
-	r := &report.Report{Out: stdout, Err: stderr, DryRun: *dryRun}
-	s.Run(r)
-	if *summaryPath != "" {
-		if err := writeSummary(r, *summaryPath); err != nil {
-			fmt.Fprintf(stderr, "FAILED        report %s: %v\n", *summaryPath, err)
-			return 1
-		}
-	}
-	if len(r.Failures) > 0 {
-		return 1
-	}
-	return 0
 }
 
 func writeSummary(r *report.Report, path string) error {

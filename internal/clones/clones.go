@@ -23,30 +23,24 @@ var binaries = []string{
 
 type Step struct {
 	Dir                string
-	Minutes            int
+	MinAge             time.Duration
 	Now                func() time.Time
 	Lsof               string
 	LsofTimeoutSeconds int
 }
 
-func Default() (Step, error) {
-	dir := settings.Env("DISKCLEANER_CODE_SIGN_CLONES", "")
-	if dir == "" {
-		temp, err := settings.UserTemp()
-		if err != nil {
-			return Step{}, fmt.Errorf("%w; set DISKCLEANER_CODE_SIGN_CLONES instead", err)
-		}
-		if temp != "" {
-			dir = filepath.Join(filepath.Dir(temp), "X")
-		}
-	}
-	minutes, err := settings.PositiveDuration("DISKCLEANER_TMP_MINUTES", 60, time.Minute, "minutes")
+func Default(minAge time.Duration) (Step, error) {
+	temp, err := settings.UserTemp()
 	if err != nil {
 		return Step{}, err
 	}
+	dir := ""
+	if temp != "" {
+		dir = filepath.Join(filepath.Dir(temp), "X")
+	}
 	return Step{
 		Dir:                dir,
-		Minutes:            minutes,
+		MinAge:             minAge,
 		Now:                time.Now,
 		Lsof:               "lsof",
 		LsofTimeoutSeconds: lsofTimeoutSeconds,
@@ -91,8 +85,8 @@ func (s Step) check(r *report.Report, clone string) {
 	if !info.IsDir() {
 		return
 	}
-	if s.Now().Sub(info.ModTime()) <= time.Duration(s.Minutes)*time.Minute {
-		r.Skip("%s: made within %d minutes", clone, s.Minutes)
+	if s.Now().Sub(info.ModTime()) <= s.MinAge {
+		r.Skip("%s: made within %s", clone, report.FormatDuration(s.MinAge))
 		return
 	}
 	files, err := executables(clone)

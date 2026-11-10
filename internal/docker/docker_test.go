@@ -3,8 +3,6 @@ package docker
 import (
 	"bytes"
 	"errors"
-	"fmt"
-	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -312,29 +310,9 @@ func TestWithoutDockerDoesNothing(t *testing.T) {
 	assert.Empty(t, stderr)
 }
 
-func TestDefaultRejectsFractionalTimeout(t *testing.T) {
-	t.Setenv("DISKCLEANER_DOCKER_TIMEOUT", "1.5")
+func TestDefaultTakesTheTimeoutsInSeconds(t *testing.T) {
+	s := Default(t.TempDir(), 30*time.Second, 15*time.Minute)
 
-	_, err := Default(t.TempDir())
-
-	assert.EqualError(t, err, "DISKCLEANER_DOCKER_TIMEOUT must be a whole number above zero, got: 1.5")
-}
-
-const maxTimeoutSeconds = math.MaxInt64 / int64(time.Second)
-
-func TestDefaultRejectsTimeoutBeyondDuration(t *testing.T) {
-	t.Setenv("DISKCLEANER_DOCKER_PRUNE_TIMEOUT", strconv.FormatInt(maxTimeoutSeconds+1, 10))
-
-	_, err := Default(t.TempDir())
-
-	assert.EqualError(t, err, fmt.Sprintf("DISKCLEANER_DOCKER_PRUNE_TIMEOUT must be at most %d seconds, got: %d", maxTimeoutSeconds, maxTimeoutSeconds+1))
-}
-
-func TestDefaultAcceptsLongestTimeout(t *testing.T) {
-	t.Setenv("DISKCLEANER_DOCKER_PRUNE_TIMEOUT", strconv.FormatInt(maxTimeoutSeconds, 10))
-
-	s, err := Default(t.TempDir())
-
-	require.NoError(t, err)
-	assert.Equal(t, maxTimeoutSeconds, int64(s.PruneTimeoutSeconds))
+	assert.Equal(t, 30, s.TimeoutSeconds)
+	assert.Equal(t, 900, s.PruneTimeoutSeconds)
 }

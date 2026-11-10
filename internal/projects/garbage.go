@@ -16,29 +16,19 @@ import (
 	"github.com/botforge-pro/diskcleaner/internal/candidates"
 	"github.com/botforge-pro/diskcleaner/internal/process"
 	"github.com/botforge-pro/diskcleaner/internal/report"
-	"github.com/botforge-pro/diskcleaner/internal/settings"
 )
 
 var repackPid = regexp.MustCompile(`^\.tmp-([0-9]+)-`)
 
 type GitGarbage struct {
-	Minutes            int
-	IgnoreAge          bool
+	MinAge             time.Duration
 	LsofTimeoutSeconds int
 	Now                func() time.Time
 	Lsof               string
 }
 
-func DefaultGitGarbage(now bool) (GitGarbage, error) {
-	minutes, err := settings.PositiveDuration("DISKCLEANER_GIT_TMP_MINUTES", 60, time.Minute, "minutes")
-	if err != nil {
-		return GitGarbage{}, err
-	}
-	timeout, err := settings.PositiveDuration("DISKCLEANER_GIT_LSOF_TIMEOUT", 30, time.Second, "seconds")
-	if err != nil {
-		return GitGarbage{}, err
-	}
-	return GitGarbage{Minutes: minutes, IgnoreAge: now, LsofTimeoutSeconds: timeout, Now: time.Now, Lsof: "lsof"}, nil
+func DefaultGitGarbage(minAge time.Duration) GitGarbage {
+	return GitGarbage{MinAge: minAge, LsofTimeoutSeconds: 30, Now: time.Now, Lsof: "lsof"}
 }
 
 func (g GitGarbage) Collect(r *report.Report, set *candidates.Set, repo string) {
@@ -90,8 +80,8 @@ func (g GitGarbage) check(r *report.Report, set *candidates.Set, file string) {
 	if !info.Mode().IsRegular() {
 		return
 	}
-	if !g.IgnoreAge && g.Now().Sub(info.ModTime()) <= time.Duration(g.Minutes)*time.Minute {
-		r.Skip("%s: written within %d minutes", file, g.Minutes)
+	if g.MinAge > 0 && g.Now().Sub(info.ModTime()) <= g.MinAge {
+		r.Skip("%s: written within %s", file, report.FormatDuration(g.MinAge))
 		return
 	}
 	if match := repackPid.FindStringSubmatch(filepath.Base(file)); match != nil {

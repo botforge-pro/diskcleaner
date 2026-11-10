@@ -11,7 +11,6 @@ import (
 	"github.com/botforge-pro/diskcleaner/internal/candidates"
 	"github.com/botforge-pro/diskcleaner/internal/process"
 	"github.com/botforge-pro/diskcleaner/internal/report"
-	"github.com/botforge-pro/diskcleaner/internal/settings"
 )
 
 var (
@@ -27,8 +26,8 @@ type Step struct {
 
 func Default() Step {
 	return Step{
-		Root:      settings.Env("DISKCLEANER_CLAUDE_TMP", fmt.Sprintf("/private/tmp/claude-%d", os.Getuid())),
-		Processes: settings.Env("DISKCLEANER_SWIFT_PROCESSES", "swift-build|swift-package|swift-test|swift-run|xcodebuild"),
+		Root:      fmt.Sprintf("/private/tmp/claude-%d", os.Getuid()),
+		Processes: "swift-build|swift-package|swift-test|swift-run|xcodebuild",
 		Running:   process.Running,
 	}
 }

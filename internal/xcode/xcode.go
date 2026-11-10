@@ -3,25 +3,58 @@ package xcode
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strings"
 
 	"github.com/botforge-pro/diskcleaner/internal/process"
 	"github.com/botforge-pro/diskcleaner/internal/report"
-	"github.com/botforge-pro/diskcleaner/internal/settings"
 )
 
 type Step struct {
-	DerivedData string
-	Processes   string
-	Running     func(pattern string) (bool, error)
+	DerivedData    string
+	SharedWithUser bool
+	Processes      string
+	Running        func(pattern string) (bool, error)
 }
 
 func Default(home string) Step {
+	derivedData, picked := DerivedData(home, xcodeSetting)
 	return Step{
-		DerivedData: settings.Env("DISKCLEANER_XCODE_DERIVED_DATA", filepath.Join(home, "Library/Developer/Xcode/DerivedData")),
-		Processes:   settings.Env("DISKCLEANER_XCODE_PROCESSES", process.Xcode),
-		Running:     process.Running,
+		DerivedData:    derivedData,
+		SharedWithUser: picked,
+		Processes:      process.Xcode,
+		Running:        process.Running,
 	}
+}
+
+func DerivedData(home string, setting func(key string) string) (path string, pickedByUser bool) {
+	if custom := setting("IDECustomDerivedDataLocation"); filepath.IsAbs(custom) {
+		return custom, true
+	}
+	return filepath.Join(home, "Library/Developer/Xcode/DerivedData"), false
+}
+
+var nameDashTwentyEightLetters = regexp.MustCompile(`^.+-[a-z]{28}$`)
+
+func madeByXcode(dir, name string) bool {
+	if strings.HasSuffix(name, ".noindex") || name == "SDKExplicitPrecompiledModules" {
+		return true
+	}
+	if !nameDashTwentyEightLetters.MatchString(name) {
+		return false
+	}
+	_, err := os.Stat(filepath.Join(dir, name, "info.plist"))
+	return err == nil
+}
+
+func xcodeSetting(key string) string {
+	output, err := exec.Command("defaults", "read", "com.apple.dt.Xcode", key).Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(output))
 }
 
 func (s Step) Run(r *report.Report) {
@@ -45,8 +78,13 @@ func (s Step) Run(r *report.Report) {
 		r.Fail("find %s: %v", derivedData, err)
 	}
 	for _, entry := range entries {
-		if entry.IsDir() {
-			r.Remove(filepath.Join(derivedData, entry.Name()))
+		if !entry.IsDir() {
+			continue
 		}
+		if s.SharedWithUser && !madeByXcode(derivedData, entry.Name()) {
+			r.Skip("%s: not made by Xcode", filepath.Join(derivedData, entry.Name()))
+			continue
+		}
+		r.Remove(filepath.Join(derivedData, entry.Name()))
 	}
 }

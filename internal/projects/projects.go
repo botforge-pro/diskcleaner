@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/botforge-pro/diskcleaner/internal/candidates"
 	"github.com/botforge-pro/diskcleaner/internal/inuse"
@@ -18,50 +19,48 @@ import (
 var gradleFiles = []string{"build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts"}
 
 type Step struct {
-	Repos   string
+	Dirs    []string
 	InUse   inuse.Check
 	Garbage GitGarbage
 	LFS     LFS
 }
 
-func Default(home string, gitTmpNow bool) (Step, error) {
-	repos := settings.Env("DISKCLEANER_REPOS_DIR", filepath.Join(home, "Developer"))
-	resolved, err := settings.Canonical(repos)
-	if err != nil {
-		return Step{}, fmt.Errorf("repositories directory not found: %s (set DISKCLEANER_REPOS_DIR): %w", repos, err)
+func Default(dirs []string, minAge, gitTmpMinAge time.Duration) (Step, error) {
+	var resolved []string
+	for _, dir := range dirs {
+		canonical, err := settings.Canonical(dir)
+		if err != nil || !isDir(canonical) {
+			return Step{}, fmt.Errorf("project folder not found: %s (see project-dirs)", dir)
+		}
+		if !slices.Contains(resolved, canonical) {
+			resolved = append(resolved, canonical)
+		}
 	}
-	if !isDir(resolved) {
-		return Step{}, fmt.Errorf("repositories directory not found: %s (set DISKCLEANER_REPOS_DIR)", repos)
-	}
-	check, err := inuse.Default()
-	if err != nil {
-		return Step{}, err
-	}
-	garbage, err := DefaultGitGarbage(gitTmpNow)
-	if err != nil {
-		return Step{}, err
-	}
-	return Step{Repos: resolved, InUse: check, Garbage: garbage, LFS: DefaultLFS()}, nil
+	return Step{Dirs: resolved, InUse: inuse.Default(minAge), Garbage: DefaultGitGarbage(gitTmpMinAge), LFS: DefaultLFS()}, nil
 }
 
 func (s Step) Run(r *report.Report) {
-	repos, err := Repositories(s.Repos)
-	if err != nil {
-		r.Fail("scan %s: %v", s.Repos, err)
-	}
-	for _, repo := range repos {
-		name, err := filepath.Rel(s.Repos, repo)
-		if err != nil {
-			name = repo
+	for _, dir := range s.Dirs {
+		if !r.Directory(dir) {
+			continue
 		}
-		fmt.Fprintf(r.Out, "PROJECT  %s\n", name)
-		var builds, garbage candidates.Set
-		s.collectBuilds(r, &builds, repo)
-		builds.RemoveUnless(r, func(path string) bool { return s.InUse.Keep(r, path) })
-		s.Garbage.Collect(r, &garbage, repo)
-		garbage.Remove(r)
-		s.LFS.Prune(r, repo)
-		fmt.Fprintln(r.Out)
+		repos, err := Repositories(dir)
+		if err != nil {
+			r.Fail("scan %s: %v", dir, err)
+		}
+		for _, repo := range repos {
+			fmt.Fprintf(r.Out, "PROJECT  %s\n", repo)
+			var builds, garbage candidates.Set
+			s.collectBuilds(r, &builds, repo)
+			builds.RemoveUnless(r, func(path string) bool { return s.InUse.Keep(r, path) })
+			s.Garbage.Collect(r, &garbage, repo)
+			garbage.Remove(r)
+			s.LFS.Prune(r, repo)
+			fmt.Fprintln(r.Out)
+		}
+		var modules candidates.Set
+		s.collectModules(r, &modules, dir)
+		modules.RemoveUnless(r, func(path string) bool { return s.InUse.Keep(r, path) })
 	}
 }
 

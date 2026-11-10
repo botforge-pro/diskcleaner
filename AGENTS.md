@@ -18,13 +18,4 @@ recreate on demand.
 - The config selects where and which steps run and their thresholds. What
   counts as removable stays in code with its checks; a config cannot add a
   removal rule.
-- During development the maintainer's own config is kept in the private
-  `diskcleaner` repository, which runs this binary. Before 1.0, check how it
-  behaves with no config at all.
-
-## Porting from the private shell tool
-
-Steps move here one at a time from the private shell `diskcleaner`, which stays
-the entry point and calls this binary for each ported step, so the cleanup
-works at every moment. In the end the private repository holds only the call of
-this binary, the config and a README.
+- Before 1.0, check how it behaves with no config at all.

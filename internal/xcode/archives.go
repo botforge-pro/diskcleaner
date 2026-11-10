@@ -16,33 +16,21 @@ import (
 	"github.com/botforge-pro/diskcleaner/internal/settings"
 )
 
-const (
-	defaultArchiveDays = 14
-	defaultArchiveKept = 1
-	archiveSuffix      = ".xcarchive"
-)
+const archiveSuffix = ".xcarchive"
 
 type Archives struct {
 	Folder    string
-	Days      int
+	MinAge    time.Duration
 	Kept      int
 	Now       func() time.Time
 	Processes string
 	Running   func(pattern string) (bool, error)
 }
 
-func DefaultArchives(home string) (Archives, error) {
-	days, err := settings.PositiveInt("DISKCLEANER_XCODE_ARCHIVE_DAYS", defaultArchiveDays)
-	if err != nil {
-		return Archives{}, err
-	}
-	kept, err := settings.PositiveInt("DISKCLEANER_XCODE_ARCHIVE_KEEP", defaultArchiveKept)
-	if err != nil {
-		return Archives{}, err
-	}
+func DefaultArchives(home string, minAge time.Duration, kept int) (Archives, error) {
 	return Archives{
 		Folder:    settings.Env("DISKCLEANER_XCODE_ARCHIVES", filepath.Join(home, "Library/Developer/Xcode/Archives")),
-		Days:      days,
+		MinAge:    minAge,
 		Kept:      kept,
 		Now:       time.Now,
 		Processes: settings.Env("DISKCLEANER_XCODE_PROCESSES", process.Xcode),
@@ -99,7 +87,7 @@ func (s Archives) Run(r *report.Report) {
 }
 
 func (s Archives) old(created time.Time) bool {
-	return int(s.Now().Sub(created)/(24*time.Hour)) > s.Days
+	return s.Now().Sub(created) >= s.MinAge
 }
 
 func (s Archives) find(r *report.Report, folder string) []string {

@@ -29,20 +29,15 @@ type Step struct {
 	InUse    inuse.Check
 }
 
-func SystemTemp(minAge time.Duration) (Step, error) {
-	check := inuse.Default(minAge)
-	minKB, err := settings.PositiveInt("DISKCLEANER_SYSTEM_TMP_MIN_KB", 1024)
-	if err != nil {
-		return Step{}, err
-	}
+func SystemTemp(minAge time.Duration, minSize int64) (Step, error) {
 	return Step{
 		Dir:      settings.Env("DISKCLEANER_SYSTEM_TMP", "/private/tmp"),
 		Patterns: []string{"*"},
 		Exclude:  keptInSystemTemp,
 		Files:    true,
 		Owner:    new(os.Getuid()),
-		MinKB:    int64(minKB),
-		InUse:    check,
+		MinKB:    minSize / 1024,
+		InUse:    inuse.Default(minAge),
 	}, nil
 }
 

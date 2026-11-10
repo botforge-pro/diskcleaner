@@ -17,7 +17,6 @@ import (
 )
 
 const (
-	defaultDays        = 20
 	lsofTimeoutSeconds = 30
 	lsofBatch          = 50
 )
@@ -25,30 +24,26 @@ const (
 type Step struct {
 	Label              string
 	Folder             string
-	Days               int
+	MinAge             time.Duration
 	Now                func() time.Time
 	Lsof               string
 	LsofTimeoutSeconds int
 	Batch              int
 }
 
-func Claude(home string) (Step, error) {
-	return fromSettings("CLAUDE", "DISKCLEANER_CLAUDE_PROJECTS", filepath.Join(home, ".claude", "projects"), "DISKCLEANER_CLAUDE_LOG_DAYS")
+func Claude(home string, minAge time.Duration) (Step, error) {
+	return fromSettings("CLAUDE", "DISKCLEANER_CLAUDE_PROJECTS", filepath.Join(home, ".claude", "projects"), minAge)
 }
 
-func Codex(home string) (Step, error) {
-	return fromSettings("CODEX", "DISKCLEANER_CODEX_SESSIONS", filepath.Join(home, ".codex", "sessions"), "DISKCLEANER_CODEX_LOG_DAYS")
+func Codex(home string, minAge time.Duration) (Step, error) {
+	return fromSettings("CODEX", "DISKCLEANER_CODEX_SESSIONS", filepath.Join(home, ".codex", "sessions"), minAge)
 }
 
-func fromSettings(label, folderSetting, folder, daysSetting string) (Step, error) {
-	days, err := settings.PositiveInt(daysSetting, defaultDays)
-	if err != nil {
-		return Step{}, err
-	}
+func fromSettings(label, folderSetting, folder string, minAge time.Duration) (Step, error) {
 	return Step{
 		Label:              label,
 		Folder:             settings.Env(folderSetting, folder),
-		Days:               days,
+		MinAge:             minAge,
 		Now:                time.Now,
 		Lsof:               "lsof",
 		LsofTimeoutSeconds: lsofTimeoutSeconds,
@@ -57,7 +52,7 @@ func fromSettings(label, folderSetting, folder, daysSetting string) (Step, error
 }
 
 func (s Step) old(modified time.Time) bool {
-	return int(s.Now().Sub(modified)/(24*time.Hour)) > s.Days
+	return s.Now().Sub(modified) >= s.MinAge
 }
 
 func (s Step) Run(r *report.Report) {

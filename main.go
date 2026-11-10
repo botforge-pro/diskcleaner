@@ -42,19 +42,19 @@ var catalog = []stepInfo{
 		return s, err
 	}},
 	{"gradle-caches", "the Gradle caches", func(home string, _ *config.Config) (step, error) { return gradle.Default(home), nil }},
-	{"docker-images", "Docker images not used by any container", func(home string, _ *config.Config) (step, error) {
-		s, err := docker.Default(home)
+	{"docker-images", "Docker images not used by any container", func(home string, c *config.Config) (step, error) {
+		s, err := docker.Default(home, c.Duration("docker-images.timeout"), c.Duration("docker-images.prune-timeout"))
 		return s, err
 	}},
 	{"go-cache", "the Go module and build caches", func(string, *config.Config) (step, error) { return gocache.Default(), nil }},
-	{"homebrew", "old Homebrew versions and downloads", func(string, *config.Config) (step, error) {
-		s, err := homebrew.Default()
+	{"homebrew", "old Homebrew versions and downloads", func(_ string, c *config.Config) (step, error) {
+		s, err := homebrew.Default(c.Duration("homebrew.timeout"))
 		return s, err
 	}},
 	{"swiftpm-cache", "the Swift Package Manager cache", func(home string, _ *config.Config) (step, error) { return swiftpm.Default(home), nil }},
 	{"xcode-derived-data", "Xcode DerivedData", func(home string, _ *config.Config) (step, error) { return xcode.Default(home), nil }},
-	{"xcode-archives", "old Xcode archives, the newest of each app kept", func(home string, _ *config.Config) (step, error) {
-		s, err := xcode.DefaultArchives(home)
+	{"xcode-archives", "old Xcode archives, the newest of each app kept", func(home string, c *config.Config) (step, error) {
+		s, err := xcode.DefaultArchives(home, c.Duration("xcode-archives.min-age"), c.Count("xcode-archives.keep"))
 		return s, err
 	}},
 	{"temp-leftovers", "temporary folders of killed Go builds and of Xcode exports", func(_ string, c *config.Config) (step, error) {
@@ -62,7 +62,7 @@ var catalog = []stepInfo{
 		return s, err
 	}},
 	{"system-temp", "your files and folders left in /private/tmp", func(_ string, c *config.Config) (step, error) {
-		s, err := leftovers.SystemTemp(c.Duration("min-age"))
+		s, err := leftovers.SystemTemp(c.Duration("min-age"), c.Size("system-temp.min-size"))
 		return s, err
 	}},
 	{"code-sign-clones", "copies of Chrome and other apps no running app uses", func(_ string, c *config.Config) (step, error) {
@@ -70,17 +70,17 @@ var catalog = []stepInfo{
 		return s, err
 	}},
 	{"ide-old-versions", "settings, caches and logs of IDE versions older than the installed one", func(home string, _ *config.Config) (step, error) { return ide.Default(home), nil }},
-	{"simulator-data", "data of iOS simulators not used for days", func(home string, _ *config.Config) (step, error) {
-		s, err := simulator.DefaultData(home)
+	{"simulator-data", "data of iOS simulators not used for days", func(home string, c *config.Config) (step, error) {
+		s, err := simulator.DefaultData(home, c.Duration("simulator-data.idle"))
 		return s, err
 	}},
 	{"simulator-caches", "Core ML caches of shut-down iOS simulators", func(home string, _ *config.Config) (step, error) { return simulator.Default(home), nil }},
-	{"claude-logs", "old Claude Code session logs", func(home string, _ *config.Config) (step, error) {
-		s, err := sessionlogs.Claude(home)
+	{"claude-logs", "old Claude Code session logs", func(home string, c *config.Config) (step, error) {
+		s, err := sessionlogs.Claude(home, c.Duration("claude-logs.min-age"))
 		return s, err
 	}},
-	{"codex-logs", "old Codex session logs", func(home string, _ *config.Config) (step, error) {
-		s, err := sessionlogs.Codex(home)
+	{"codex-logs", "old Codex session logs", func(home string, c *config.Config) (step, error) {
+		s, err := sessionlogs.Codex(home, c.Duration("codex-logs.min-age"))
 		return s, err
 	}},
 	{"claude-scratchpads", "build output in Claude Code scratchpads", func(string, *config.Config) (step, error) { return scratchpads.Default(), nil }},

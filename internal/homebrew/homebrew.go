@@ -24,15 +24,11 @@ type Step struct {
 	Running        func(pattern string) (bool, error)
 }
 
-func Default() (Step, error) {
-	timeout, err := settings.PositiveDuration("DISKCLEANER_BREW_TIMEOUT", 900, time.Second, "seconds")
-	if err != nil {
-		return Step{}, err
-	}
+func Default(timeout time.Duration) (Step, error) {
 	return Step{
 		Brew:           "brew",
 		Processes:      settings.Env("DISKCLEANER_BREW_PROCESSES", `/Library/Homebrew/brew\.(sh|rb)`),
-		TimeoutSeconds: timeout,
+		TimeoutSeconds: int(timeout / time.Second),
 		Running:        process.Running,
 	}, nil
 }

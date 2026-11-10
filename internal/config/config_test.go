@@ -16,6 +16,7 @@ var steps = []Step{
 	{Name: "xcode-archives", Settings: []Setting{
 		{"min-age", Duration, "15d", "remove archives older than this"},
 		{"keep", Count, "1", "keep this many newest archives of each app"},
+		{"timeout", Timeout, "30s", "give up after this"},
 	}},
 }
 
@@ -131,10 +132,11 @@ func TestAnUnknownKeyInTheFileIsRefused(t *testing.T) {
 
 func TestAWrongValueNamesItsSetting(t *testing.T) {
 	for args, want := range map[string]string{
-		"--min-age=1x":             `min-age: want a duration like 1h or 15d, got "1x"`,
-		"--min-free=lots":          `min-free: want a size like 500MB or 5GB, got "lots"`,
-		"--xcode-archives.keep=-1": `xcode-archives.keep: want a whole number, got "-1"`,
-		"--go-cache.enabled=yes":   `go-cache.enabled: want true or false, got "yes"`,
+		"--min-age=1x":               `min-age: want a duration like 1h or 15d, got "1x"`,
+		"--min-free=lots":            `min-free: want a size like 500MB or 5GB, got "lots"`,
+		"--xcode-archives.keep=-1":   `xcode-archives.keep: want a whole number, got "-1"`,
+		"--go-cache.enabled=yes":     `go-cache.enabled: want true or false, got "yes"`,
+		"--xcode-archives.timeout=0": `xcode-archives.timeout: want a timeout above 0, got "0"`,
 	} {
 		_, err := load(t, t.TempDir(), args)
 

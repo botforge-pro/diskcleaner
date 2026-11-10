@@ -23,6 +23,7 @@ type Kind int
 const (
 	Bool Kind = iota
 	Duration
+	Timeout
 	Size
 	Count
 	Dirs
@@ -181,6 +182,12 @@ func parse(s Setting, raw any, home string) (any, error) {
 		return value, nil
 	case Duration:
 		return duration(text)
+	case Timeout:
+		value, err := duration(text)
+		if err == nil && value <= 0 {
+			return nil, fmt.Errorf("want a timeout above 0, got %q", text)
+		}
+		return value, err
 	case Size:
 		return size(text)
 	case Count:

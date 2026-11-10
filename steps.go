@@ -8,12 +8,12 @@ var configSteps = []config.Step{
 	}},
 	{Name: "gradle-caches", Undoable: true},
 	{Name: "docker-images", Undoable: true, Settings: []config.Setting{
-		{Key: "timeout", Kind: config.Duration, Default: "30s", Help: "give up on a Docker that does not answer within this"},
-		{Key: "prune-timeout", Kind: config.Duration, Default: "15m", Help: "give up on a prune that runs longer"},
+		{Key: "timeout", Kind: config.Timeout, Default: "30s", Help: "give up on a Docker that does not answer within this"},
+		{Key: "prune-timeout", Kind: config.Timeout, Default: "15m", Help: "give up on a prune that runs longer"},
 	}},
 	{Name: "go-cache", Undoable: true},
 	{Name: "homebrew", Settings: []config.Setting{
-		{Key: "timeout", Kind: config.Duration, Default: "15m", Help: "give up on a cleanup that runs longer"},
+		{Key: "timeout", Kind: config.Timeout, Default: "15m", Help: "give up on a cleanup that runs longer"},
 	}},
 	{Name: "swiftpm-cache", Undoable: true},
 	{Name: "xcode-derived-data", Undoable: true},

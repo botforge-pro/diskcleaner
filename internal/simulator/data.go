@@ -12,7 +12,6 @@ import (
 
 	"github.com/botforge-pro/diskcleaner/internal/process"
 	"github.com/botforge-pro/diskcleaner/internal/report"
-	"github.com/botforge-pro/diskcleaner/internal/settings"
 )
 
 var errNoValue = errors.New("no value")
@@ -20,23 +19,19 @@ var errNoValue = errors.New("no value")
 type DataStep struct {
 	Devices   string
 	Processes string
-	IdleDays  int
+	Idle      time.Duration
 	Xcrun     string
 	Running   func(pattern string) (bool, error)
 	Value     func(plist, key string) (string, error)
 	Now       func() time.Time
 }
 
-func DefaultData(home string) (DataStep, error) {
-	days, err := settings.PositiveDuration("DISKCLEANER_SIMULATOR_IDLE_DAYS", 3, 24*time.Hour, "days")
-	if err != nil {
-		return DataStep{}, err
-	}
+func DefaultData(home string, idle time.Duration) (DataStep, error) {
 	caches := Default(home)
 	return DataStep{
 		Devices:   caches.Devices,
 		Processes: caches.Processes,
-		IdleDays:  days,
+		Idle:      idle,
 		Xcrun:     "xcrun",
 		Running:   process.Running,
 		Value:     plutilValue,
@@ -120,8 +115,8 @@ func (s DataStep) idleSince(r *report.Report, device string) (string, bool) {
 			r.Fail("%s: cannot read lastUsedAt %q: %v", plist, lastUsed, err)
 			return "", false
 		}
-		if s.Now().Sub(used) <= time.Duration(s.IdleDays)*24*time.Hour {
-			r.Skip("%s: the simulator was used within %d days (%s)", device, s.IdleDays, lastUsed)
+		if s.Now().Sub(used) <= s.Idle {
+			r.Skip("%s: the simulator was used within %s (%s)", device, report.FormatDuration(s.Idle), lastUsed)
 			return "", false
 		}
 	}

@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"runtime/debug"
+	"slices"
 	"strings"
 
 	"github.com/botforge-pro/diskcleaner/internal/clones"
@@ -93,20 +94,28 @@ func buildUsage() string {
 	b.WriteString(`Usage: diskcleaner <command>
 
 Commands:
-  version                    print the installed version
-  clean [--dry-run]          run every step below that is on, one cleanup at a time
-  run STEP [--dry-run] [--report FILE]
-                             run one cleanup step
-  check STEP...              check the settings of these steps, change nothing
-  config                     print every setting, its value and where it came from
+  clean       remove what the steps below find, then say what is free
+  config      print every setting, its value and where it came from
+  version     print the installed version
 
-Every setting of diskcleaner config is also a flag of these commands, such as
---projects.git-tmp-min-age=0.
+Examples:
+  diskcleaner clean --dry-run                      what would go; nothing is removed
+  diskcleaner clean --only projects,go-cache       just these steps
+  diskcleaner clean --projects.git-tmp-min-age=0   dead Git temporary files at once
 
-Steps, in the order clean runs them:
+clean takes --dry-run, --only STEPS, --skip STEPS, --report FILE and
+--config FILE. Every setting that diskcleaner config prints is also a flag of
+clean and config, and lives in ~/.config/diskcleaner.toml.
+
+Steps, in the order clean runs them; off ones delete what cannot be undone and
+run only with --STEP.enabled:
 `)
 	for _, info := range catalog {
-		fmt.Fprintf(&b, "  %-26s %s\n", info.name, info.describes)
+		state := ""
+		if i := slices.IndexFunc(configSteps, func(s config.Step) bool { return s.Name == info.name }); i >= 0 && !configSteps[i].Undoable {
+			state = " (off)"
+		}
+		fmt.Fprintf(&b, "  %-20s %s%s\n", info.name, info.describes, state)
 	}
 	return b.String()
 }
@@ -187,12 +196,6 @@ func run(args []string, stdout, stderr io.Writer, steps registry) int {
 	if len(args) >= 1 && args[0] == "clean" {
 		return clean(args[1:], stdout, stderr, steps)
 	}
-	if len(args) >= 2 && args[0] == "run" {
-		return runStep(args[1], args[2:], stdout, stderr, steps)
-	}
-	if len(args) >= 2 && args[0] == "check" {
-		return checkSteps(args[1:], stderr, steps)
-	}
 	if len(args) >= 1 && args[0] == "config" {
 		return showConfig(args[1:], stdout, stderr, steps.table)
 	}
@@ -210,50 +213,6 @@ func findStep(name string, c *config.Config, stderr io.Writer, find func(string,
 		fmt.Fprint(stderr, usage)
 	}
 	return nil, false
-}
-
-func checkSteps(names []string, stderr io.Writer, steps registry) int {
-	c, _, ok := loadSettings("check", nil, stderr, steps.table, nil)
-	if !ok {
-		return 2
-	}
-	for _, name := range names {
-		if _, ok := findStep(name, c, stderr, steps.find); !ok {
-			return 2
-		}
-	}
-	return 0
-}
-
-func runStep(name string, args []string, stdout, stderr io.Writer, steps registry) int {
-	var dryRun *bool
-	var summaryPath *string
-	c, set, ok := loadSettings("run", args, stderr, steps.table, func(set *pflag.FlagSet) {
-		dryRun = set.Bool("dry-run", false, "list what would be removed, remove nothing")
-		summaryPath = set.String("report", "", "write the count, size and failures to this file")
-	})
-	if !ok || set.NArg() != 0 {
-		if ok {
-			fmt.Fprint(stderr, usage)
-		}
-		return 2
-	}
-	s, ok := findStep(name, c, stderr, steps.find)
-	if !ok {
-		return 2
-	}
-	r := &report.Report{Out: stdout, Err: stderr, DryRun: *dryRun}
-	s.Run(r)
-	if *summaryPath != "" {
-		if err := writeSummary(r, *summaryPath); err != nil {
-			fmt.Fprintf(stderr, "FAILED        report %s: %v\n", *summaryPath, err)
-			return 1
-		}
-	}
-	if len(r.Failures) > 0 {
-		return 1
-	}
-	return 0
 }
 
 func writeSummary(r *report.Report, path string) error {

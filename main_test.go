@@ -74,19 +74,13 @@ func TestRun(t *testing.T) {
 		{"unknown command", []string{"tidy"}, 2, "", usage},
 		{"extra argument", []string{"version", "now"}, 2, "", usage},
 		{"clean argument", []string{"clean", "now"}, 2, "", usage},
-		{"unknown step", []string{"run", "nothing"}, 2, "", "unknown step \"nothing\"\n" + usage},
-		{"step argument", []string{"run", "fake", "now"}, 2, "", usage},
-		{"step", []string{"run", "fake", "--dry-run"}, 0, "FAKE\n", ""},
-		{"step with a setting", []string{"run", "fake", "--min-age=0", "--dry-run"}, 0, "FAKE min-age 0s\n", ""},
-		{"wrong setting", []string{"run", "fake", "--min-age=soon"}, 2, "", "min-age: want a duration like 1h or 15d, got \"soon\"\n"},
-		{"misconfigured step", []string{"run", "misconfigured"}, 2, "", "DISKCLEANER_FAKE must be a whole number above zero, got: 1.5\n"},
-		{"check", []string{"check", "fake", "fake"}, 0, "", ""},
-		{"check without steps", []string{"check"}, 2, "", usage},
-		{"check misconfigured", []string{"check", "fake", "misconfigured"}, 2, "", "DISKCLEANER_FAKE must be a whole number above zero, got: 1.5\n"},
-		{"check unknown", []string{"check", "nothing"}, 2, "", "unknown step \"nothing\"\n" + usage},
+		{"wrong setting", []string{"clean", "--min-age=soon"}, 2, "", "min-age: want a duration like 1h or 15d, got \"soon\"\n"},
+		{"run is gone", []string{"run", "fake"}, 2, "", usage},
+		{"check is gone", []string{"check", "fake"}, 2, "", usage},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			cleanLock(t)
 			var stdout, stderr bytes.Buffer
 			status := run(tc.args, &stdout, &stderr, findFake(false))
 			assert.Equal(t, tc.wantStatus, status)
@@ -114,29 +108,29 @@ func TestEveryStepIsFound(t *testing.T) {
 	}
 }
 
-func TestRunWritesSummary(t *testing.T) {
+func TestCleanWritesSummary(t *testing.T) {
+	cleanLock(t)
 	summary := filepath.Join(t.TempDir(), "summary")
 	var stdout, stderr bytes.Buffer
 
-	status := run([]string{"run", "fake", "--report", summary}, &stdout, &stderr, findFake(true))
+	status := run([]string{"clean", "--dry-run", "--only=fake", "--report", summary}, &stdout, &stderr, findFake(true, "fake"))
 
 	assert.Equal(t, 1, status)
 	written, err := os.ReadFile(summary)
 	require.NoError(t, err)
 	assert.Equal(t, "count 2\nkb 3072\nfailure rm /tmp/x: permission denied; second line\n", string(written))
-	assert.Equal(t, "FAILED        rm /tmp/x: permission denied; second line\n", stderr.String())
 }
 
-func TestRunReportsUnwritableSummary(t *testing.T) {
+func TestCleanReportsUnwritableSummary(t *testing.T) {
+	cleanLock(t)
 	summary := filepath.Join(t.TempDir(), "missing", "summary")
 	var stdout, stderr bytes.Buffer
 
-	status := run([]string{"run", "fake", "--report", summary}, &stdout, &stderr, findFake(false))
+	status := run([]string{"clean", "--dry-run", "--report", summary}, &stdout, &stderr, findFake(false))
 
 	assert.Equal(t, 1, status)
 	assert.Contains(t, stderr.String(), "FAILED        report "+summary)
 }
-
 func cleanLock(t *testing.T) string {
 	state := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", state)
@@ -211,7 +205,7 @@ func TestCleanLeavesAStepThatIsOffAndSaysHowToTurnItOn(t *testing.T) {
 
 	assert.Equal(t, 0, status, stderr.String())
 	assert.Equal(t, 1, strings.Count(stdout.String(), "FAKE\n"))
-	assert.Contains(t, stdout.String(), "OFF           kept: turn on with --kept.enabled\n")
+	assert.Contains(t, stdout.String(), "OFF           kept: would free about 3.0 MiB; turn on with --kept.enabled\n")
 
 	stdout.Reset()
 	status = run([]string{"clean", "--dry-run", "--kept.enabled"}, &stdout, &stderr, findFake(false, "fake", "kept"))

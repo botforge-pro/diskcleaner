@@ -9,6 +9,7 @@ import (
 	"slices"
 	"syscall"
 
+	"github.com/botforge-pro/diskcleaner/internal/config"
 	"github.com/botforge-pro/diskcleaner/internal/lock"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/spf13/pflag"
@@ -17,10 +18,12 @@ import (
 func clean(args []string, stdout, stderr io.Writer, steps registry) int {
 	var dryRun *bool
 	var only, skip *[]string
+	var summaryPath *string
 	c, set, ok := loadSettings("clean", args, stderr, steps.table, func(set *pflag.FlagSet) {
 		dryRun = set.Bool("dry-run", false, "list what would be removed, remove nothing")
 		only = set.StringSlice("only", nil, "run only these steps, of those that are on")
 		skip = set.StringSlice("skip", nil, "leave these steps out")
+		summaryPath = set.String("report", "", "write the count, size and failures to this file")
 	})
 	if !ok || set.NArg() != 0 {
 		if ok {
@@ -79,10 +82,15 @@ func clean(args []string, stdout, stderr io.Writer, steps registry) int {
 		s.Run(r)
 	}
 	for _, name := range off {
-		fmt.Fprintf(stdout, "OFF           %s: turn on with --%s.enabled\n", name, name)
+		fmt.Fprintf(stdout, "OFF           %s:%s turn on with --%s.enabled\n", name, wouldFree(name, c, steps), name)
 	}
 	if err := held.Release(); err != nil {
 		r.Fail("release the lock: %v", err)
+	}
+	if *summaryPath != "" {
+		if err := writeSummary(r, *summaryPath); err != nil {
+			r.Fail("report %s: %v", *summaryPath, err)
+		}
 	}
 
 	freeKB := int64(-1)
@@ -104,6 +112,19 @@ func clean(args []string, stdout, stderr io.Writer, steps registry) int {
 		return 4
 	}
 	return 0
+}
+
+func wouldFree(name string, c *config.Config, steps registry) string {
+	s, err := steps.find(name, c)
+	if err != nil {
+		return ""
+	}
+	r := &report.Report{Out: io.Discard, Err: io.Discard, DryRun: true}
+	s.Run(r)
+	if r.KB == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" would free about %s;", report.FormatKB(r.KB))
 }
 
 func lockPath(home string) (string, error) {

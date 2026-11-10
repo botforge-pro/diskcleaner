@@ -6,24 +6,34 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"syscall"
 
 	"github.com/botforge-pro/diskcleaner/internal/lock"
 	"github.com/botforge-pro/diskcleaner/internal/report"
-	"github.com/botforge-pro/diskcleaner/internal/settings"
 	"github.com/spf13/pflag"
 )
 
 func clean(args []string, stdout, stderr io.Writer, steps registry) int {
 	var dryRun *bool
+	var only, skip *[]string
 	c, set, ok := loadSettings("clean", args, stderr, steps.table, func(set *pflag.FlagSet) {
 		dryRun = set.Bool("dry-run", false, "list what would be removed, remove nothing")
+		only = set.StringSlice("only", nil, "run only these steps, of those that are on")
+		skip = set.StringSlice("skip", nil, "leave these steps out")
 	})
 	if !ok || set.NArg() != 0 {
 		if ok {
 			fmt.Fprint(stderr, usage)
 		}
 		return 2
+	}
+	for _, name := range append(slices.Clone(*only), *skip...) {
+		if !slices.Contains(steps.names, name) {
+			fmt.Fprintln(stderr, unknownStepError{name: name})
+			fmt.Fprint(stderr, usage)
+			return 2
+		}
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -33,6 +43,9 @@ func clean(args []string, stdout, stderr io.Writer, steps registry) int {
 	var all []step
 	var off []string
 	for _, name := range steps.names {
+		if len(*only) > 0 && !slices.Contains(*only, name) || slices.Contains(*skip, name) {
+			continue
+		}
 		if !c.Bool(name + ".enabled") {
 			off = append(off, name)
 			continue
@@ -44,7 +57,12 @@ func clean(args []string, stdout, stderr io.Writer, steps registry) int {
 		all = append(all, s)
 	}
 
-	held, err := lock.Take(settings.Env("DISKCLEANER_LOCK", filepath.Join(home, ".diskcleaner.lock")), stderr)
+	path, err := lockPath(home)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	held, err := lock.Take(path, stderr)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		if errors.Is(err, lock.ErrHeld) {
@@ -67,28 +85,46 @@ func clean(args []string, stdout, stderr io.Writer, steps registry) int {
 		r.Fail("release the lock: %v", err)
 	}
 
+	freeKB := int64(-1)
 	if *dryRun {
 		fmt.Fprintf(stdout, "Would remove %d paths and free approximately %s.\nNothing was removed.\n", r.Count, report.FormatKB(r.KB))
 	} else {
 		fmt.Fprintf(stdout, "Removed %d paths; freed approximately %s.\n", r.Count, report.FormatKB(r.KB))
-		printFreeSpace(r, home)
+		freeKB = printFreeSpace(r, home)
 	}
-	if len(r.Failures) == 0 {
-		return 0
+	if len(r.Failures) > 0 {
+		fmt.Fprintf(stderr, "%d failure(s):\n", len(r.Failures))
+		for _, failure := range r.Failures {
+			fmt.Fprintf(stderr, "FAILED        %s\n", failure)
+		}
+		return 1
 	}
-	fmt.Fprintf(stderr, "%d failure(s):\n", len(r.Failures))
-	for _, failure := range r.Failures {
-		fmt.Fprintf(stderr, "FAILED        %s\n", failure)
+	if minFree := c.Size("min-free"); freeKB >= 0 && minFree > 0 && freeKB*1024 < minFree {
+		fmt.Fprintf(stderr, "Less than min-free (%s) is free.\n", report.FormatKB(minFree/1024))
+		return 4
 	}
-	return 1
+	return 0
 }
 
-func printFreeSpace(r *report.Report, home string) {
+func lockPath(home string) (string, error) {
+	state := os.Getenv("XDG_STATE_HOME")
+	if state == "" {
+		state = filepath.Join(home, ".local", "state")
+	}
+	dir := filepath.Join(state, "diskcleaner")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", fmt.Errorf("cannot make the folder of the lock: %w", err)
+	}
+	return filepath.Join(dir, "lock"), nil
+}
+
+func printFreeSpace(r *report.Report, home string) int64 {
 	var stat syscall.Statfs_t
 	if err := syscall.Statfs(home, &stat); err != nil {
 		r.Fail("statfs %s: %v", home, err)
-		return
+		return -1
 	}
 	freeKB := int64(stat.Bavail) * int64(stat.Bsize) / 1024
 	fmt.Fprintf(r.Out, "Free on the disk of %s: %s.\n", home, report.FormatKB(freeKB))
+	return freeKB
 }

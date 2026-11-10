@@ -140,6 +140,10 @@ func loadSettings(name string, args []string, stderr io.Writer, table config.Tab
 		fmt.Fprint(stderr, usage)
 		return nil, nil, false
 	}
+	if err := oldSettings(os.Environ()); err != nil {
+		fmt.Fprintln(stderr, err)
+		return nil, nil, false
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Fprintf(stderr, "no home directory: %v\n", err)

@@ -69,7 +69,7 @@ func NewTable(steps []Step) Table {
 	return table
 }
 
-func (t Table) find(key string) (Setting, bool) {
+func (t Table) Find(key string) (Setting, bool) {
 	i := slices.IndexFunc(t, func(s Setting) bool { return s.Key == key })
 	if i < 0 {
 		return Setting{}, false
@@ -120,7 +120,7 @@ func Load(t Table, set *pflag.FlagSet, home string) (*Config, error) {
 			return nil, fmt.Errorf("%s: %w", path, err)
 		}
 		for key, value := range k.All() {
-			if _, known := t.find(key); !known {
+			if _, known := t.Find(key); !known {
 				return nil, fmt.Errorf("%s: unknown setting %q", path, key)
 			}
 			raw[key] = value
@@ -128,7 +128,7 @@ func Load(t Table, set *pflag.FlagSet, home string) (*Config, error) {
 		}
 	}
 	set.Visit(func(f *pflag.Flag) {
-		if _, known := t.find(f.Name); known {
+		if _, known := t.Find(f.Name); known {
 			raw[f.Name] = f.Value.String()
 			c.sources[f.Name] = FromFlag
 		}

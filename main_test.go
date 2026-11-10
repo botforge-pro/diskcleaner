@@ -138,9 +138,10 @@ func TestRunReportsUnwritableSummary(t *testing.T) {
 }
 
 func cleanLock(t *testing.T) string {
-	path := filepath.Join(t.TempDir(), "lock")
-	t.Setenv("DISKCLEANER_LOCK", path)
-	return path
+	state := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", state)
+	require.NoError(t, os.MkdirAll(filepath.Join(state, "diskcleaner"), 0o755))
+	return filepath.Join(state, "diskcleaner", "lock")
 }
 
 func TestCleanDryRunAddsUpEveryStep(t *testing.T) {
@@ -163,6 +164,43 @@ func TestCleanPassesSettingsToEveryStep(t *testing.T) {
 	assert.Equal(t, 0, status)
 	assert.Contains(t, stdout.String(), "FAKE min-age 0s\nFAKE min-age 0s\n")
 	assert.Empty(t, stderr.String())
+}
+
+func TestCleanOnlyAndSkipChooseAmongTheSteps(t *testing.T) {
+	cleanLock(t)
+	for args, want := range map[string]int{
+		"--only=fake":                1,
+		"--skip=fake":                0,
+		"--only=fake,kept":           1,
+		"--only=kept --kept.enabled": 1,
+	} {
+		var stdout, stderr bytes.Buffer
+
+		status := run(append([]string{"clean", "--dry-run"}, strings.Fields(args)...), &stdout, &stderr, findFake(false, "fake", "kept"))
+
+		assert.Equal(t, 0, status, args+": "+stderr.String())
+		assert.Equal(t, want, strings.Count(stdout.String(), "FAKE\n"), args)
+	}
+}
+
+func TestCleanRefusesAnUnknownStepInOnly(t *testing.T) {
+	cleanLock(t)
+	var stdout, stderr bytes.Buffer
+
+	status := run([]string{"clean", "--only=nothing"}, &stdout, &stderr, findFake(false))
+
+	assert.Equal(t, 2, status)
+	assert.Equal(t, "unknown step \"nothing\"\n"+usage, stderr.String())
+}
+
+func TestCleanExitsWithFourWhenLessThanMinFreeIsFree(t *testing.T) {
+	cleanLock(t)
+	var stdout, stderr bytes.Buffer
+
+	status := run([]string{"clean", "--min-free=1000000GB"}, &stdout, &stderr, findFake(false))
+
+	assert.Equal(t, 4, status, stderr.String())
+	assert.Contains(t, stderr.String(), "Less than min-free")
 }
 
 func TestCleanLeavesAStepThatIsOffAndSaysHowToTurnItOn(t *testing.T) {
@@ -228,7 +266,8 @@ func TestCleanDoesNotStartWhileAnotherRuns(t *testing.T) {
 
 	assert.Equal(t, 3, status)
 	assert.Empty(t, stdout.String())
-	assert.Equal(t, "another cleanup is already running (lock "+path+"); not starting a second one\n", stderr.String())
+	assert.True(t, strings.HasPrefix(stderr.String(), fmt.Sprintf("another cleanup is already running (pid %d since ", os.Getpid())), stderr.String())
+	assert.True(t, strings.HasSuffix(stderr.String(), ", lock "+path+"); not starting a second one\n"), stderr.String())
 }
 
 func TestCleanReleasesTheLock(t *testing.T) {

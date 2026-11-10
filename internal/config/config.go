@@ -96,12 +96,13 @@ const (
 
 type Config struct {
 	values  map[string]any
+	texts   map[string]string
 	sources map[string]Source
 	File    string
 }
 
 func Load(t Table, set *pflag.FlagSet, home string) (*Config, error) {
-	c := &Config{values: map[string]any{}, sources: map[string]Source{}}
+	c := &Config{values: map[string]any{}, texts: map[string]string{}, sources: map[string]Source{}}
 	raw := map[string]any{}
 	for _, s := range t {
 		raw[s.Key] = s.Default
@@ -137,9 +138,16 @@ func Load(t Table, set *pflag.FlagSet, home string) (*Config, error) {
 			return nil, fmt.Errorf("%s: %w", s.Key, err)
 		}
 		c.values[s.Key] = value
+		if list, ok := value.([]string); ok {
+			c.texts[s.Key] = strings.Join(list, ", ")
+		} else {
+			c.texts[s.Key] = strings.TrimSpace(fmt.Sprint(raw[s.Key]))
+		}
 	}
 	return c, nil
 }
+
+func (c *Config) Text(key string) string { return c.texts[key] }
 
 func configPath(set *pflag.FlagSet, home string) (string, error) {
 	if f := set.Lookup("config"); f != nil && f.Changed {

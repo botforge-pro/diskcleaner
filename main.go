@@ -107,6 +107,7 @@ Commands:
   run STEP [--dry-run] [--git-tmp-now] [--report FILE]
                              run one cleanup step
   check STEP...              check the settings of these steps, change nothing
+  config                     print every setting, its value and where it came from
 
 --git-tmp-now removes dead Git temporary files at once, without waiting for
 them to age.
@@ -171,6 +172,9 @@ func run(args []string, stdout, stderr io.Writer, steps registry) int {
 	}
 	if len(args) >= 2 && args[0] == "check" {
 		return checkSteps(args[1:], stderr, steps.find)
+	}
+	if len(args) >= 1 && args[0] == "config" {
+		return showConfig(args[1:], stdout, stderr)
 	}
 	fmt.Fprint(stderr, usage)
 	return 2

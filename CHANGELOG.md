@@ -7,13 +7,15 @@ is 0.x, commands and output may still change.
 
 ## [0.20.1] - 2026-11-10
 
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.20.1`; nothing
+else to change.
+
 ### Fixed
 
-- `projects` no longer waits without end on `git lfs prune`, which checks every
-  object with the remote and can run for hours in a large repository. After
-  `projects.lfs-timeout` (`10m` by default) it gives up on that repository,
-  reports it as `FAILED` and goes on with the rest.
-- The tests no longer read the `diskcleaner.toml` of the machine they run on.
+- `clean` no longer hangs for hours on a large repository that uses Git LFS:
+  checking which LFS files the server already has could run without end. After
+  `projects.lfs-timeout` (`10m` by default) it skips that repository, reports
+  it as `FAILED` and goes on with the rest.
 
 ## [0.20.0] - 2026-11-10
 
@@ -25,8 +27,8 @@ what to write instead. After upgrading, `clean` no longer deletes old
 Homebrew versions, Xcode archives, simulator data, files in `/private/tmp`,
 old IDE data or session logs until you turn those steps on; `clean --dry-run`
 lists each as `OFF` with what it would free. Run `diskcleaner clean --dry-run`
-and `diskcleaner config` to see the new behaviour. Once no 0.19 runs, remove
-its lock `~/.diskcleaner.lock`.
+and `diskcleaner config` to see the new behaviour. 0.19 kept its lock file in
+`~/.diskcleaner.lock`; delete that file once no 0.19 is running anywhere.
 
 ### Added
 
@@ -48,24 +50,25 @@ its lock `~/.diskcleaner.lock`.
 - The steps that delete what cannot be undone are off by default: `homebrew`,
   `xcode-archives`, `system-temp`, `ide-old-versions`, `simulator-data`,
   `claude-logs` and `codex-logs`.
-- `projects` covers every folder of `project-dirs` and also removes
-  `node_modules` with a lockfile; the `node-modules` step is gone.
+- `projects` covers every folder of `project-dirs` and also removes a project's
+  `node_modules` when a lockfile (`package-lock.json` and the like) lets it be
+  reinstalled exactly; the separate `node-modules` step is gone.
 - An age is a duration, and a step removes what is at least that old: an Xcode
   archive goes at 15 days as before, a session log at 20 days rather than 21.
 - The lock moved from `~/.diskcleaner.lock` to
   `~/.local/state/diskcleaner/lock`.
 - Where a tool says where its data is, diskcleaner asks it: Xcode's own
-  DerivedData location, `CLAUDE_CONFIG_DIR` and `CODEX_HOME`. In a DerivedData
-  folder picked in Xcode only what Xcode made there goes; anything else is
-  `SKIPPED`.
+  DerivedData location, `CLAUDE_CONFIG_DIR` and `CODEX_HOME`. If you set your
+  own DerivedData folder in Xcode settings, `clean` removes only Xcode's build
+  folders there and leaves your other files, listing them as `SKIPPED`.
 
 ### Removed
 
 - `run STEP` (use `clean --only STEP`), `check` (use `config`) and
   `--git-tmp-now` (use `--projects.git-tmp-min-age=0`).
-- Every `DISKCLEANER_*` variable. The thresholds and timeouts are settings
-  now; the paths and the patterns that tell a tool is running are no longer
-  settings.
+- Every `DISKCLEANER_*` variable. Ages, sizes and timeouts are settings now;
+  the folders of each tool and the process names `clean` uses to see that a
+  tool is running are no longer configurable.
 
 ## [0.19.0] - 2026-11-10
 

@@ -9,7 +9,6 @@ import (
 
 	"github.com/botforge-pro/diskcleaner/internal/process"
 	"github.com/botforge-pro/diskcleaner/internal/report"
-	"github.com/botforge-pro/diskcleaner/internal/settings"
 )
 
 type Step struct {
@@ -31,7 +30,7 @@ var caches = []cache{
 func Default() Step {
 	return Step{
 		Go:        "go",
-		Processes: settings.Env("DISKCLEANER_GO_PROCESSES", "(^|/)go (build|test|run|install|get|mod|generate|vet|list)( |$)"),
+		Processes: "(^|/)go (build|test|run|install|get|mod|generate|vet|list)( |$)",
 		Running:   process.Running,
 	}
 }

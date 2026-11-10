@@ -12,7 +12,6 @@ import (
 
 	"github.com/botforge-pro/diskcleaner/internal/process"
 	"github.com/botforge-pro/diskcleaner/internal/report"
-	"github.com/botforge-pro/diskcleaner/internal/settings"
 )
 
 const prune = "docker image prune --all --force"
@@ -29,10 +28,10 @@ type Step struct {
 func Default(home string, timeout, pruneTimeout time.Duration) (Step, error) {
 	return Step{
 		Docker:              "docker",
-		Data:                settings.Env("DISKCLEANER_DOCKER_DATA", filepath.Join(home, "Library/Containers/com.docker.docker")),
+		Data:                filepath.Join(home, "Library/Containers/com.docker.docker"),
 		TimeoutSeconds:      int(timeout / time.Second),
 		PruneTimeoutSeconds: int(pruneTimeout / time.Second),
-		Backend:             settings.Env("DISKCLEANER_DOCKER_PROCESS", `com\.docker\.backend`),
+		Backend:             `com\.docker\.backend`,
 		Running:             process.Running,
 	}, nil
 }

@@ -30,15 +30,13 @@ type Step struct {
 }
 
 func Default(minAge time.Duration) (Step, error) {
-	dir := settings.Env("DISKCLEANER_CODE_SIGN_CLONES", "")
-	if dir == "" {
-		temp, err := settings.UserTemp()
-		if err != nil {
-			return Step{}, fmt.Errorf("%w; set DISKCLEANER_CODE_SIGN_CLONES instead", err)
-		}
-		if temp != "" {
-			dir = filepath.Join(filepath.Dir(temp), "X")
-		}
+	temp, err := settings.UserTemp()
+	if err != nil {
+		return Step{}, err
+	}
+	dir := ""
+	if temp != "" {
+		dir = filepath.Join(filepath.Dir(temp), "X")
 	}
 	return Step{
 		Dir:                dir,

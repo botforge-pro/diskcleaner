@@ -13,7 +13,6 @@ import (
 
 	"github.com/botforge-pro/diskcleaner/internal/process"
 	"github.com/botforge-pro/diskcleaner/internal/report"
-	"github.com/botforge-pro/diskcleaner/internal/settings"
 )
 
 const archiveSuffix = ".xcarchive"
@@ -29,11 +28,11 @@ type Archives struct {
 
 func DefaultArchives(home string, minAge time.Duration, kept int) (Archives, error) {
 	return Archives{
-		Folder:    settings.Env("DISKCLEANER_XCODE_ARCHIVES", filepath.Join(home, "Library/Developer/Xcode/Archives")),
+		Folder:    filepath.Join(home, "Library/Developer/Xcode/Archives"),
 		MinAge:    minAge,
 		Kept:      kept,
 		Now:       time.Now,
-		Processes: settings.Env("DISKCLEANER_XCODE_PROCESSES", process.Xcode),
+		Processes: process.Xcode,
 		Running:   process.Running,
 	}, nil
 }

@@ -32,17 +32,17 @@ type Step struct {
 }
 
 func Claude(home string, minAge time.Duration) (Step, error) {
-	return fromSettings("CLAUDE", "DISKCLEANER_CLAUDE_PROJECTS", filepath.Join(home, ".claude", "projects"), minAge)
+	return logs("CLAUDE", filepath.Join(settings.Env("CLAUDE_CONFIG_DIR", filepath.Join(home, ".claude")), "projects"), minAge)
 }
 
 func Codex(home string, minAge time.Duration) (Step, error) {
-	return fromSettings("CODEX", "DISKCLEANER_CODEX_SESSIONS", filepath.Join(home, ".codex", "sessions"), minAge)
+	return logs("CODEX", filepath.Join(settings.Env("CODEX_HOME", filepath.Join(home, ".codex")), "sessions"), minAge)
 }
 
-func fromSettings(label, folderSetting, folder string, minAge time.Duration) (Step, error) {
+func logs(label, folder string, minAge time.Duration) (Step, error) {
 	return Step{
 		Label:              label,
-		Folder:             settings.Env(folderSetting, folder),
+		Folder:             folder,
 		MinAge:             minAge,
 		Now:                time.Now,
 		Lsof:               "lsof",

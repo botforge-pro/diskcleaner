@@ -16,7 +16,6 @@ import (
 	"github.com/botforge-pro/diskcleaner/internal/candidates"
 	"github.com/botforge-pro/diskcleaner/internal/process"
 	"github.com/botforge-pro/diskcleaner/internal/report"
-	"github.com/botforge-pro/diskcleaner/internal/settings"
 )
 
 var repackPid = regexp.MustCompile(`^\.tmp-([0-9]+)-`)
@@ -28,12 +27,8 @@ type GitGarbage struct {
 	Lsof               string
 }
 
-func DefaultGitGarbage(minAge time.Duration) (GitGarbage, error) {
-	timeout, err := settings.PositiveDuration("DISKCLEANER_GIT_LSOF_TIMEOUT", 30, time.Second, "seconds")
-	if err != nil {
-		return GitGarbage{}, err
-	}
-	return GitGarbage{MinAge: minAge, LsofTimeoutSeconds: timeout, Now: time.Now, Lsof: "lsof"}, nil
+func DefaultGitGarbage(minAge time.Duration) GitGarbage {
+	return GitGarbage{MinAge: minAge, LsofTimeoutSeconds: 30, Now: time.Now, Lsof: "lsof"}
 }
 
 func (g GitGarbage) Collect(r *report.Report, set *candidates.Set, repo string) {

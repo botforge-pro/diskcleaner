@@ -50,7 +50,6 @@ func TestDryRunRemovesNothing(t *testing.T) {
 }
 
 func TestDefaultPatternMatchesSwiftAndXcodeBuilds(t *testing.T) {
-	t.Setenv("DISKCLEANER_SWIFT_PROCESSES", "")
 	pattern := regexp.MustCompile(Default(t.TempDir()).Processes)
 
 	for _, command := range []string{

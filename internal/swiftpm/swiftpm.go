@@ -6,7 +6,6 @@ import (
 
 	"github.com/botforge-pro/diskcleaner/internal/process"
 	"github.com/botforge-pro/diskcleaner/internal/report"
-	"github.com/botforge-pro/diskcleaner/internal/settings"
 )
 
 type Step struct {
@@ -17,8 +16,8 @@ type Step struct {
 
 func Default(home string) Step {
 	return Step{
-		Cache:     settings.Env("DISKCLEANER_SWIFTPM_CACHE", filepath.Join(home, "Library/Caches/org.swift.swiftpm")),
-		Processes: settings.Env("DISKCLEANER_SWIFT_PROCESSES", "swift-build|swift-package|swift-test|swift-run|"+process.Xcode),
+		Cache:     filepath.Join(home, "Library/Caches/org.swift.swiftpm"),
+		Processes: "swift-build|swift-package|swift-test|swift-run|" + process.Xcode,
 		Running:   process.Running,
 	}
 }

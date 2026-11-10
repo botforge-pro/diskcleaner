@@ -160,8 +160,6 @@ func TestAMountedDiskImageIsNotSpaceToFree(t *testing.T) {
 }
 
 func TestSystemTempLooksInTheSharedTemporaryFolder(t *testing.T) {
-	t.Setenv("DISKCLEANER_SYSTEM_TMP", "")
-
 	s, err := SystemTemp(time.Hour, 1<<20)
 
 	require.NoError(t, err)

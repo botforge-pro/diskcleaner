@@ -36,11 +36,7 @@ func Default(dirs []string, minAge, gitTmpMinAge time.Duration) (Step, error) {
 			resolved = append(resolved, canonical)
 		}
 	}
-	garbage, err := DefaultGitGarbage(gitTmpMinAge)
-	if err != nil {
-		return Step{}, err
-	}
-	return Step{Dirs: resolved, InUse: inuse.Default(minAge), Garbage: garbage, LFS: DefaultLFS()}, nil
+	return Step{Dirs: resolved, InUse: inuse.Default(minAge), Garbage: DefaultGitGarbage(gitTmpMinAge), LFS: DefaultLFS()}, nil
 }
 
 func (s Step) Run(r *report.Report) {

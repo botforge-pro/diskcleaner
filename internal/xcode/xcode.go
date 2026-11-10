@@ -3,11 +3,12 @@ package xcode
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/botforge-pro/diskcleaner/internal/process"
 	"github.com/botforge-pro/diskcleaner/internal/report"
-	"github.com/botforge-pro/diskcleaner/internal/settings"
 )
 
 type Step struct {
@@ -18,10 +19,25 @@ type Step struct {
 
 func Default(home string) Step {
 	return Step{
-		DerivedData: settings.Env("DISKCLEANER_XCODE_DERIVED_DATA", filepath.Join(home, "Library/Developer/Xcode/DerivedData")),
-		Processes:   settings.Env("DISKCLEANER_XCODE_PROCESSES", process.Xcode),
+		DerivedData: DerivedData(home, xcodeSetting),
+		Processes:   process.Xcode,
 		Running:     process.Running,
 	}
+}
+
+func DerivedData(home string, setting func(key string) string) string {
+	if custom := setting("IDECustomDerivedDataLocation"); filepath.IsAbs(custom) {
+		return custom
+	}
+	return filepath.Join(home, "Library/Developer/Xcode/DerivedData")
+}
+
+func xcodeSetting(key string) string {
+	output, err := exec.Command("defaults", "read", "com.apple.dt.Xcode", key).Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(output))
 }
 
 func (s Step) Run(r *report.Report) {

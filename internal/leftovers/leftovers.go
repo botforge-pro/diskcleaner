@@ -31,7 +31,7 @@ type Step struct {
 
 func SystemTemp(minAge time.Duration, minSize int64) (Step, error) {
 	return Step{
-		Dir:      settings.Env("DISKCLEANER_SYSTEM_TMP", "/private/tmp"),
+		Dir:      "/private/tmp",
 		Patterns: []string{"*"},
 		Exclude:  keptInSystemTemp,
 		Files:    true,
@@ -42,13 +42,9 @@ func SystemTemp(minAge time.Duration, minSize int64) (Step, error) {
 }
 
 func Default(minAge time.Duration) (Step, error) {
-	dir := settings.Env("DISKCLEANER_USER_TMP", "")
-	if dir == "" {
-		temp, err := settings.UserTemp()
-		if err != nil {
-			return Step{}, fmt.Errorf("%w; set DISKCLEANER_USER_TMP instead", err)
-		}
-		dir = temp
+	dir, err := settings.UserTemp()
+	if err != nil {
+		return Step{}, err
 	}
 	return Step{Dir: dir, Patterns: patterns, InUse: inuse.Default(minAge)}, nil
 }

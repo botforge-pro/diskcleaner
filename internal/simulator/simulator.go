@@ -10,7 +10,6 @@ import (
 
 	"github.com/botforge-pro/diskcleaner/internal/process"
 	"github.com/botforge-pro/diskcleaner/internal/report"
-	"github.com/botforge-pro/diskcleaner/internal/settings"
 )
 
 const (
@@ -27,8 +26,8 @@ type Step struct {
 
 func Default(home string) Step {
 	return Step{
-		Devices:   settings.Env("DISKCLEANER_SIMULATOR_DEVICES", filepath.Join(home, "Library/Developer/CoreSimulator/Devices")),
-		Processes: settings.Env("DISKCLEANER_SIMULATOR_PROCESSES", `xcodebuild|simctl|/Simulator\.app/|/DeviceHub\.app/`),
+		Devices:   filepath.Join(home, "Library/Developer/CoreSimulator/Devices"),
+		Processes: `xcodebuild|simctl|/Simulator\.app/|/DeviceHub\.app/`,
 		Running:   process.Running,
 		State:     plutilState,
 	}

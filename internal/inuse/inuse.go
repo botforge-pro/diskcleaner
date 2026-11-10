@@ -9,24 +9,19 @@ import (
 
 	"github.com/botforge-pro/diskcleaner/internal/process"
 	"github.com/botforge-pro/diskcleaner/internal/report"
-	"github.com/botforge-pro/diskcleaner/internal/settings"
 )
 
 const lsofTimeoutSeconds = 30
 
 type Check struct {
-	Minutes            int
+	MinAge             time.Duration
 	Now                func() time.Time
 	Lsof               string
 	LsofTimeoutSeconds int
 }
 
-func Default() (Check, error) {
-	minutes, err := settings.PositiveDuration("DISKCLEANER_TMP_MINUTES", 60, time.Minute, "minutes")
-	if err != nil {
-		return Check{}, err
-	}
-	return Check{Minutes: minutes, Now: time.Now, Lsof: "lsof", LsofTimeoutSeconds: lsofTimeoutSeconds}, nil
+func Default(minAge time.Duration) Check {
+	return Check{MinAge: minAge, Now: time.Now, Lsof: "lsof", LsofTimeoutSeconds: lsofTimeoutSeconds}
 }
 
 func (c Check) Keep(r *report.Report, path string) bool {
@@ -61,11 +56,11 @@ func (c Check) ReasonAfter(path string, latest time.Time) (string, error) {
 }
 
 func (c Check) cutoff() time.Time {
-	return c.Now().Add(-time.Duration(c.Minutes) * time.Minute)
+	return c.Now().Add(-c.MinAge)
 }
 
 func (c Check) written() string {
-	return fmt.Sprintf("written within %d minutes", c.Minutes)
+	return fmt.Sprintf("written within %s", report.FormatDuration(c.MinAge))
 }
 
 func (c Check) writtenSince(root string) (bool, error) {

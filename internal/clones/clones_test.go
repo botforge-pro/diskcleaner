@@ -46,7 +46,7 @@ func fakeLsof(t *testing.T, body string) string {
 const noneOpen = "../process/testdata/lsof-none-open"
 
 func step(dir, lsof string) Step {
-	return Step{Dir: dir, Minutes: 60, Now: func() time.Time { return now }, Lsof: lsof, LsofTimeoutSeconds: 5}
+	return Step{Dir: dir, MinAge: time.Hour, Now: func() time.Time { return now }, Lsof: lsof, LsofTimeoutSeconds: 5}
 }
 
 func run(s Step, dryRun bool) (*report.Report, string, string) {
@@ -117,7 +117,7 @@ func TestKeepsACloneMadeWithinTheLimit(t *testing.T) {
 
 	assert.DirExists(t, clone)
 	assert.Zero(t, r.Count)
-	assert.Contains(t, stderr, "SKIPPED       "+clone+": made within 60 minutes")
+	assert.Contains(t, stderr, "SKIPPED       "+clone+": made within 1h")
 }
 
 func TestKeepsACloneWithNoProgramToAskAbout(t *testing.T) {

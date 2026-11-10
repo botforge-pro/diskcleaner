@@ -43,7 +43,7 @@ func step(temp, lsof string) Step {
 	return Step{
 		Dir:      temp,
 		Patterns: patterns,
-		InUse:    inuse.Check{Minutes: 60, Now: func() time.Time { return now }, Lsof: lsof, LsofTimeoutSeconds: 5},
+		InUse:    inuse.Check{MinAge: time.Hour, Now: func() time.Time { return now }, Lsof: lsof, LsofTimeoutSeconds: 5},
 	}
 }
 
@@ -100,7 +100,7 @@ func TestKeepsAFolderWrittenWithinTheLimit(t *testing.T) {
 
 	assert.DirExists(t, fresh)
 	assert.Zero(t, r.Count)
-	assert.Contains(t, stderr, "SKIPPED       "+fresh+": written within 60 minutes")
+	assert.Contains(t, stderr, "SKIPPED       "+fresh+": written within 1h")
 }
 
 func TestAFreshFileDeepInsideKeepsAnOldFolder(t *testing.T) {
@@ -113,7 +113,7 @@ func TestAFreshFileDeepInsideKeepsAnOldFolder(t *testing.T) {
 
 	assert.FileExists(t, inner)
 	assert.Zero(t, r.Count)
-	assert.Contains(t, stderr, "SKIPPED       "+build+": written within 60 minutes")
+	assert.Contains(t, stderr, "SKIPPED       "+build+": written within 1h")
 }
 
 func TestKeepsAFolderAProcessHasAFileOpenIn(t *testing.T) {

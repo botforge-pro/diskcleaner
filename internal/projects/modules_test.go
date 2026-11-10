@@ -63,7 +63,7 @@ func TestKeepsNodeModulesAnInstallIsWriting(t *testing.T) {
 	assert.NoDirExists(t, filepath.Join(root, "workspace", "packages", "web", "node_modules"))
 	writing := filepath.Join(root, "locked", "node_modules")
 	assert.DirExists(t, writing)
-	assert.Contains(t, stderr, "SKIPPED       "+writing+": written within 60 minutes")
+	assert.Contains(t, stderr, "SKIPPED       "+writing+": written within 1h")
 }
 
 func TestEveryProjectFolderIsCleaned(t *testing.T) {
@@ -93,7 +93,7 @@ func TestDefaultTakesEachSpellingOfAFolderOnce(t *testing.T) {
 	require.NoError(t, os.Symlink("repos", filepath.Join(dir, "alias")))
 	t.Chdir(dir)
 
-	s, err := Default([]string{"./repos", filepath.Join(dir, "repos"), "alias"}, time.Hour)
+	s, err := Default([]string{"./repos", filepath.Join(dir, "repos"), "alias"}, time.Hour, time.Hour)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{filepath.Join(dir, "repos")}, s.Dirs)
@@ -102,7 +102,7 @@ func TestDefaultTakesEachSpellingOfAFolderOnce(t *testing.T) {
 func TestDefaultRefusesAMissingProjectFolder(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "absent")
 
-	_, err := Default([]string{missing}, time.Hour)
+	_, err := Default([]string{missing}, time.Hour, time.Hour)
 
 	assert.EqualError(t, err, "project folder not found: "+missing+" (see project-dirs)")
 }

@@ -17,7 +17,7 @@ import (
 const bigEnough = 2 << 20
 
 func systemStep(t *testing.T, temp, lsof string) Step {
-	s, err := SystemTemp()
+	s, err := SystemTemp(time.Hour)
 	require.NoError(t, err)
 	s.Dir, s.InUse.Now, s.InUse.Lsof, s.InUse.LsofTimeoutSeconds = temp, func() time.Time { return now }, lsof, 5
 	return s
@@ -85,7 +85,7 @@ func TestSystemTempKeepsWhatIsFreshOpenExcludedOrAnotherUsers(t *testing.T) {
 	_, err = os.Lstat(link)
 	assert.NoError(t, err)
 	assert.Zero(t, r.Count)
-	assert.Contains(t, stderr, "SKIPPED       "+fresh+": written within 60 minutes")
+	assert.Contains(t, stderr, "SKIPPED       "+fresh+": written within 1h")
 	assert.Contains(t, stderr, "SKIPPED       "+open+": a process still has something in it open")
 
 	s := systemStep(t, temp, noneOpen)
@@ -162,7 +162,7 @@ func TestAMountedDiskImageIsNotSpaceToFree(t *testing.T) {
 func TestSystemTempLooksInTheSharedTemporaryFolder(t *testing.T) {
 	t.Setenv("DISKCLEANER_SYSTEM_TMP", "")
 
-	s, err := SystemTemp()
+	s, err := SystemTemp(time.Hour)
 
 	require.NoError(t, err)
 	assert.Equal(t, "/private/tmp", s.Dir)

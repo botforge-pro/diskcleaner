@@ -37,7 +37,7 @@ func listing(t *testing.T, names ...string) string {
 }
 
 func check(lsof string) Check {
-	return Check{Minutes: 60, Now: time.Now, Lsof: lsof, LsofTimeoutSeconds: 5}
+	return Check{MinAge: time.Hour, Now: time.Now, Lsof: lsof, LsofTimeoutSeconds: 5}
 }
 
 func TestAnOldClosedFolderIsNotInUse(t *testing.T) {
@@ -56,7 +56,7 @@ func TestARecentWriteAnywhereInsideKeepsTheFolder(t *testing.T) {
 	reason, err := check(listing(t, "/")).Reason(dir)
 
 	require.NoError(t, err)
-	assert.Equal(t, "written within 60 minutes", reason)
+	assert.Equal(t, "written within 1h", reason)
 }
 
 func TestAnOpenFileOrWorkingFolderInsideKeepsTheFolder(t *testing.T) {
@@ -87,7 +87,7 @@ func TestReasonAfterTakesTheLatestWriteItIsGiven(t *testing.T) {
 
 	reason, err := c.ReasonAfter(dir, time.Now().Add(-59*time.Minute))
 	require.NoError(t, err)
-	assert.Equal(t, "written within 60 minutes", reason)
+	assert.Equal(t, "written within 1h", reason)
 
 	reason, err = c.ReasonAfter(dir, time.Now().Add(-61*time.Minute))
 	require.NoError(t, err)

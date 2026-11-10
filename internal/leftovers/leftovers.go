@@ -29,11 +29,8 @@ type Step struct {
 	InUse    inuse.Check
 }
 
-func SystemTemp() (Step, error) {
-	check, err := inuse.Default()
-	if err != nil {
-		return Step{}, err
-	}
+func SystemTemp(minAge time.Duration) (Step, error) {
+	check := inuse.Default(minAge)
 	minKB, err := settings.PositiveInt("DISKCLEANER_SYSTEM_TMP_MIN_KB", 1024)
 	if err != nil {
 		return Step{}, err
@@ -49,7 +46,7 @@ func SystemTemp() (Step, error) {
 	}, nil
 }
 
-func Default() (Step, error) {
+func Default(minAge time.Duration) (Step, error) {
 	dir := settings.Env("DISKCLEANER_USER_TMP", "")
 	if dir == "" {
 		temp, err := settings.UserTemp()
@@ -58,11 +55,7 @@ func Default() (Step, error) {
 		}
 		dir = temp
 	}
-	check, err := inuse.Default()
-	if err != nil {
-		return Step{}, err
-	}
-	return Step{Dir: dir, Patterns: patterns, InUse: check}, nil
+	return Step{Dir: dir, Patterns: patterns, InUse: inuse.Default(minAge)}, nil
 }
 
 func (s Step) Run(r *report.Report) {

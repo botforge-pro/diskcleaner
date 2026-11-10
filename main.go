@@ -38,7 +38,7 @@ type stepInfo struct {
 
 var catalog = []stepInfo{
 	{"projects", "build output, node_modules and Git leftovers in your projects", func(_ string, c *config.Config) (step, error) {
-		s, err := projects.Default(c.Dirs("project-dirs"), c.Duration("projects.git-tmp-min-age"))
+		s, err := projects.Default(c.Dirs("project-dirs"), c.Duration("min-age"), c.Duration("projects.git-tmp-min-age"))
 		return s, err
 	}},
 	{"gradle-caches", "the Gradle caches", func(home string, _ *config.Config) (step, error) { return gradle.Default(home), nil }},
@@ -57,16 +57,16 @@ var catalog = []stepInfo{
 		s, err := xcode.DefaultArchives(home)
 		return s, err
 	}},
-	{"temp-leftovers", "temporary folders of killed Go builds and of Xcode exports", func(string, *config.Config) (step, error) {
-		s, err := leftovers.Default()
+	{"temp-leftovers", "temporary folders of killed Go builds and of Xcode exports", func(_ string, c *config.Config) (step, error) {
+		s, err := leftovers.Default(c.Duration("min-age"))
 		return s, err
 	}},
-	{"system-temp", "your files and folders left in /private/tmp", func(string, *config.Config) (step, error) {
-		s, err := leftovers.SystemTemp()
+	{"system-temp", "your files and folders left in /private/tmp", func(_ string, c *config.Config) (step, error) {
+		s, err := leftovers.SystemTemp(c.Duration("min-age"))
 		return s, err
 	}},
-	{"code-sign-clones", "copies of Chrome and other apps no running app uses", func(string, *config.Config) (step, error) {
-		s, err := clones.Default()
+	{"code-sign-clones", "copies of Chrome and other apps no running app uses", func(_ string, c *config.Config) (step, error) {
+		s, err := clones.Default(c.Duration("min-age"))
 		return s, err
 	}},
 	{"ide-old-versions", "settings, caches and logs of IDE versions older than the installed one", func(home string, _ *config.Config) (step, error) { return ide.Default(home), nil }},

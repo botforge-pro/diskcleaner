@@ -93,7 +93,7 @@ func step(t *testing.T, repos string) Step {
 	return Step{
 		Dirs: []string{repos},
 		InUse: inuse.Check{
-			Minutes: 60, Now: func() time.Time { return time.Now().Add(2 * time.Hour) },
+			MinAge: time.Hour, Now: func() time.Time { return time.Now().Add(2 * time.Hour) },
 			Lsof: script(t, "lsof", "printf 'p1\\nfcwd\\nn/\\n'\n"), LsofTimeoutSeconds: 5,
 		},
 		Garbage: GitGarbage{MinAge: time.Hour, LsofTimeoutSeconds: 5, Now: time.Now, Lsof: script(t, "lsof", "exit 1\n")},
@@ -182,7 +182,7 @@ func TestKeepsBuildOutputThatABuildStillUses(t *testing.T) {
 	assert.NoDirExists(t, filepath.Join(swift, "Packages/Core/.build"), "nothing uses it")
 	running := filepath.Join(swift, "Packages/Running/.build")
 	assert.DirExists(t, running)
-	assert.Contains(t, stderr, "SKIPPED       "+running+": written within 60 minutes")
+	assert.Contains(t, stderr, "SKIPPED       "+running+": written within 1h")
 	assert.DirExists(t, linking)
 	assert.Contains(t, stderr, "SKIPPED       "+linking+": a process still has something in it open")
 	assert.DirExists(t, working, "a process works in it")

@@ -25,7 +25,7 @@ type Step struct {
 	LFS     LFS
 }
 
-func Default(dirs []string, gitTmpMinAge time.Duration) (Step, error) {
+func Default(dirs []string, minAge, gitTmpMinAge time.Duration) (Step, error) {
 	var resolved []string
 	for _, dir := range dirs {
 		canonical, err := settings.Canonical(dir)
@@ -36,15 +36,11 @@ func Default(dirs []string, gitTmpMinAge time.Duration) (Step, error) {
 			resolved = append(resolved, canonical)
 		}
 	}
-	check, err := inuse.Default()
-	if err != nil {
-		return Step{}, err
-	}
 	garbage, err := DefaultGitGarbage(gitTmpMinAge)
 	if err != nil {
 		return Step{}, err
 	}
-	return Step{Dirs: resolved, InUse: check, Garbage: garbage, LFS: DefaultLFS()}, nil
+	return Step{Dirs: resolved, InUse: inuse.Default(minAge), Garbage: garbage, LFS: DefaultLFS()}, nil
 }
 
 func (s Step) Run(r *report.Report) {

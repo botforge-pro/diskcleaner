@@ -242,7 +242,7 @@ func TestDefaultRefusesAMinuteCountThatWouldOverflow(t *testing.T) {
 	t.Setenv("DISKCLEANER_REPOS_DIR", t.TempDir())
 	t.Setenv("DISKCLEANER_GIT_TMP_MINUTES", "153722868")
 
-	_, err := Default(t.TempDir())
+	_, err := Default(t.TempDir(), false)
 
 	assert.ErrorContains(t, err, "DISKCLEANER_GIT_TMP_MINUTES must be at most 153722867 minutes")
 }
@@ -382,7 +382,7 @@ func TestLFSWithoutGitLFSFails(t *testing.T) {
 func TestDefaultRefusesAMissingReposFolder(t *testing.T) {
 	t.Setenv("DISKCLEANER_REPOS_DIR", filepath.Join(t.TempDir(), "absent"))
 
-	_, err := Default(t.TempDir())
+	_, err := Default(t.TempDir(), false)
 
 	assert.ErrorContains(t, err, "repositories directory not found")
 }
@@ -391,7 +391,25 @@ func TestDefaultRefusesAFractionalMinuteCount(t *testing.T) {
 	t.Setenv("DISKCLEANER_REPOS_DIR", t.TempDir())
 	t.Setenv("DISKCLEANER_GIT_TMP_MINUTES", "1.5")
 
-	_, err := Default(t.TempDir())
+	_, err := Default(t.TempDir(), false)
 
 	assert.EqualError(t, err, "DISKCLEANER_GIT_TMP_MINUTES must be a whole number above zero, got: 1.5")
+}
+
+func TestGitTmpNowRemovesAFreshDeadTemporaryFileAndKeepsALiveRepack(t *testing.T) {
+	repos := newRepos(t)
+	t.Setenv("DISKCLEANER_REPOS_DIR", repos)
+	defaults, err := Default(t.TempDir(), true)
+	require.NoError(t, err)
+	assert.True(t, defaults.Garbage.IgnoreAge)
+	s := step(t, repos)
+	s.Garbage.IgnoreAge = true
+
+	r, _, stderr := run(s, false)
+
+	assert.Empty(t, r.Failures)
+	assert.NoFileExists(t, filepath.Join(repos, "swiftapp/.git/objects/pack/tmp_pack_fetching"), "no process holds it")
+	assert.FileExists(t, filepath.Join(repos, fmt.Sprintf("swiftapp/.git/objects/pack/.tmp-%d-pack-repacking.pack", os.Getpid())))
+	assert.Contains(t, stderr, "pack-repacking.pack: the git repack that writes it is still running")
+	assert.NotContains(t, stderr, "written within")
 }

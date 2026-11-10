@@ -25,12 +25,12 @@ type Step struct {
 	Garbage   projects.GitGarbage
 }
 
-func Default(home string) (Step, error) {
+func Default(home string, gitTmpNow bool) (Step, error) {
 	check, err := inuse.Default()
 	if err != nil {
 		return Step{}, err
 	}
-	garbage, err := projects.DefaultGitGarbage()
+	garbage, err := projects.DefaultGitGarbage(gitTmpNow)
 	if err != nil {
 		return Step{}, err
 	}

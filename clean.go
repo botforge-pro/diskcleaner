@@ -18,6 +18,7 @@ func clean(args []string, stdout, stderr io.Writer, steps registry) int {
 	flags := flag.NewFlagSet("clean", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	dryRun := flags.Bool("dry-run", false, "list what would be removed, remove nothing")
+	gitTmpNow := flags.Bool("git-tmp-now", false, "remove dead Git temporary files without waiting for them to age")
 	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
 		fmt.Fprint(stderr, usage)
 		return 2
@@ -29,7 +30,7 @@ func clean(args []string, stdout, stderr io.Writer, steps registry) int {
 	}
 	var all []step
 	for _, name := range steps.names {
-		s, ok := findStep(name, stderr, steps.find)
+		s, ok := findStep(name, options{gitTmpNow: *gitTmpNow}, stderr, steps.find)
 		if !ok {
 			return 2
 		}

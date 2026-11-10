@@ -30,62 +30,66 @@ type step interface {
 	Run(r *report.Report)
 }
 
+type options struct {
+	gitTmpNow bool
+}
+
 type stepInfo struct {
 	name      string
 	describes string
-	construct func(home string) (step, error)
+	construct func(home string, o options) (step, error)
 }
 
 var catalog = []stepInfo{
-	{"projects", "build output and Git leftovers in your repositories", func(home string) (step, error) {
-		s, err := projects.Default(home)
+	{"projects", "build output and Git leftovers in your repositories", func(home string, o options) (step, error) {
+		s, err := projects.Default(home, o.gitTmpNow)
 		return s, err
 	}},
-	{"gradle-caches", "the Gradle caches", func(home string) (step, error) { return gradle.Default(home), nil }},
-	{"docker-images", "Docker images not used by any container", func(home string) (step, error) {
+	{"gradle-caches", "the Gradle caches", func(home string, _ options) (step, error) { return gradle.Default(home), nil }},
+	{"docker-images", "Docker images not used by any container", func(home string, _ options) (step, error) {
 		s, err := docker.Default(home)
 		return s, err
 	}},
-	{"go-cache", "the Go module and build caches", func(string) (step, error) { return gocache.Default(), nil }},
-	{"homebrew", "old Homebrew versions and downloads", func(string) (step, error) {
+	{"go-cache", "the Go module and build caches", func(string, options) (step, error) { return gocache.Default(), nil }},
+	{"homebrew", "old Homebrew versions and downloads", func(string, options) (step, error) {
 		s, err := homebrew.Default()
 		return s, err
 	}},
-	{"swiftpm-cache", "the Swift Package Manager cache", func(home string) (step, error) { return swiftpm.Default(home), nil }},
-	{"xcode-derived-data", "Xcode DerivedData", func(home string) (step, error) { return xcode.Default(home), nil }},
-	{"xcode-archives", "old Xcode archives, the newest of each app kept", func(home string) (step, error) {
+	{"swiftpm-cache", "the Swift Package Manager cache", func(home string, _ options) (step, error) { return swiftpm.Default(home), nil }},
+	{"xcode-derived-data", "Xcode DerivedData", func(home string, _ options) (step, error) { return xcode.Default(home), nil }},
+	{"xcode-archives", "old Xcode archives, the newest of each app kept", func(home string, _ options) (step, error) {
 		s, err := xcode.DefaultArchives(home)
 		return s, err
 	}},
-	{"temp-leftovers", "temporary folders of killed Go builds and of Xcode exports", func(string) (step, error) {
+	{"temp-leftovers", "temporary folders of killed Go builds and of Xcode exports", func(string, options) (step, error) {
 		s, err := leftovers.Default()
 		return s, err
 	}},
-	{"system-temp", "your files and folders left in /private/tmp", func(string) (step, error) {
+	{"system-temp", "your files and folders left in /private/tmp", func(string, options) (step, error) {
 		s, err := leftovers.SystemTemp()
 		return s, err
 	}},
-	{"code-sign-clones", "copies of Chrome and other apps no running app uses", func(string) (step, error) {
+	{"code-sign-clones", "copies of Chrome and other apps no running app uses", func(string, options) (step, error) {
 		s, err := clones.Default()
 		return s, err
 	}},
-	{"ide-old-versions", "settings, caches and logs of IDE versions older than the installed one", func(home string) (step, error) { return ide.Default(home), nil }},
-	{"simulator-data", "data of iOS simulators not used for days", func(home string) (step, error) {
+	{"ide-old-versions", "settings, caches and logs of IDE versions older than the installed one", func(home string, _ options) (step, error) { return ide.Default(home), nil }},
+	{"simulator-data", "data of iOS simulators not used for days", func(home string, _ options) (step, error) {
 		s, err := simulator.DefaultData(home)
 		return s, err
 	}},
-	{"simulator-caches", "Core ML caches of shut-down iOS simulators", func(home string) (step, error) { return simulator.Default(home), nil }},
-	{"claude-logs", "old Claude Code session logs", func(home string) (step, error) {
+	{"simulator-caches", "Core ML caches of shut-down iOS simulators", func(home string, _ options) (step, error) { return simulator.Default(home), nil }},
+	{"claude-logs", "old Claude Code session logs", func(home string, _ options) (step, error) {
 		s, err := sessionlogs.Claude(home)
 		return s, err
 	}},
-	{"codex-logs", "old Codex session logs", func(home string) (step, error) {
+	{"codex-logs", "old Codex session logs", func(home string, _ options) (step, error) {
 		s, err := sessionlogs.Codex(home)
 		return s, err
 	}},
-	{"claude-scratchpads", "build output in Claude Code scratchpads", func(string) (step, error) { return scratchpads.Default(), nil }},
-	{"node-modules", "node_modules of Node projects that have a lockfile", func(home string) (step, error) {
-		s, err := nodemodules.Default(home)
+	{"claude-scratchpads", "build output in Claude Code scratchpads", func(string, options) (step, error) { return scratchpads.Default(), nil }},
+	{"node-modules", "node_modules of Node projects that have a lockfile", func(home string, o options) (step, error) {
+		s, err := nodemodules.Default(home, o.gitTmpNow)
 		return s, err
 	}},
 }
@@ -98,10 +102,14 @@ func buildUsage() string {
 
 Commands:
   version                    print the installed version
-  clean [--dry-run]          run every step below, one cleanup at a time
-  run STEP [--dry-run] [--report FILE]
+  clean [--dry-run] [--git-tmp-now]
+                             run every step below, one cleanup at a time
+  run STEP [--dry-run] [--git-tmp-now] [--report FILE]
                              run one cleanup step
   check STEP...              check the settings of these steps, change nothing
+
+--git-tmp-now removes dead Git temporary files at once, without waiting for
+them to age.
 
 Steps, in the order clean runs them:
 `)
@@ -121,7 +129,7 @@ func (e unknownStepError) Error() string {
 
 type registry struct {
 	names []string
-	find  func(name string) (step, error)
+	find  func(name string, o options) (step, error)
 }
 
 func main() {
@@ -136,7 +144,7 @@ func stepNames() []string {
 	return names
 }
 
-func steps(name string) (step, error) {
+func steps(name string, o options) (step, error) {
 	for _, info := range catalog {
 		if info.name != name {
 			continue
@@ -145,7 +153,7 @@ func steps(name string) (step, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%s: no home directory: %w", name, err)
 		}
-		return info.construct(home)
+		return info.construct(home, o)
 	}
 	return nil, unknownStepError{name: name}
 }
@@ -168,8 +176,8 @@ func run(args []string, stdout, stderr io.Writer, steps registry) int {
 	return 2
 }
 
-func findStep(name string, stderr io.Writer, find func(string) (step, error)) (step, bool) {
-	s, err := find(name)
+func findStep(name string, o options, stderr io.Writer, find func(string, options) (step, error)) (step, bool) {
+	s, err := find(name, o)
 	if err == nil {
 		return s, true
 	}
@@ -180,25 +188,26 @@ func findStep(name string, stderr io.Writer, find func(string) (step, error)) (s
 	return nil, false
 }
 
-func checkSteps(names []string, stderr io.Writer, find func(string) (step, error)) int {
+func checkSteps(names []string, stderr io.Writer, find func(string, options) (step, error)) int {
 	for _, name := range names {
-		if _, ok := findStep(name, stderr, find); !ok {
+		if _, ok := findStep(name, options{}, stderr, find); !ok {
 			return 2
 		}
 	}
 	return 0
 }
 
-func runStep(name string, args []string, stdout, stderr io.Writer, find func(string) (step, error)) int {
+func runStep(name string, args []string, stdout, stderr io.Writer, find func(string, options) (step, error)) int {
 	flags := flag.NewFlagSet("run", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	dryRun := flags.Bool("dry-run", false, "list what would be removed, remove nothing")
+	gitTmpNow := flags.Bool("git-tmp-now", false, "remove dead Git temporary files without waiting for them to age")
 	summaryPath := flags.String("report", "", "write the count, size and failures to this file")
 	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
 		fmt.Fprint(stderr, usage)
 		return 2
 	}
-	s, ok := findStep(name, stderr, find)
+	s, ok := findStep(name, options{gitTmpNow: *gitTmpNow}, stderr, find)
 	if !ok {
 		return 2
 	}

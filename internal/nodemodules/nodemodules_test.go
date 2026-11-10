@@ -83,6 +83,28 @@ func TestKeepsNodeModulesAnInstallIsWriting(t *testing.T) {
 	assert.Contains(t, stderr, "SKIPPED       "+writing+": written within 60 minutes")
 }
 
+func TestGitTmpNowRemovesAFreshDeadTemporaryFile(t *testing.T) {
+	root := newRoot(t)
+	t.Setenv("DISKCLEANER_NODE_DIR", root)
+	defaults, err := Default(t.TempDir(), true)
+	require.NoError(t, err)
+	assert.True(t, defaults.Garbage.IgnoreAge)
+	fresh := filepath.Join(root, "octo", ".git", "objects", "pack", "tmp_pack_fresh")
+	write(t, filepath.Join(root, "octo"), ".git/objects/pack/tmp_pack_fresh", "x")
+	s := step(t, root)
+
+	_, _, stderr := run(s, false)
+
+	assert.FileExists(t, fresh)
+	assert.Contains(t, stderr, "SKIPPED       "+fresh+": written within 60 minutes")
+
+	s.Garbage.IgnoreAge = true
+	r, _, _ := run(s, false)
+
+	assert.Empty(t, r.Failures)
+	assert.NoFileExists(t, fresh, "no process holds it")
+}
+
 func run(s Step, dryRun bool) (*report.Report, string, string) {
 	var stdout, stderr bytes.Buffer
 	r := &report.Report{Out: &stdout, Err: &stderr, DryRun: dryRun}
@@ -146,7 +168,7 @@ func TestDefaultSeesAnotherSpellingOfTheRepositoriesFolderAsIt(t *testing.T) {
 		t.Setenv("DISKCLEANER_NODE_DIR", pair[0])
 		t.Setenv("DISKCLEANER_REPOS_DIR", pair[1])
 
-		s, err := Default(t.TempDir())
+		s, err := Default(t.TempDir(), false)
 
 		require.NoError(t, err, pair)
 		assert.Equal(t, filepath.Join(dir, "repos"), s.Root, pair)

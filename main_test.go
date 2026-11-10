@@ -19,11 +19,16 @@ import (
 )
 
 type fakeStep struct {
-	fail bool
+	fail      bool
+	gitTmpNow bool
 }
 
 func (f fakeStep) Run(r *report.Report) {
-	fmt.Fprintln(r.Out, "FAKE")
+	if f.gitTmpNow {
+		fmt.Fprintln(r.Out, "FAKE GIT TMP NOW")
+	} else {
+		fmt.Fprintln(r.Out, "FAKE")
+	}
 	r.Count += 2
 	r.KB += 3072
 	if f.fail {
@@ -37,10 +42,10 @@ func findFake(fail bool, names ...string) registry {
 	}
 	return registry{
 		names: names,
-		find: func(name string) (step, error) {
+		find: func(name string, o options) (step, error) {
 			switch name {
 			case "fake":
-				return fakeStep{fail: fail}, nil
+				return fakeStep{fail: fail, gitTmpNow: o.gitTmpNow}, nil
 			case "misconfigured":
 				return nil, errors.New("DISKCLEANER_FAKE must be a whole number above zero, got: 1.5")
 			}
@@ -65,6 +70,7 @@ func TestRun(t *testing.T) {
 		{"unknown step", []string{"run", "nothing"}, 2, "", "unknown step \"nothing\"\n" + usage},
 		{"step argument", []string{"run", "fake", "now"}, 2, "", usage},
 		{"step", []string{"run", "fake", "--dry-run"}, 0, "FAKE\n", ""},
+		{"step without waiting for Git temporary files", []string{"run", "fake", "--git-tmp-now", "--dry-run"}, 0, "FAKE GIT TMP NOW\n", ""},
 		{"misconfigured step", []string{"run", "misconfigured"}, 2, "", "DISKCLEANER_FAKE must be a whole number above zero, got: 1.5\n"},
 		{"check", []string{"check", "fake", "fake"}, 0, "", ""},
 		{"check without steps", []string{"check"}, 2, "", usage},
@@ -92,7 +98,7 @@ func TestUsageListsEveryStepInCleanOrder(t *testing.T) {
 func TestEveryStepIsFound(t *testing.T) {
 	t.Setenv("DISKCLEANER_REPOS_DIR", t.TempDir())
 	for _, name := range stepNames() {
-		_, err := steps(name)
+		_, err := steps(name, options{})
 		assert.NoError(t, err, name)
 	}
 }
@@ -134,6 +140,17 @@ func TestCleanDryRunAddsUpEveryStep(t *testing.T) {
 
 	assert.Equal(t, 0, status)
 	assert.Equal(t, "Mode: dry run\n\nFAKE\nFAKE\nWould remove 4 paths and free approximately 6.0 MiB.\nNothing was removed.\n", stdout.String())
+	assert.Empty(t, stderr.String())
+}
+
+func TestCleanPassesGitTmpNowToEveryStep(t *testing.T) {
+	cleanLock(t)
+	var stdout, stderr bytes.Buffer
+
+	status := run([]string{"clean", "--dry-run", "--git-tmp-now"}, &stdout, &stderr, findFake(false))
+
+	assert.Equal(t, 0, status)
+	assert.Contains(t, stdout.String(), "FAKE GIT TMP NOW\nFAKE GIT TMP NOW\n")
 	assert.Empty(t, stderr.String())
 }
 

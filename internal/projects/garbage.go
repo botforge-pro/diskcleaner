@@ -23,12 +23,13 @@ var repackPid = regexp.MustCompile(`^\.tmp-([0-9]+)-`)
 
 type GitGarbage struct {
 	Minutes            int
+	IgnoreAge          bool
 	LsofTimeoutSeconds int
 	Now                func() time.Time
 	Lsof               string
 }
 
-func DefaultGitGarbage() (GitGarbage, error) {
+func DefaultGitGarbage(now bool) (GitGarbage, error) {
 	minutes, err := settings.PositiveDuration("DISKCLEANER_GIT_TMP_MINUTES", 60, time.Minute, "minutes")
 	if err != nil {
 		return GitGarbage{}, err
@@ -37,7 +38,7 @@ func DefaultGitGarbage() (GitGarbage, error) {
 	if err != nil {
 		return GitGarbage{}, err
 	}
-	return GitGarbage{Minutes: minutes, LsofTimeoutSeconds: timeout, Now: time.Now, Lsof: "lsof"}, nil
+	return GitGarbage{Minutes: minutes, IgnoreAge: now, LsofTimeoutSeconds: timeout, Now: time.Now, Lsof: "lsof"}, nil
 }
 
 func (g GitGarbage) Collect(r *report.Report, set *candidates.Set, repo string) {
@@ -89,7 +90,7 @@ func (g GitGarbage) check(r *report.Report, set *candidates.Set, file string) {
 	if !info.Mode().IsRegular() {
 		return
 	}
-	if g.Now().Sub(info.ModTime()) <= time.Duration(g.Minutes)*time.Minute {
+	if !g.IgnoreAge && g.Now().Sub(info.ModTime()) <= time.Duration(g.Minutes)*time.Minute {
 		r.Skip("%s: written within %d minutes", file, g.Minutes)
 		return
 	}

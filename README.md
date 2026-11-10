@@ -48,9 +48,16 @@ diskcleaner clean --dry-run            # list what every step would remove
 diskcleaner clean                      # remove it, then say how much is free
 diskcleaner run STEP --dry-run         # the same for one step
 diskcleaner run STEP --report FILE     # also write the totals to FILE
+diskcleaner clean --git-tmp-now        # do not wait for dead Git temporary files to age
 diskcleaner check STEP...              # check the settings of these steps
 diskcleaner version
 ```
+
+`--git-tmp-now`, for `clean` and `run`, is for a full disk: it removes the
+temporary files of a dead `git fetch` or `git repack` (see `projects`) however
+recently they were written. The `lsof` and repack checks still keep a file a
+running git writes, but a git run by another user, such as `sudo git`, is
+guarded only by the age, so it loses that guard.
 
 ### Output
 
@@ -110,7 +117,8 @@ In each Git repository one level below `~/Developer`, removes:
 - `.apk` and `.aab` files, when the repository has a `gradlew`;
 - temporary files a dead `git fetch` or `git repack` left in `.git/objects`
   (`tmp_*`, `*/tmp_*`, `pack/.tmp-*`), once all of these hold:
-  - older than `DISKCLEANER_GIT_TMP_MINUTES` (60);
+  - older than `DISKCLEANER_GIT_TMP_MINUTES` (60), unless `--git-tmp-now` is
+    given;
   - the `git repack` named in it has ended;
   - `lsof` sees no process of yours holding it within
     `DISKCLEANER_GIT_LSOF_TIMEOUT` seconds (30); other users' processes, such

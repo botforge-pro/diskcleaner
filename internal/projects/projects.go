@@ -24,7 +24,7 @@ type Step struct {
 	LFS     LFS
 }
 
-func Default(home string) (Step, error) {
+func Default(home string, gitTmpNow bool) (Step, error) {
 	repos := settings.Env("DISKCLEANER_REPOS_DIR", filepath.Join(home, "Developer"))
 	resolved, err := settings.Canonical(repos)
 	if err != nil {
@@ -37,7 +37,7 @@ func Default(home string) (Step, error) {
 	if err != nil {
 		return Step{}, err
 	}
-	garbage, err := DefaultGitGarbage()
+	garbage, err := DefaultGitGarbage(gitTmpNow)
 	if err != nil {
 		return Step{}, err
 	}

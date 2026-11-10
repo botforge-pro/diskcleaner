@@ -5,6 +5,21 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.19.0] - 2026-11-10
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.19.0`.
+
+### Added
+
+- `--git-tmp-now` for `clean` and `run`: the temporary files of a dead
+  `git fetch` or `git repack`, in `projects` and in `node-modules`, are removed
+  however recently they were written, instead of after
+  `DISKCLEANER_GIT_TMP_MINUTES` (60). It is meant for a full disk: three fetches
+  that died on a full disk had left 9.6 GB of `tmp_pack_*` written minutes
+  before. A file that a process of yours holds, or that a running `git repack`
+  writes, still stays; a git run by another user, such as `sudo git`, was
+  guarded only by the age and is not guarded with this flag.
+
 ## [0.18.0] - 2026-11-04
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.18.0`.

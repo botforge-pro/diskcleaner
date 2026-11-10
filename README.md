@@ -3,14 +3,17 @@
 [![CI](https://github.com/botforge-pro/diskcleaner/actions/workflows/ci.yml/badge.svg)](https://github.com/botforge-pro/diskcleaner/actions/workflows/ci.yml)
 
 Frees disk space on a developer's Mac: build output, caches and leftovers that
-the tools make again. Steps that delete what cannot come back are off until you
-turn them on.
+the tools make again. Steps whose deletions cannot be undone are off until you
+turn them on; the last column below says what even the others can lose.
 
 ## Install
 
 ```sh
 go install github.com/botforge-pro/diskcleaner@latest
 ```
+
+It lands in `$(go env GOPATH)/bin` (usually `~/go/bin`), or in `GOBIN` when set;
+that folder must be on your `PATH`.
 
 ## Use
 
@@ -22,10 +25,14 @@ diskcleaner clean --projects.git-tmp-min-age=0     # any setting, for this run
 diskcleaner config                                 # every setting and where it came from
 ```
 
-`clean` keeps whatever a running tool uses: it skips a cache while its tool
-runs and anything a process holds open, written within `min-age`, or tracked
-by Git. Each kept path is listed as `SKIPPED` with the reason; `--report FILE`
-writes the totals.
+`clean` keeps what is in use. A cache is emptied whole, but not while its tool
+runs. In projects and temporary folders a path stays while a process holds it
+open, when it was written within `min-age`, or when Git tracks a file in it.
+When `lsof` or Git cannot answer, the path stays and the step fails. Each kept
+path is listed as `SKIPPED` with the reason; `--report FILE` writes the totals.
+
+`--only` and `--skip` choose among the steps that are on; a step that is off
+runs only with `--<step>.enabled`.
 
 | Exit | Means |
 |---|---|
@@ -33,7 +40,7 @@ writes the totals.
 | 1 | done, some paths failed (`FAILED` lines) |
 | 2 | nothing touched: a wrong setting or command |
 | 3 | nothing touched: another `clean` runs; its PID and start are printed |
-| 4 | done, but less than `min-free` is free |
+| 4 | done without failures, but less than `min-free` is free |
 
 ## Configure
 
@@ -65,25 +72,25 @@ Durations take `m`, `h` and `d`. Each step's own settings are under it below.
 
 `clean` runs them in this order. **Off by default:** delete what cannot come back.
 
-| Step | Removes | Keeps |
-|---|---|---|
-| `projects` | in each project: `.build` of Swift packages, Gradle `build`, `.apk`/`.aab`, `node_modules` with a lockfile, temporary files of a dead `git fetch` or `git repack` (`git-tmp-min-age`, `1h`), Git LFS objects the remote has | `node_modules` without a lockfile (a reinstall would bring other versions) |
-| `gradle-caches` | `$GRADLE_USER_HOME/caches` | everything while Gradle, Android Studio or IntelliJ run |
-| `docker-images` | images no container uses (`timeout`, `30s`; `prune-timeout`, `15m`) | volumes |
-| `go-cache` | the Go module and build caches | everything while `go` builds |
-| `swiftpm-cache` | the SwiftPM package cache | everything while Swift or Xcode build |
-| `xcode-derived-data` | Xcode DerivedData | everything while Xcode builds |
-| `simulator-caches` | Core ML caches of shut-down simulators | app data |
-| `temp-leftovers` | work folders of killed Go builds, Xcode export leftovers | |
-| `code-sign-clones` | copies of Chrome and other apps no running app was started from | |
-| `claude-scratchpads` | build output in Claude Code scratchpads | the scratchpads |
-| **`homebrew`** | old versions of formulae and casks, every download (`timeout`, `15m`) | installed versions |
-| **`xcode-archives`** | archives older than `min-age` (`15d`) | the newest `keep` (`1`) of each app; anything moved to a folder not named by a date |
-| **`ide-old-versions`** | settings, caches and logs of IDE versions older than the installed one | data of every installed version |
-| **`simulator-data`** | apps and data of simulators idle for `idle` (`3d`); the simulator stays, as new | |
-| **`system-temp`** | your files in `/private/tmp` larger than `min-size` (`1MB`) | sockets, mounted volumes, dot files, what a process holds open |
-| **`claude-logs`** | Claude Code session logs older than `min-age` (`20d`); such a session can no longer be resumed | open logs |
-| **`codex-logs`** | Codex session logs older than `min-age` (`20d`) | open logs |
+| Step | Removes | Keeps | Can lose |
+|---|---|---|---|
+| `projects` | in each project: `.build` of Swift packages, Gradle `build`, `.apk`/`.aab`, `node_modules` with a lockfile, temporary files of a dead `git fetch` or `git repack` (`git-tmp-min-age`, `1h`), Git LFS objects the remote has | `node_modules` without a lockfile | packages installed with `--no-save`, unpublished, or from a registry you no longer reach |
+| `gradle-caches` | `$GRADLE_USER_HOME/caches` | all while Gradle, Android Studio or IntelliJ run | |
+| `docker-images` | images no container uses (`timeout`, `30s`; `prune-timeout`, `15m`) | volumes | an image neither a registry nor a Dockerfile still has |
+| `go-cache` | the Go module and build caches | all while `go` builds | |
+| `swiftpm-cache` | the SwiftPM package cache | all while Swift or Xcode build | |
+| `xcode-derived-data` | Xcode DerivedData | all while Xcode builds | |
+| `simulator-caches` | Core ML caches of shut-down simulators | app data | |
+| `temp-leftovers` | work folders of killed Go builds, Xcode export leftovers | | |
+| `code-sign-clones` | copies of Chrome and other apps no running app was started from | | |
+| `claude-scratchpads` | build output in Claude Code scratchpads | the scratchpads | |
+| **`homebrew`** | old versions of formulae and casks; every download, whatever its age (`timeout`, `15m`) | installed versions | the old versions |
+| **`xcode-archives`** | archives older than `min-age` (`15d`) | the newest `keep` (`1`) of each app; any archive in a folder not named by a date | the signed builds and their debug symbols |
+| **`ide-old-versions`** | settings, caches and logs of IDE versions older than the installed one | data of every installed version | settings the new version did not copy |
+| **`simulator-data`** | apps and data of simulators idle for `idle` (`3d`); the simulator stays, as new | | their apps and data |
+| **`system-temp`** | your files in `/private/tmp` larger than `min-size` (`1MB`) | sockets, mounted volumes, dot files, what a process holds open | whatever was kept there |
+| **`claude-logs`** | Claude Code session logs older than `min-age` (`20d`) | open logs | resuming those sessions |
+| **`codex-logs`** | Codex session logs older than `min-age` (`20d`) | open logs | resuming those sessions |
 
 ## Lines of Code
 

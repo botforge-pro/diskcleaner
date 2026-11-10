@@ -131,6 +131,21 @@ func TestCleanReportsUnwritableSummary(t *testing.T) {
 	assert.Equal(t, 1, status)
 	assert.Contains(t, stderr.String(), "FAILED        report "+summary)
 }
+func TestMain(m *testing.M) {
+	config, err := os.MkdirTemp("", "diskcleaner-config")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if err := os.Setenv("XDG_CONFIG_HOME", config); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	status := m.Run()
+	os.RemoveAll(config)
+	os.Exit(status)
+}
+
 func cleanLock(t *testing.T) string {
 	state := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", state)

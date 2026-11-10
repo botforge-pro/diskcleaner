@@ -5,6 +5,16 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.20.1] - 2026-11-10
+
+### Fixed
+
+- `projects` no longer waits without end on `git lfs prune`, which checks every
+  object with the remote and can run for hours in a large repository. After
+  `projects.lfs-timeout` (`10m` by default) it gives up on that repository,
+  reports it as `FAILED` and goes on with the rest.
+- The tests no longer read the `diskcleaner.toml` of the machine they run on.
+
 ## [0.20.0] - 2026-11-10
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.20.0`.

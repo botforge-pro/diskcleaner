@@ -317,7 +317,7 @@ func TestLFSPrunesWhatGitLFSWouldPrune(t *testing.T) {
 	repos, repo := lfsRepo(t)
 	fakeGitLFS(t, pruneScript)
 	s := step(t, repos)
-	s.LFS = DefaultLFS()
+	s.LFS = DefaultLFS(time.Minute)
 
 	r, stdout, _ := run(s, false)
 
@@ -337,7 +337,7 @@ func TestLFSPruneFailingMidwayCountsOnlyFreedSpace(t *testing.T) {
 esac
 `)
 	s := step(t, repos)
-	s.LFS = DefaultLFS()
+	s.LFS = DefaultLFS(time.Minute)
 
 	r, _, _ := run(s, false)
 
@@ -348,11 +348,26 @@ esac
 	assert.Contains(t, r.Failures[0], "git lfs prune in "+repo+": exit status 1: prune: unable to delete")
 }
 
+func TestLFSPruneThatOutlivesItsTimeoutFailsAndTheRunGoesOn(t *testing.T) {
+	repos, repo := lfsRepo(t)
+	fakeGitLFS(t, "sleep 30\n")
+	s := step(t, repos)
+	s.LFS = DefaultLFS(time.Second)
+
+	started := time.Now()
+	r, _, _ := run(s, true)
+
+	assert.Less(t, time.Since(started), 10*time.Second)
+	assert.FileExists(t, filepath.Join(repo, ".git", "lfs", "objects", "ab", "cd", "old"))
+	require.Len(t, r.Failures, 1)
+	assert.Contains(t, r.Failures[0], "git lfs prune --dry-run in "+repo+": did not finish within 1s (projects.lfs-timeout)")
+}
+
 func TestLFSDryRunCountsTheSizeGitLFSReports(t *testing.T) {
 	repos, repo := lfsRepo(t)
 	fakeGitLFS(t, pruneScript)
 	s := step(t, repos)
-	s.LFS = DefaultLFS()
+	s.LFS = DefaultLFS(time.Minute)
 
 	r, stdout, _ := run(s, true)
 

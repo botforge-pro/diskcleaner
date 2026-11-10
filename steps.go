@@ -26,8 +26,9 @@ type stepInfo struct {
 var catalog = []stepInfo{
 	{config.Step{Name: "projects", Reversible: true, Settings: []config.Setting{
 		{Key: "git-tmp-min-age", Kind: config.Duration, Default: "1h", Help: "keep temporary files of git fetch and repack written more recently"},
+		{Key: "lfs-timeout", Kind: config.Timeout, Default: "10m", Help: "give up on a git lfs prune of one repository that runs longer"},
 	}}, "build output, node_modules and Git leftovers in your projects", func(_ string, c *config.Config) (step, error) {
-		s, err := projects.Default(c.Dirs("project-dirs"), c.Duration("min-age"), c.Duration("projects.git-tmp-min-age"))
+		s, err := projects.Default(c.Dirs("project-dirs"), c.Duration("min-age"), c.Duration("projects.git-tmp-min-age"), c.Duration("projects.lfs-timeout"))
 		return s, err
 	}},
 	{config.Step{Name: "gradle-caches", Reversible: true}, "the Gradle caches", func(home string, _ *config.Config) (step, error) {

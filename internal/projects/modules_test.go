@@ -93,7 +93,7 @@ func TestDefaultTakesEachSpellingOfAFolderOnce(t *testing.T) {
 	require.NoError(t, os.Symlink("repos", filepath.Join(dir, "alias")))
 	t.Chdir(dir)
 
-	s, err := Default([]string{"./repos", filepath.Join(dir, "repos"), "alias"}, time.Hour, time.Hour)
+	s, err := Default([]string{"./repos", filepath.Join(dir, "repos"), "alias"}, time.Hour, time.Hour, time.Minute)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{filepath.Join(dir, "repos")}, s.Dirs)
@@ -102,7 +102,7 @@ func TestDefaultTakesEachSpellingOfAFolderOnce(t *testing.T) {
 func TestDefaultRefusesAMissingProjectFolder(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "absent")
 
-	_, err := Default([]string{missing}, time.Hour, time.Hour)
+	_, err := Default([]string{missing}, time.Hour, time.Hour, time.Minute)
 
 	assert.EqualError(t, err, "project folder not found: "+missing+" (see project-dirs)")
 }

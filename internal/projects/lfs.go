@@ -6,19 +6,32 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
+	"github.com/botforge-pro/diskcleaner/internal/process"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 )
 
 var parenthesized = regexp.MustCompile(`\(([^)]*)\)`)
 
 type LFS struct {
-	Git    string
-	GitLFS string
+	Git            string
+	GitLFS         string
+	TimeoutSeconds int
 }
 
-func DefaultLFS() LFS {
-	return LFS{Git: "git", GitLFS: "git-lfs"}
+func DefaultLFS(timeout time.Duration) LFS {
+	return LFS{Git: "git", GitLFS: "git-lfs", TimeoutSeconds: int(timeout / time.Second)}
+}
+
+func (l LFS) prune(repo string, args ...string) (string, error) {
+	command := append([]string{"-C", repo, "lfs", "prune"}, args...)
+	result := process.RunGroup(l.TimeoutSeconds, l.Git, command...)
+	output := strings.TrimSpace(result.Stdout + "\n" + result.Stderr)
+	if result.TimedOut {
+		return output, fmt.Errorf("did not finish within %ds (projects.lfs-timeout)", l.TimeoutSeconds)
+	}
+	return output, result.Err
 }
 
 func (l LFS) Prune(r *report.Report, repo string) {
@@ -30,13 +43,13 @@ func (l LFS) Prune(r *report.Report, repo string) {
 		r.Fail("%s: git-lfs is not installed", lfs)
 		return
 	}
-	output, err := exec.Command(l.Git, "-C", repo, "lfs", "prune", "--dry-run", "--verify-remote").CombinedOutput()
+	output, err := l.prune(repo, "--dry-run", "--verify-remote")
 	if err != nil {
-		r.Fail("git lfs prune --dry-run in %s: %v: %s", repo, err, strings.TrimSpace(string(output)))
+		r.Fail("git lfs prune --dry-run in %s: %v: %s", repo, err, output)
 		return
 	}
 	summary := ""
-	for _, line := range strings.Split(strings.ReplaceAll(string(output), "\r", "\n"), "\n") {
+	for _, line := range strings.Split(strings.ReplaceAll(output, "\r", "\n"), "\n") {
 		if strings.Contains(line, "would be pruned") {
 			summary = strings.TrimSpace(line)
 		}
@@ -64,9 +77,9 @@ func (l LFS) Prune(r *report.Report, repo string) {
 		r.Fail("du %s: %v", lfs, err)
 	}
 	fmt.Fprintf(r.Out, "LFS PRUNE     %s: %s\n", lfs, summary)
-	output, err = exec.Command(l.Git, "-C", repo, "lfs", "prune", "--verify-remote").CombinedOutput()
+	output, err = l.prune(repo, "--verify-remote")
 	if err != nil {
-		r.Fail("git lfs prune in %s: %v: %s", repo, err, strings.TrimSpace(string(output)))
+		r.Fail("git lfs prune in %s: %v: %s", repo, err, output)
 	} else {
 		r.Count++
 	}

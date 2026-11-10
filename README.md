@@ -79,7 +79,7 @@ are under it below.
 
 | Step | Removes | Keeps | Can lose |
 |---|---|---|---|
-| `projects` | in each project: `.build` of Swift packages, Gradle `build`, `.apk`/`.aab`, `node_modules` with a lockfile, temporary files of a dead `git fetch` or `git repack` (`git-tmp-min-age`, `1h`), Git LFS objects the remote has | `node_modules` without a lockfile | packages installed with `--no-save`, unpublished, or from a registry you no longer reach |
+| `projects` | in each project: `.build` of Swift packages, Gradle `build`, `.apk`/`.aab`, `node_modules` with a lockfile, temporary files of a dead `git fetch` or `git repack` (`git-tmp-min-age`, `1h`), Git LFS objects the remote has (`lfs-timeout`, `10m` per repository) | `node_modules` without a lockfile | packages installed with `--no-save`, unpublished, or from a registry you no longer reach |
 | `gradle-caches` | `$GRADLE_USER_HOME/caches` | all while Gradle, Android Studio or IntelliJ run | |
 | `docker-images` | images no container uses (`timeout`, `30s`; `prune-timeout`, `15m`) | volumes | an image neither a registry nor a Dockerfile still has |
 | `go-cache` | the Go module and build caches | all while `go` builds | |

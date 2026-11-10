@@ -5,6 +5,55 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.20.0] - 2026-11-10
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.20.0`.
+
+Before you upgrade, unset every `DISKCLEANER_*` variable wherever `clean` runs,
+a scheduled run included: a run that finds one stops with status 2 and names
+the setting that replaces it. After upgrading, `clean` no longer deletes old
+Homebrew versions, Xcode archives, simulator data, files in `/private/tmp`,
+old IDE data or session logs until you turn those steps on; `clean` lists each
+as `OFF` with what it would free. Run `diskcleaner clean --dry-run` and
+`diskcleaner config` to see the new behaviour.
+
+### Added
+
+- Settings live in `~/.config/diskcleaner.toml` (`$XDG_CONFIG_HOME`,
+  `--config FILE`), and each is also a flag of `clean` and `config`, such as
+  `--xcode-archives.min-age=30d`. `diskcleaner config` prints every setting,
+  its value and whether it came from the default, the file or a flag.
+- `project-dirs`: the folders whose subfolders are Git repositories, by default
+  those of `~/Developer`, `~/Projects`, `~/src`, `~/code`, `~/GolandProjects`,
+  `~/IdeaProjects` and `~/AndroidStudioProjects` that exist.
+- `<step>.enabled` for every step; `clean --only` and `--skip` choose among the
+  steps that are on.
+- `min-free`: `clean` exits with 4 when less than this is free after it, and no
+  path failed.
+- When another `clean` holds the lock, the message names its pid and start.
+
+### Changed
+
+- The steps that delete what cannot be undone are off by default: `homebrew`,
+  `xcode-archives`, `system-temp`, `ide-old-versions`, `simulator-data`,
+  `claude-logs` and `codex-logs`.
+- `projects` covers every folder of `project-dirs` and also removes
+  `node_modules` with a lockfile; the `node-modules` step is gone.
+- An age is a duration, and a step removes what is at least that old: an Xcode
+  archive goes at 15 days as before, a session log at 20 days rather than 21.
+- The lock moved from `~/.diskcleaner.lock` to
+  `~/.local/state/diskcleaner/lock`.
+- Where a tool says where its data is, diskcleaner asks it: Xcode's own
+  DerivedData location, `CLAUDE_CONFIG_DIR` and `CODEX_HOME`.
+
+### Removed
+
+- `run STEP` (use `clean --only STEP`), `check` (use `config`) and
+  `--git-tmp-now` (use `--projects.git-tmp-min-age=0`).
+- Every `DISKCLEANER_*` variable. The thresholds and timeouts are settings
+  now; the paths and the patterns that tell a tool is running are no longer
+  settings.
+
 ## [0.19.0] - 2026-11-10
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.19.0`.

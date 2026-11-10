@@ -32,7 +32,9 @@ When `lsof` or Git cannot answer, the path stays and the step fails. Each kept
 path is listed as `SKIPPED` with the reason; `--report FILE` writes the totals.
 
 `--only` and `--skip` choose among the steps that are on; a step that is off
-runs only with `--<step>.enabled`.
+runs only with `--<step>.enabled`, and `clean` lists it as `OFF` with what it
+would free. One `clean` runs at a time; its lock is
+`~/.local/state/diskcleaner/lock` (or under `$XDG_STATE_HOME`).
 
 | Exit | Means |
 |---|---|
@@ -47,7 +49,8 @@ runs only with `--<step>.enabled`.
 Everything works without a config. To change a setting, put it in
 `~/.config/diskcleaner.toml` (or `$XDG_CONFIG_HOME/diskcleaner.toml`, or
 `--config FILE`), or pass it as `--key=value` for one run; a flag wins over the
-file.
+file. The `DISKCLEANER_*` variables of 0.19 and before are not read: a run that
+finds one stops and names the setting that replaces it.
 
 ```toml
 project-dirs = ["~/Developer", "~/work"]

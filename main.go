@@ -16,7 +16,6 @@ import (
 	"github.com/botforge-pro/diskcleaner/internal/homebrew"
 	"github.com/botforge-pro/diskcleaner/internal/ide"
 	"github.com/botforge-pro/diskcleaner/internal/leftovers"
-	"github.com/botforge-pro/diskcleaner/internal/nodemodules"
 	"github.com/botforge-pro/diskcleaner/internal/projects"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/botforge-pro/diskcleaner/internal/scratchpads"
@@ -38,8 +37,8 @@ type stepInfo struct {
 }
 
 var catalog = []stepInfo{
-	{"projects", "build output and Git leftovers in your repositories", func(home string, c *config.Config) (step, error) {
-		s, err := projects.Default(home, c.Duration("projects.git-tmp-min-age"))
+	{"projects", "build output, node_modules and Git leftovers in your projects", func(_ string, c *config.Config) (step, error) {
+		s, err := projects.Default(c.Dirs("project-dirs"), c.Duration("projects.git-tmp-min-age"))
 		return s, err
 	}},
 	{"gradle-caches", "the Gradle caches", func(home string, _ *config.Config) (step, error) { return gradle.Default(home), nil }},
@@ -85,10 +84,6 @@ var catalog = []stepInfo{
 		return s, err
 	}},
 	{"claude-scratchpads", "build output in Claude Code scratchpads", func(string, *config.Config) (step, error) { return scratchpads.Default(), nil }},
-	{"node-modules", "node_modules of Node projects that have a lockfile", func(home string, c *config.Config) (step, error) {
-		s, err := nodemodules.Default(home, c.Duration("projects.git-tmp-min-age"))
-		return s, err
-	}},
 }
 
 var usage = buildUsage()

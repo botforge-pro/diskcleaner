@@ -38,7 +38,6 @@ var configSteps = []config.Step{
 		{Key: "min-age", Kind: config.Duration, Default: "20d", Help: "remove session logs older than this"},
 	}},
 	{Name: "claude-scratchpads", Undoable: true},
-	{Name: "node-modules", Undoable: true},
 }
 
 var settingsTable = config.NewTable(configSteps)

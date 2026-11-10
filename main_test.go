@@ -100,11 +100,10 @@ func TestUsageListsEveryStepInCleanOrder(t *testing.T) {
 	for _, name := range stepNames() {
 		assert.Contains(t, usage, "\n  "+name+" ")
 	}
-	assert.Less(t, strings.Index(usage, "  projects "), strings.Index(usage, "  node-modules "))
+	assert.Less(t, strings.Index(usage, "  projects "), strings.Index(usage, "  claude-scratchpads "))
 }
 
 func TestEveryStepIsFound(t *testing.T) {
-	t.Setenv("DISKCLEANER_REPOS_DIR", t.TempDir())
 	set := pflag.NewFlagSet("clean", pflag.ContinueOnError)
 	settingsTable.Flags(set)
 	c, err := config.Load(settingsTable, set, t.TempDir())
@@ -242,7 +241,7 @@ func TestCleanReleasesTheLock(t *testing.T) {
 	require.NoError(t, held.Release())
 }
 
-func TestCleanCountsWhatTwoStepsBothFindOnce(t *testing.T) {
+func TestCleanCountsNodeModulesInsideBuildOutputOnce(t *testing.T) {
 	cleanLock(t)
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
@@ -258,11 +257,9 @@ func TestCleanCountsWhatTwoStepsBothFindOnce(t *testing.T) {
 	for _, path := range []string{modules, filepath.Join(app, ".build", "pkg", "package-lock.json"), filepath.Dir(modules), filepath.Join(app, ".build")} {
 		require.NoError(t, os.Chtimes(path, old, old))
 	}
-	t.Setenv("DISKCLEANER_REPOS_DIR", dir)
-	t.Setenv("DISKCLEANER_NODE_DIR", dir)
 	var stdout, stderr bytes.Buffer
 
-	status := run([]string{"clean", "--dry-run"}, &stdout, &stderr, registry{names: []string{"projects", "node-modules"}, table: settingsTable, find: steps})
+	status := run([]string{"clean", "--dry-run", "--project-dirs=" + dir}, &stdout, &stderr, registry{names: []string{"projects"}, table: settingsTable, find: steps})
 
 	assert.Equal(t, 0, status, stderr.String())
 	assert.Equal(t, 1, strings.Count(stdout.String(), "WOULD REMOVE"), stdout.String())

@@ -91,7 +91,7 @@ func newRepos(t *testing.T) string {
 
 func step(t *testing.T, repos string) Step {
 	return Step{
-		Repos: repos,
+		Dirs: []string{repos},
 		InUse: inuse.Check{
 			Minutes: 60, Now: func() time.Time { return time.Now().Add(2 * time.Hour) },
 			Lsof: script(t, "lsof", "printf 'p1\\nfcwd\\nn/\\n'\n"), LsofTimeoutSeconds: 5,
@@ -139,8 +139,8 @@ func TestRemovesBuildOutputAndGitGarbage(t *testing.T) {
 	}
 	assert.Empty(t, r.Failures)
 	assert.Equal(t, 7, r.Count)
-	assert.Contains(t, stdout, "PROJECT  androidapp\n")
-	assert.Contains(t, stdout, "PROJECT  swiftapp\n")
+	assert.Contains(t, stdout, "PROJECT  "+filepath.Join(repos, "androidapp")+"\n")
+	assert.Contains(t, stdout, "PROJECT  "+filepath.Join(repos, "swiftapp")+"\n")
 	assert.NotContains(t, stdout, "not-a-repo")
 	for _, line := range []string{
 		"swiftapp/tools/.build: no Package.swift next to it",
@@ -221,8 +221,8 @@ func TestLinkedRepositoriesAreNotEntered(t *testing.T) {
 	assert.FileExists(t, filepath.Join(external, ".git", "objects", "pack", "tmp_pack_died"))
 	assert.FileExists(t, filepath.Join(external, ".build", "x.o"))
 	assert.FileExists(t, filepath.Join(linkedGit, ".build", "x.o"))
-	assert.NotContains(t, stdout, "PROJECT  alias")
-	assert.NotContains(t, stdout, "PROJECT  linked-git")
+	assert.NotContains(t, stdout, "PROJECT  "+filepath.Join(repos, "alias"))
+	assert.NotContains(t, stdout, "PROJECT  "+linkedGit)
 }
 
 func TestUnreadableGitObjectsFailAndOtherRepositoriesGoOn(t *testing.T) {
@@ -368,14 +368,6 @@ func TestLFSWithoutGitLFSFails(t *testing.T) {
 	r, _, _ := run(step(t, repos), false)
 
 	assert.Equal(t, []string{filepath.Join(repo, ".git", "lfs") + ": git-lfs is not installed"}, r.Failures)
-}
-
-func TestDefaultRefusesAMissingReposFolder(t *testing.T) {
-	t.Setenv("DISKCLEANER_REPOS_DIR", filepath.Join(t.TempDir(), "absent"))
-
-	_, err := Default(t.TempDir(), time.Hour)
-
-	assert.ErrorContains(t, err, "repositories directory not found")
 }
 
 func TestNoMinAgeRemovesAFreshDeadTemporaryFileAndKeepsALiveRepack(t *testing.T) {

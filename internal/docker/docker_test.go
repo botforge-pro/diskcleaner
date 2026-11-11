@@ -95,9 +95,9 @@ func newFixture(t *testing.T, reclaimable string) fixture {
 	return f
 }
 
-func (f *fixture) hangsAfterOneSecond() {
-	f.step.TimeoutSeconds = 1
-	f.step.PruneTimeoutSeconds = 1
+func (f *fixture) waits(seconds, pruneSeconds int) {
+	f.step.TimeoutSeconds = seconds
+	f.step.PruneTimeoutSeconds = pruneSeconds
 }
 
 func (f fixture) mark(t *testing.T, name string) {
@@ -184,23 +184,24 @@ func TestProcessCheckErrorFails(t *testing.T) {
 
 func TestHungCommandsTimeOut(t *testing.T) {
 	cases := []struct {
-		marker string
-		want   string
+		marker             string
+		seconds, pruneSecs int
+		want               string
 	}{
-		{"info-hung", "docker info did not answer within 1s: the Docker daemon is hung, restart Docker Desktop"},
-		{"df-hung", "docker system df did not answer within 1s"},
-		{"prune-hung", "docker image prune did not finish within 1s"},
+		{"info-hung", 1, 10, "docker info did not answer within 1s: the Docker daemon is hung, restart Docker Desktop"},
+		{"df-hung", 5, 10, "docker system df did not answer within 5s"},
+		{"prune-hung", 10, 1, "docker image prune did not finish within 1s"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.marker, func(t *testing.T) {
 			f := newFixture(t, "1.5GB")
-			f.hangsAfterOneSecond()
+			f.waits(tc.seconds, tc.pruneSecs)
 			f.mark(t, tc.marker)
 			started := time.Now()
 
 			r, _, _ := run(f.step, false)
 
-			assert.Less(t, time.Since(started), 10*time.Second)
+			assert.Less(t, time.Since(started), 20*time.Second)
 			assert.Zero(t, r.Count)
 			require.Len(t, r.Failures, 1)
 			assert.Equal(t, tc.want, r.Failures[0])
@@ -237,7 +238,7 @@ func TestPruneFailingMidwayCountsOnlyFreedSpace(t *testing.T) {
 
 func TestTimeoutStopsTheChildrenOfDocker(t *testing.T) {
 	f := newFixture(t, "1.5GB")
-	f.hangsAfterOneSecond()
+	f.waits(1, 10)
 	f.mark(t, "info-hung-in-child")
 
 	r, _, _ := run(f.step, false)

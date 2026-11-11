@@ -19,4 +19,7 @@ to use it.
 - The config selects which steps run, where projects are and the thresholds.
   What counts as removable, and what shows a tool is running, stays in code
   with its checks; a config cannot add a removal rule.
-- A step that deletes what cannot come back runs only when turned on.
+- Every step runs unless turned off, a step that deletes what cannot come back
+  included: the owner decided on 2026-11-11, reversing 0.20.0, because with
+  those steps off a full `clean` no longer freed the space a developer's Mac
+  needs. Such a step is marked as one in `--help` and in the README.

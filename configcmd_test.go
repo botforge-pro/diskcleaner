@@ -39,7 +39,7 @@ func TestConfigPrintsEachSettingWithItsSource(t *testing.T) {
 	assert.Equal(t, "file: "+path, lines[0])
 	assert.Equal(t, []string{"min-age", "2h", "flag"}, fieldsOf(lines, "min-age"))
 	assert.Equal(t, []string{"xcode-archives.min-age", "30d", "file"}, fieldsOf(lines, "xcode-archives.min-age"))
-	assert.Equal(t, []string{"homebrew.enabled", "false", "default"}, fieldsOf(lines, "homebrew.enabled"))
+	assert.Equal(t, []string{"homebrew.enabled", "true", "default"}, fieldsOf(lines, "homebrew.enabled"))
 }
 
 func TestConfigRefusesAWrongValue(t *testing.T) {

@@ -178,10 +178,12 @@ func TestCleanPassesSettingsToEveryStep(t *testing.T) {
 func TestCleanOnlyAndSkipChooseAmongTheSteps(t *testing.T) {
 	cleanLock(t)
 	for args, want := range map[string]int{
-		"--only=fake":                1,
-		"--skip=fake":                0,
-		"--only=fake,kept":           1,
-		"--only=kept --kept.enabled": 1,
+		"--only=fake":                           1,
+		"--skip=fake":                           1,
+		"--skip=fake,kept":                      0,
+		"--only=fake,kept":                      2,
+		"--only=fake,kept --kept.enabled=false": 1,
+		"--only=kept":                           1,
 	} {
 		var stdout, stderr bytes.Buffer
 
@@ -216,7 +218,7 @@ func TestCleanLeavesAStepThatIsOffAndSaysHowToTurnItOn(t *testing.T) {
 	cleanLock(t)
 	var stdout, stderr bytes.Buffer
 
-	status := run([]string{"clean", "--dry-run"}, &stdout, &stderr, findFake(false, "fake", "kept"))
+	status := run([]string{"clean", "--dry-run", "--kept.enabled=false"}, &stdout, &stderr, findFake(false, "fake", "kept"))
 
 	assert.Equal(t, 0, status, stderr.String())
 	assert.Equal(t, 1, strings.Count(stdout.String(), "FAKE\n"))
@@ -234,7 +236,7 @@ func TestOnlyADryRunEstimatesAStepThatIsOff(t *testing.T) {
 	cleanLock(t)
 	var stdout, stderr bytes.Buffer
 
-	status := run([]string{"clean"}, &stdout, &stderr, findFake(false, "fake", "kept"))
+	status := run([]string{"clean", "--kept.enabled=false"}, &stdout, &stderr, findFake(false, "fake", "kept"))
 
 	assert.Equal(t, 0, status, stderr.String())
 	assert.Equal(t, 1, strings.Count(stdout.String(), "FAKE\n"))
@@ -245,7 +247,7 @@ func TestAnEstimateThatFailsSaysSo(t *testing.T) {
 	cleanLock(t)
 	var stdout, stderr bytes.Buffer
 
-	run([]string{"clean", "--dry-run"}, &stdout, &stderr, findFake(true, "fake", "kept"))
+	run([]string{"clean", "--dry-run", "--kept.enabled=false"}, &stdout, &stderr, findFake(true, "fake", "kept"))
 
 	assert.Contains(t, stdout.String(), "OFF           kept: cannot estimate (")
 }

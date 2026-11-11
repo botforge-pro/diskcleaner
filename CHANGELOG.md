@@ -5,6 +5,32 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.21.0] - 2026-11-11
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.21.0`.
+
+After upgrading, `clean` again deletes old Homebrew versions, Xcode archives,
+simulator data, files in `/private/tmp`, old IDE data and session logs, as it
+did before 0.20.0. To keep any of them, write `enabled = false` under that
+step in `diskcleaner.toml`, or pass `--<step>.enabled=false`. Run
+`diskcleaner clean --dry-run` first to see what will go.
+
+### Added
+
+- `projects` removes Python's `__pycache__` folders anywhere in a project
+  outside `node_modules` and `.build`, virtual environments included; Python
+  writes them again on the next import.
+
+### Changed
+
+- `projects` asks `lsof` once per repository instead of once per folder it
+  would remove, so a repository with thousands of such folders takes seconds.
+- Every step runs by default, including those whose deletions cannot be undone:
+  `homebrew`, `xcode-archives`, `system-temp`, `ide-old-versions`,
+  `simulator-data`, `claude-logs` and `codex-logs`. With them off, a plain
+  `clean` left tens of gigabytes a developer's Mac needed. `--help` marks them
+  `(cannot be undone)`.
+
 ## [0.20.1] - 2026-11-10
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.20.1`; nothing

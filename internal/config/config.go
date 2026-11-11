@@ -56,11 +56,11 @@ func NewTable(steps []Step) Table {
 		{"min-free", Size, "0", "exit 4 when less is free after clean; 0 is off"},
 	}
 	for _, step := range steps {
-		enabled, help := "true", "run "+step.Name
+		help := "run " + step.Name
 		if !step.Reversible {
-			enabled, help = "false", "run "+step.Name+", whose deletions cannot be undone"
+			help += ", whose deletions cannot be undone"
 		}
-		table = append(table, Setting{step.Name + ".enabled", Bool, enabled, help})
+		table = append(table, Setting{step.Name + ".enabled", Bool, "true", help})
 		for _, setting := range step.Settings {
 			setting.Key = step.Name + "." + setting.Key
 			table = append(table, setting)

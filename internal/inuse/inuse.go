@@ -18,10 +18,21 @@ type Check struct {
 	Now                func() time.Time
 	Lsof               string
 	LsofTimeoutSeconds int
+	openNames          []string
+	listed             bool
 }
 
 func Default(minAge time.Duration) Check {
 	return Check{MinAge: minAge, Now: time.Now, Lsof: "lsof", LsofTimeoutSeconds: lsofTimeoutSeconds}
+}
+
+func (c Check) Listed() (Check, error) {
+	names, err := process.OpenNames(c.LsofTimeoutSeconds, c.Lsof)
+	if err != nil {
+		return c, fmt.Errorf("lsof: %w", err)
+	}
+	c.openNames, c.listed = names, true
+	return c, nil
 }
 
 func (c Check) Keep(r *report.Report, path string) bool {
@@ -93,9 +104,13 @@ func (c Check) writtenSince(root string) (bool, error) {
 }
 
 func (c Check) open(path string) (string, error) {
-	names, err := process.OpenNames(c.LsofTimeoutSeconds, c.Lsof)
-	if err != nil {
-		return "", fmt.Errorf("lsof: %w", err)
+	names := c.openNames
+	if !c.listed {
+		var err error
+		names, err = process.OpenNames(c.LsofTimeoutSeconds, c.Lsof)
+		if err != nil {
+			return "", fmt.Errorf("lsof: %w", err)
+		}
 	}
 	if process.Holds(names, path) {
 		return "a process still has something in it open", nil

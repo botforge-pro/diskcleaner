@@ -52,7 +52,13 @@ func (s Step) Run(r *report.Report) {
 			fmt.Fprintf(r.Out, "PROJECT  %s\n", repo)
 			var builds, garbage candidates.Set
 			s.collectBuilds(r, &builds, repo)
-			builds.RemoveUnless(r, func(path string) bool { return s.InUse.Keep(r, path) })
+			inUse := s.InUse
+			if len(builds.Paths()) > 0 {
+				if listed, err := s.InUse.Listed(); err == nil {
+					inUse = listed
+				}
+			}
+			builds.RemoveUnless(r, func(path string) bool { return inUse.Keep(r, path) })
 			s.Garbage.Collect(r, &garbage, repo)
 			garbage.Remove(r)
 			s.LFS.Prune(r, repo)
@@ -126,6 +132,13 @@ func (s Step) collectBuilds(r *report.Report, set *candidates.Set, repo string) 
 		if slices.ContainsFunc(gradleFiles, func(file string) bool { return isFile(filepath.Join(module, file)) }) {
 			set.Add(r, path)
 		}
+		return filepath.SkipDir
+	})
+	walk([]string{"node_modules", ".build"}, func(path string, entry fs.DirEntry) error {
+		if !entry.IsDir() || entry.Name() != "__pycache__" {
+			return nil
+		}
+		set.Add(r, path)
 		return filepath.SkipDir
 	})
 	if isFile(filepath.Join(repo, "gradlew")) {

@@ -37,13 +37,13 @@ clean takes --dry-run, --only STEPS, --skip STEPS, --report FILE and
 --config FILE. Every setting that diskcleaner config prints is also a flag of
 clean and config, and lives in diskcleaner.toml.
 
-Steps, in the order clean runs them; off ones delete what cannot be undone and
-run only with --STEP.enabled:
+Steps, in the order clean runs them; each runs unless --STEP.enabled=false turns
+it off, and the marked ones delete what cannot be undone:
 `)
 	for _, info := range catalog {
 		state := ""
 		if !info.Reversible {
-			state = " (off)"
+			state = " (cannot be undone)"
 		}
 		fmt.Fprintf(&b, "  %-20s %s%s\n", info.Name, info.describes, state)
 	}

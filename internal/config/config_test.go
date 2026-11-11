@@ -57,7 +57,7 @@ func TestWithoutAFileEverySettingIsItsDefault(t *testing.T) {
 	assert.Equal(t, time.Hour, c.Duration("min-age"))
 	assert.Equal(t, int64(0), c.Size("min-free"))
 	assert.True(t, c.Bool("go-cache.enabled"))
-	assert.False(t, c.Bool("xcode-archives.enabled"), "a step whose deletions cannot be undone is off")
+	assert.True(t, c.Bool("xcode-archives.enabled"), "a step whose deletions cannot be undone runs too")
 	assert.Equal(t, 15*24*time.Hour, c.Duration("xcode-archives.min-age"))
 	assert.Equal(t, []string{filepath.Join(home, "Developer")}, c.Dirs("project-dirs"), "only the folders that exist")
 	assert.Equal(t, FromDefault, c.Source("min-age"))
@@ -132,12 +132,12 @@ func TestAnUnknownKeyInTheFileIsRefused(t *testing.T) {
 
 func TestASectionWithEveryLineCommentedOutIsNoSetting(t *testing.T) {
 	home := t.TempDir()
-	writeConfig(t, home, "[xcode-archives]\n# enabled = true\n")
+	writeConfig(t, home, "[xcode-archives]\n# enabled = false\n")
 
 	c, err := load(t, home)
 
 	require.NoError(t, err)
-	assert.False(t, c.Bool("xcode-archives.enabled"))
+	assert.True(t, c.Bool("xcode-archives.enabled"))
 }
 
 func TestAWrongValueNamesItsSetting(t *testing.T) {

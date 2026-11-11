@@ -152,6 +152,54 @@ func TestRemovesBuildOutputAndGitGarbage(t *testing.T) {
 	}
 }
 
+func TestRemovesPythonBytecodeCachesAtAnyDepth(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	python := filepath.Join(root, "pythonapp")
+	require.NoError(t, os.MkdirAll(python, 0o755))
+	git(t, python, "init", "-q")
+	touch(t, python,
+		"app.py",
+		"__pycache__/app.cpython-313.pyc",
+		"src/shop/orders/__pycache__/models.cpython-313.pyc",
+		".venv/lib/python3.13/site-packages/requests/__pycache__/api.cpython-313.pyc",
+		"node_modules/node-gyp/gyp/pylib/__pycache__/gyp.cpython-313.pyc",
+		"tools/.build/__pycache__/deploy.cpython-313.pyc",
+		"vendored/__pycache__/kept.cpython-313.pyc",
+		"elsewhere/__pycache__/target.cpython-313.pyc",
+	)
+	git(t, python, "add", "-f", "vendored")
+	git(t, python, "commit", "-q", "-m", "vendored bytecode")
+	require.NoError(t, os.MkdirAll(filepath.Join(python, "linked"), 0o755))
+	require.NoError(t, os.Symlink(filepath.Join(root, "outside"), filepath.Join(python, "linked", "__pycache__")))
+	touch(t, root, "outside/linked.cpython-313.pyc")
+
+	r, _, stderr := run(step(t, root), false)
+
+	for _, kept := range []string{
+		"node_modules/node-gyp/gyp/pylib/__pycache__/gyp.cpython-313.pyc",
+		"tools/.build/__pycache__/deploy.cpython-313.pyc",
+		"vendored/__pycache__/kept.cpython-313.pyc",
+	} {
+		assert.FileExists(t, filepath.Join(python, kept), kept)
+	}
+	assert.FileExists(t, filepath.Join(root, "outside/linked.cpython-313.pyc"))
+	assert.Contains(t, stderr, "vendored/__pycache__: contains files tracked by git")
+
+	for _, gone := range []string{
+		"__pycache__",
+		"src/shop/orders/__pycache__",
+		".venv/lib/python3.13/site-packages/requests/__pycache__",
+		"elsewhere/__pycache__",
+	} {
+		_, err := os.Lstat(filepath.Join(python, gone))
+		assert.ErrorIs(t, err, os.ErrNotExist, gone)
+	}
+	assert.FileExists(t, filepath.Join(python, "app.py"))
+	assert.Empty(t, r.Failures)
+	assert.Equal(t, 4, r.Count)
+}
+
 func TestKeepsBuildOutputThatABuildStillUses(t *testing.T) {
 	repos := newRepos(t)
 	swift := filepath.Join(repos, "swiftapp")

@@ -3,8 +3,8 @@
 [![CI](https://github.com/botforge-pro/diskcleaner/actions/workflows/ci.yml/badge.svg)](https://github.com/botforge-pro/diskcleaner/actions/workflows/ci.yml)
 
 Frees disk space on a developer's Mac: build output, caches and leftovers that
-the tools make again. Steps whose deletions cannot be undone are off until you
-turn them on; the last column below says what even the others can lose.
+the tools make again. Every step runs unless you turn it off; the steps in bold
+below delete what cannot be undone, and the last column says what each can lose.
 
 ## Install
 
@@ -31,9 +31,9 @@ open, when it was written within `min-age`, or when Git tracks a file in it.
 When `lsof` or Git cannot answer, the path stays and the step fails. Each kept
 path is listed as `SKIPPED` with the reason; `--report FILE` writes the totals.
 
-`--only` and `--skip` choose among the steps that are on; a step that is off
-runs only with `--<step>.enabled`, and `clean` lists it as `OFF`, with what it
-would free under `--dry-run`. One `clean` runs at a time; its lock is
+`--only` and `--skip` choose among the steps that are on; a step turned off with
+`--<step>.enabled=false` or in the config is listed as `OFF`, with what it would
+free under `--dry-run`. One `clean` runs at a time; its lock is
 `~/.local/state/diskcleaner/lock` (or under `$XDG_STATE_HOME`).
 
 | Exit | Means |
@@ -58,8 +58,10 @@ min-age = "1h"
 min-free = "5GB"
 
 [xcode-archives]
-enabled = true
 min-age = "30d"
+
+[simulator-data]
+enabled = false
 ```
 
 | Setting | Default | |
@@ -67,7 +69,7 @@ min-age = "30d"
 | `project-dirs` | those of `~/Developer`, `~/Projects`, `~/src`, `~/code`, `~/GolandProjects`, `~/IdeaProjects`, `~/AndroidStudioProjects` that exist | where Git repositories sit, one level down; `node_modules` is found at any depth |
 | `min-age` | `1h` | in projects, temporary folders and app copies, anything written more recently stays |
 | `min-free` | `0` (off) | exit 4 when less is free after `clean` |
-| `<step>.enabled` | on, off for the steps marked below | |
+| `<step>.enabled` | on | |
 
 A duration is like `90m`, `1h30m` or `15d`; a size like `500KB` or `5GB`, where
 1KB is 1024 bytes; a folder starts with `/` or `~/`. Each step's own settings
@@ -75,11 +77,11 @@ are under it below.
 
 ## Steps
 
-`clean` runs them in this order. **Off by default:** delete what cannot come back.
+`clean` runs them in this order. **In bold:** delete what cannot come back.
 
 | Step | Removes | Keeps | Can lose |
 |---|---|---|---|
-| `projects` | in each project: `.build` of Swift packages, Gradle `build`, `.apk`/`.aab`, `node_modules` with a lockfile, temporary files of a dead `git fetch` or `git repack` (`git-tmp-min-age`, `1h`), Git LFS objects the remote has (`lfs-timeout`, `10m` per repository) | `node_modules` without a lockfile | packages installed with `--no-save`, unpublished, or from a registry you no longer reach |
+| `projects` | in each project: `.build` of Swift packages, Gradle `build`, `.apk`/`.aab`, Python's `__pycache__` anywhere outside `node_modules` and `.build`, `node_modules` with a lockfile, temporary files of a dead `git fetch` or `git repack` (`git-tmp-min-age`, `1h`), Git LFS objects the remote has (`lfs-timeout`, `10m` per repository) | `node_modules` without a lockfile | packages installed with `--no-save`, unpublished, or from a registry you no longer reach |
 | `gradle-caches` | `$GRADLE_USER_HOME/caches` | all while Gradle, Android Studio or IntelliJ run | |
 | `docker-images` | images no container uses (`timeout`, `30s`; `prune-timeout`, `15m`) | volumes | an image neither a registry nor a Dockerfile still has |
 | `go-cache` | the Go module and build caches | all while `go` builds | |

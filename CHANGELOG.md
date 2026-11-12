@@ -9,36 +9,60 @@ is 0.x, commands and output may still change.
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.21.0`.
 
-After upgrading, `clean` again deletes old Homebrew versions, Xcode archives,
-files in `/private/tmp`, old IDE data and session logs, as it did before
-0.20.0. To keep any of them, write `enabled = false` under that step in
-`diskcleaner.toml`, or pass `--<step>.enabled=false`. Run
-`diskcleaner clean --dry-run` first to see what will go. Delete any
-`[simulator-data]` section from `diskcleaner.toml`: the step is gone, and a
-config that names it stops `clean` with status 2.
+This release changes what a plain `diskcleaner clean` deletes. `clean` works in
+named steps, one per kind of leftover. In 0.20.x six steps were off unless you
+turned them on; from 0.21.0 they run by default again, and what they delete
+cannot be restored:
+
+| Step | Deletes |
+|---|---|
+| `homebrew` | old versions of installed Homebrew formulae and casks, and their downloads |
+| `xcode-archives` | Xcode archives older than 15 days, except the newest of each app |
+| `system-temp` | your files larger than 1 MB in `/private/tmp` |
+| `ide-old-versions` | settings, caches and logs of JetBrains IDE and Android Studio versions older than the installed one |
+| `claude-logs` | Claude Code session logs older than 20 days; those sessions can no longer be resumed |
+| `codex-logs` | Codex session logs older than 20 days; those sessions can no longer be resumed |
+
+To keep a step from running, add to `~/.config/diskcleaner.toml`, creating the
+file if it does not exist:
+
+```toml
+[homebrew]
+enabled = false
+```
+
+or pass `--homebrew.enabled=false` (with that step's name) on the command line.
+Run `diskcleaner clean --dry-run` first: it lists every path it would delete
+and deletes nothing.
+
+If your `diskcleaner.toml` has a `[simulator-data]` section, delete it: that
+step no longer exists, and while the section is there `clean` refuses to start
+and deletes nothing.
 
 ### Added
 
-- `projects` removes Python's `__pycache__` folders anywhere in a project
-  outside `node_modules` and `.build`, virtual environments included; Python
-  writes them again on the next import.
+- The `projects` step also deletes Python's `__pycache__` folders anywhere in a
+  project, virtual environments included, but not inside `node_modules` or
+  Swift's `.build` folders. Python writes them again the next time it runs.
 
 ### Changed
 
-- `projects` asks `lsof` once per repository instead of once per folder it
-  would remove, so a repository with thousands of such folders takes seconds.
-- Every step runs by default, including those whose deletions cannot be undone:
-  `homebrew`, `xcode-archives`, `system-temp`, `ide-old-versions`,
-  `claude-logs` and `codex-logs`. With them off, a plain `clean` left tens of
-  gigabytes a developer's Mac needed. `--help` marks them `(cannot be undone)`.
+- The `projects` step is much faster on a repository with thousands of
+  `__pycache__` or build folders to delete: such a repository now takes
+  seconds.
+- The six steps in the table above run by default again, as they did before
+  0.20.0. With them off, a plain `clean` left tens of gigabytes of old
+  versions, archives and logs on the disk. `diskcleaner --help` marks them
+  `(cannot be undone)`.
 
 ### Removed
 
-- The `simulator-data` step. A simulator holds an installed app and its state
-  that someone may still work with, and being idle for days does not say it is
-  unused. Erase one by name when it is no longer needed:
-  `xcrun simctl erase "<name>"`. `simulator-caches` still removes Core ML
-  caches of shut-down simulators.
+- The `simulator-data` step, which erased the installed apps and their data
+  from iOS simulators that had not been used for 3 days. A simulator left
+  unused for days may still hold an app someone is testing. To erase one when
+  you no longer need it, run `xcrun simctl erase "<simulator name>"`. The
+  `simulator-caches` step stays: it deletes only Core ML caches of shut-down
+  simulators, which they build again, and never apps or their data.
 
 ## [0.20.1] - 2026-11-10
 

@@ -5,7 +5,7 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
-## [0.21.0] - 2026-11-11
+## [0.21.0] - 2026-11-12
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.21.0`.
 

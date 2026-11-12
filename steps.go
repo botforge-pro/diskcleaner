@@ -76,11 +76,6 @@ var catalog = []stepInfo{
 	{config.Step{Name: "ide-old-versions"}, "settings, caches and logs of IDE versions older than the installed one", func(home string, _ *config.Config) (step, error) {
 		return ide.Default(home), nil
 	}},
-	{config.Step{Name: "simulator-data", Settings: []config.Setting{
-		{Key: "idle", Kind: config.Duration, Default: "3d", Help: "erase simulators not used for this long"},
-	}}, "data of iOS simulators not used for days", func(home string, c *config.Config) (step, error) {
-		return simulator.DefaultData(home, c.Duration("simulator-data.idle")), nil
-	}},
 	{config.Step{Name: "simulator-caches", Reversible: true}, "Core ML caches of shut-down iOS simulators", func(home string, _ *config.Config) (step, error) {
 		return simulator.Default(home), nil
 	}},

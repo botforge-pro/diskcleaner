@@ -108,6 +108,17 @@ func TestEveryStepIsFound(t *testing.T) {
 	}
 }
 
+func TestNoStepErasesSimulators(t *testing.T) {
+	set := pflag.NewFlagSet("clean", pflag.ContinueOnError)
+	settingsTable.Flags(set)
+	c, err := config.Load(settingsTable, set, t.TempDir())
+	require.NoError(t, err)
+
+	_, err = steps("simulator-data", c)
+
+	assert.ErrorAs(t, err, &unknownStepError{})
+}
+
 func TestCleanWritesSummary(t *testing.T) {
 	cleanLock(t)
 	summary := filepath.Join(t.TempDir(), "summary")

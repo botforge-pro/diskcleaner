@@ -60,7 +60,7 @@ min-free = "5GB"
 [xcode-archives]
 min-age = "30d"
 
-[simulator-data]
+[homebrew]
 enabled = false
 ```
 
@@ -94,7 +94,6 @@ are under it below.
 | **`homebrew`** | old versions of formulae and casks; every download, whatever its age (`timeout`, `15m`) | installed versions | the old versions |
 | **`xcode-archives`** | archives older than `min-age` (`15d`) | the newest `keep` (`1`) of each app; any archive in a folder not named by a date | the signed builds and their debug symbols |
 | **`ide-old-versions`** | settings, caches and logs of IDE versions older than the installed one | data of every installed version | settings the new version did not copy |
-| **`simulator-data`** | apps and data of simulators idle for `idle` (`3d`); the simulator stays, as new | | their apps and data |
 | **`system-temp`** | your files in `/private/tmp` larger than `min-size` (`1MB`) | sockets, mounted volumes, dot files, what a process holds open | whatever was kept there |
 | **`claude-logs`** | Claude Code session logs older than `min-age` (`20d`) | open logs | resuming those sessions |
 | **`codex-logs`** | Codex session logs older than `min-age` (`20d`) | open logs | resuming those sessions |

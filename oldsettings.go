@@ -33,7 +33,6 @@ var replacedSettings = map[string]replacement{
 	"DISKCLEANER_GIT_TMP_MINUTES":      {"projects.git-tmp-min-age", unit("m")},
 	"DISKCLEANER_XCODE_ARCHIVE_DAYS":   {"xcode-archives.min-age", wholeDaysOver},
 	"DISKCLEANER_XCODE_ARCHIVE_KEEP":   {"xcode-archives.keep", same},
-	"DISKCLEANER_SIMULATOR_IDLE_DAYS":  {"simulator-data.idle", unit("d")},
 	"DISKCLEANER_CLAUDE_LOG_DAYS":      {"claude-logs.min-age", wholeDaysOver},
 	"DISKCLEANER_CODEX_LOG_DAYS":       {"codex-logs.min-age", wholeDaysOver},
 	"DISKCLEANER_SYSTEM_TMP_MIN_KB":    {"system-temp.min-size", unit("KB")},

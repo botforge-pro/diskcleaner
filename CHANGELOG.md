@@ -10,10 +10,12 @@ is 0.x, commands and output may still change.
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.21.0`.
 
 After upgrading, `clean` again deletes old Homebrew versions, Xcode archives,
-simulator data, files in `/private/tmp`, old IDE data and session logs, as it
-did before 0.20.0. To keep any of them, write `enabled = false` under that
-step in `diskcleaner.toml`, or pass `--<step>.enabled=false`. Run
-`diskcleaner clean --dry-run` first to see what will go.
+files in `/private/tmp`, old IDE data and session logs, as it did before
+0.20.0. To keep any of them, write `enabled = false` under that step in
+`diskcleaner.toml`, or pass `--<step>.enabled=false`. Run
+`diskcleaner clean --dry-run` first to see what will go. Delete any
+`[simulator-data]` section from `diskcleaner.toml`: the step is gone, and a
+config that names it stops `clean` with status 2.
 
 ### Added
 
@@ -27,9 +29,16 @@ step in `diskcleaner.toml`, or pass `--<step>.enabled=false`. Run
   would remove, so a repository with thousands of such folders takes seconds.
 - Every step runs by default, including those whose deletions cannot be undone:
   `homebrew`, `xcode-archives`, `system-temp`, `ide-old-versions`,
-  `simulator-data`, `claude-logs` and `codex-logs`. With them off, a plain
-  `clean` left tens of gigabytes a developer's Mac needed. `--help` marks them
-  `(cannot be undone)`.
+  `claude-logs` and `codex-logs`. With them off, a plain `clean` left tens of
+  gigabytes a developer's Mac needed. `--help` marks them `(cannot be undone)`.
+
+### Removed
+
+- The `simulator-data` step. A simulator holds an installed app and its state
+  that someone may still work with, and being idle for days does not say it is
+  unused. Erase one by name when it is no longer needed:
+  `xcrun simctl erase "<name>"`. `simulator-caches` still removes Core ML
+  caches of shut-down simulators.
 
 ## [0.20.1] - 2026-11-10
 

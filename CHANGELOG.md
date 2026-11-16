@@ -5,6 +5,18 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.21.1] - 2026-11-16
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.21.1`.
+
+### Fixed
+
+- `projects` no longer runs `git lfs prune` in a repository whose local LFS store holds
+  no objects, as in a clone that keeps only the pointer files. There was nothing to
+  prune, yet `--verify-remote` walked every object of the history, and in a large
+  repository it ran into `projects.lfs-timeout` and reported a failure on every
+  `clean`.
+
 ## [0.21.0] - 2026-11-12
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.21.0`.

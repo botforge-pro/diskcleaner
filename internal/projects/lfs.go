@@ -1,7 +1,9 @@
 package projects
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -13,6 +15,24 @@ import (
 )
 
 var parenthesized = regexp.MustCompile(`\(([^)]*)\)`)
+
+func holdsAFile(dir string) (bool, error) {
+	found := false
+	err := filepath.WalkDir(dir, func(_ string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				return fs.SkipAll
+			}
+			return err
+		}
+		if !entry.IsDir() {
+			found = true
+			return fs.SkipAll
+		}
+		return nil
+	})
+	return found, err
+}
 
 type LFS struct {
 	Git            string
@@ -37,6 +57,14 @@ func (l LFS) prune(repo string, args ...string) (string, error) {
 func (l LFS) Prune(r *report.Report, repo string) {
 	lfs := filepath.Join(repo, ".git", "lfs")
 	if !isDir(lfs) {
+		return
+	}
+	stored, err := holdsAFile(filepath.Join(lfs, "objects"))
+	if err != nil {
+		r.Fail("read %s: %v", filepath.Join(lfs, "objects"), err)
+		return
+	}
+	if !stored {
 		return
 	}
 	if _, err := exec.LookPath(l.GitLFS); err != nil {

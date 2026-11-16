@@ -377,6 +377,25 @@ func TestLFSPrunesWhatGitLFSWouldPrune(t *testing.T) {
 	assert.Contains(t, stdout, "LFS PRUNE     "+filepath.Join(repo, ".git", "lfs")+": prune: 1 file would be pruned (1.2 MB)\n")
 }
 
+func TestLFSStoreWithNoObjectsIsNotPruned(t *testing.T) {
+	repos, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	repo := filepath.Join(repos, "pointers")
+	require.NoError(t, os.MkdirAll(repo, 0o755))
+	git(t, repo, "init", "-q")
+	require.NoError(t, os.MkdirAll(filepath.Join(repo, ".git", "lfs", "objects", "ab"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(repo, ".git", "lfs", "tmp"), 0o755))
+	fakeGitLFS(t, "echo 'git lfs prune must not run on an empty store' >&2; exit 1\n")
+	s := step(t, repos)
+	s.LFS = DefaultLFS(time.Minute)
+
+	r, stdout, _ := run(s, false)
+
+	assert.Empty(t, r.Failures)
+	assert.Zero(t, r.Count)
+	assert.NotContains(t, stdout, "LFS PRUNE")
+}
+
 func TestLFSPruneFailingMidwayCountsOnlyFreedSpace(t *testing.T) {
 	repos, repo := lfsRepo(t)
 	fakeGitLFS(t, `case "$*" in

@@ -18,6 +18,7 @@ const (
 	systemCache = "data/Library/Caches/com.apple.icloudmailagent/" + cacheName
 	appData     = "data/Containers/Data/Application/APP/Library/Application Support/default.store"
 	documents   = "data/Containers/Data/Application/APP/Documents/" + cacheName + "/kept"
+	posters     = "data/" + posterStore + "/61/snapshot.heic"
 )
 
 type fixture struct {
@@ -40,7 +41,7 @@ func newFixture(t *testing.T) *fixture {
 }
 
 func (f *fixture) device(t *testing.T, name, state string) {
-	for _, file := range []string{appCache + "/24A434/model.bundle", systemCache + "/entry", appData, documents} {
+	for _, file := range []string{appCache + "/24A434/model.bundle", systemCache + "/entry", appData, documents, posters} {
 		path := filepath.Join(f.devices, name, file)
 		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
 		require.NoError(t, os.WriteFile(path, make([]byte, 4096), 0o644))
@@ -84,10 +85,12 @@ func TestRemovesCachesOfShutDownSimulator(t *testing.T) {
 
 	assert.False(t, f.exists("shut", appCache))
 	assert.False(t, f.exists("shut", systemCache))
+	assert.False(t, f.exists("shut", "data/"+posterStore))
 	assert.True(t, f.exists("shut", appData))
 	assert.True(t, f.exists("shut", documents))
 	assert.True(t, f.exists("booted", appCache))
-	assert.Equal(t, 2, r.Count)
+	assert.True(t, f.exists("booted", posters))
+	assert.Equal(t, 3, r.Count)
 	assert.Empty(t, r.Failures)
 	assert.Contains(t, stdout, "REMOVE        ")
 	assert.Contains(t, stderr, "SKIPPED       "+filepath.Join(f.devices, "booted")+": the simulator is not shut down (state 3)")
@@ -99,8 +102,9 @@ func TestDryRunRemovesNothing(t *testing.T) {
 	r, stdout, _ := f.run(f.step(), true)
 
 	assert.True(t, f.exists("shut", appCache))
-	assert.Equal(t, 2, r.Count)
-	assert.Equal(t, 2, strings.Count(stdout, "WOULD REMOVE  "))
+	assert.True(t, f.exists("shut", posters))
+	assert.Equal(t, 3, r.Count)
+	assert.Equal(t, 3, strings.Count(stdout, "WOULD REMOVE  "))
 }
 
 func TestSkipsAllWhileSimulatorRuns(t *testing.T) {
@@ -155,7 +159,7 @@ func TestFollowsSymlinkedDevicesDirectory(t *testing.T) {
 
 	r, _, _ := f.run(s, true)
 
-	assert.Equal(t, 2, r.Count)
+	assert.Equal(t, 3, r.Count)
 }
 
 func TestKeepsDocumentsWhenDevicesLieUnderCaches(t *testing.T) {
@@ -173,7 +177,7 @@ func TestKeepsDocumentsWhenDevicesLieUnderCaches(t *testing.T) {
 	assert.True(t, f.exists("shut", documents))
 	assert.True(t, f.exists("shut", appData))
 	assert.False(t, f.exists("shut", appCache))
-	assert.Equal(t, 2, r.Count)
+	assert.Equal(t, 3, r.Count)
 }
 
 func TestUnreadableDevicesDirectoryFails(t *testing.T) {

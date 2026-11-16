@@ -15,6 +15,7 @@ import (
 
 const (
 	cacheName     = "com.apple.e5rt.e5bundlecache"
+	posterStore   = "Library/Application Support/PRBPosterExtensionDataStore"
 	shutdownState = "1"
 )
 
@@ -99,6 +100,9 @@ func (s Step) caches(r *report.Report, device string) []string {
 	})
 	if err != nil {
 		r.Fail("find %s: %v", data, err)
+	}
+	if posters := filepath.Join(data, posterStore); r.Directory(posters) {
+		caches = append(caches, posters)
 	}
 	sort.Strings(caches)
 	return caches

@@ -87,7 +87,7 @@ are under it below.
 | `go-cache` | the Go module and build caches | all while `go` builds | |
 | `swiftpm-cache` | the SwiftPM package cache | all while Swift or Xcode build | |
 | `xcode-derived-data` | Xcode DerivedData | all while Xcode builds; in a folder you picked in Xcode, what Xcode did not make | |
-| `simulator-caches` | Core ML caches of shut-down simulators | app data | |
+| `simulator-caches` | Core ML caches and lock-screen wallpaper snapshots of shut-down simulators | app data | |
 | `temp-leftovers` | work folders of killed Go builds, Xcode export leftovers | | |
 | `code-sign-clones` | copies of Chrome and other apps no running app was started from | | |
 | `claude-scratchpads` | build output in Claude Code scratchpads | the scratchpads | |

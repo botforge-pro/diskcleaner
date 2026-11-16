@@ -5,6 +5,17 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.22.0] - 2026-11-16
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.22.0`.
+
+### Added
+
+- `simulator-caches` also removes the lock-screen wallpaper snapshots a shut-down
+  simulator keeps in `Library/Application Support/PRBPosterExtensionDataStore`. iOS
+  writes them and never prunes them: one iPad simulator held 13 GiB. The simulator
+  shows its default wallpaper afterwards; apps and their data are kept.
+
 ## [0.21.1] - 2026-11-16
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.21.1`.

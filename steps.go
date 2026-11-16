@@ -76,7 +76,7 @@ var catalog = []stepInfo{
 	{config.Step{Name: "ide-old-versions"}, "settings, caches and logs of IDE versions older than the installed one", func(home string, _ *config.Config) (step, error) {
 		return ide.Default(home), nil
 	}},
-	{config.Step{Name: "simulator-caches", Reversible: true}, "Core ML caches of shut-down iOS simulators", func(home string, _ *config.Config) (step, error) {
+	{config.Step{Name: "simulator-caches", Reversible: true}, "Core ML caches and lock-screen wallpaper snapshots of shut-down iOS simulators", func(home string, _ *config.Config) (step, error) {
 		return simulator.Default(home), nil
 	}},
 	{config.Step{Name: "claude-logs", Settings: []config.Setting{

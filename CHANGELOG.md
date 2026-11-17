@@ -5,6 +5,19 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.22.1] - 2026-11-17
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.22.1`.
+
+### Fixed
+
+- `go-cache` checks for running Go commands again before emptying each cache,
+  after measuring its size. Previously it checked only once, before preparing
+  either cache, so a build started during that work could lose required files.
+  A detected command or failed process check now keeps that cache. Go can
+  still start after the check or during deletion: announce cleanup first, and
+  defer new Go commands until `clean` finishes.
+
 ## [0.22.0] - 2026-11-16
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.22.0`.
@@ -841,6 +854,7 @@ this release removes one kind of them. Install it with a Go toolchain:
   status 1.
 - `diskcleaner version` prints the installed version.
 
+[0.22.1]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.22.1
 [0.18.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.18.0
 [0.17.1]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.17.1
 [0.17.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.17.0

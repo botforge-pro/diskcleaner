@@ -3,7 +3,7 @@ STATICCHECK := go run honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION)
 
 VERSION = $(shell sed -n 's/^\#\# \[\([0-9.]*\)\].*/\1/p' CHANGELOG.md | head -1)
 
-.PHONY: tools format lint test-build test build install release
+.PHONY: tools format lint test-build test build install install-release release
 
 tools:
 	pip install --upgrade git+https://github.com/botforge-pro/commentcensor.git
@@ -29,6 +29,9 @@ build:
 
 install:
 	go install .
+
+install-release:
+	go install github.com/botforge-pro/diskcleaner@v$(VERSION)
 
 # A release tags the checked, pushed main with v and the newest CHANGELOG version, and its
 # GitHub release carries that version's CHANGELOG section as the notes.

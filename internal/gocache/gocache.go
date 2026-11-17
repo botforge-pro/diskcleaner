@@ -23,8 +23,14 @@ type cache struct {
 }
 
 var caches = []cache{
-	{variable: "GOMODCACHE", flag: "-modcache"},
-	{variable: "GOCACHE", flag: "-cache"},
+	{
+		variable: "GOMODCACHE",
+		flag:     "-modcache",
+	},
+	{
+		variable: "GOCACHE",
+		flag:     "-cache",
+	},
 }
 
 func Default() Step {
@@ -47,14 +53,20 @@ func (s Step) Run(r *report.Report) {
 	fmt.Fprintln(r.Out, "GO       module and build caches")
 	defer fmt.Fprintln(r.Out)
 
-	if r.Busy(s.Running, s.Processes) {
-		r.Skip("go caches: a go command is running")
+	keep := func() bool {
+		if r.Busy(s.Running, s.Processes) {
+			r.Skip("go caches: a go command is running")
+			return true
+		}
+		return false
+	}
+	if keep() {
 		return
 	}
 	for _, c := range caches {
 		dir, ok := s.env(r, c.variable)
 		if ok && dir != "" && r.Directory(dir) {
-			r.RunCleanup(dir, s.Go, "clean", c.flag)
+			r.RunCleanup(dir, keep, s.Go, "clean", c.flag)
 		}
 	}
 }

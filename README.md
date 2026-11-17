@@ -25,8 +25,9 @@ diskcleaner clean --projects.git-tmp-min-age=0     # any setting, for this run
 diskcleaner config                                 # every setting and where it came from
 ```
 
-`clean` keeps what is in use. A cache is emptied whole, but not while its tool
-runs. In projects and temporary folders a path stays while a process holds it
+`clean` checks for data in use before deleting it. A cache is emptied whole;
+its step skips it when its process check detects the tool running. In projects
+and temporary folders a path stays while a process holds it
 open, when it was written within `min-age`, or when Git tracks a file in it.
 When `lsof` or Git cannot answer, the path stays and the step fails. Each kept
 path is listed as `SKIPPED` with the reason; `--report FILE` writes the totals.
@@ -35,6 +36,16 @@ path is listed as `SKIPPED` with the reason; `--report FILE` writes the totals.
 `--<step>.enabled=false` or in the config is listed as `OFF`, with what it would
 free under `--dry-run`. One `clean` runs at a time; its lock is
 `~/.local/state/diskcleaner/lock` (or under `$XDG_STATE_HOME`).
+
+Go cache cleanup and builds:
+
+- Before each Go cache deletion, `clean` checks for running Go commands again,
+  after measuring the cache. A detected command or a failed process check
+  keeps that cache.
+- Go and diskcleaner do not share an atomic lock. A Go command starting after
+  the last check or during deletion can still lose files it needs.
+- Announce cleanup before starting it. From that announcement until `clean`
+  finishes, everyone using the machine must defer new Go commands.
 
 | Exit | Means |
 |---|---|
@@ -84,7 +95,7 @@ are under it below.
 | `projects` | in each project: `.build` of Swift packages, Gradle `build`, `.apk`/`.aab`, Python's `__pycache__` anywhere outside `node_modules` and `.build`, `node_modules` with a lockfile, temporary files of a dead `git fetch` or `git repack` (`git-tmp-min-age`, `1h`), Git LFS objects the remote has (`lfs-timeout`, `10m` per repository) | `node_modules` without a lockfile | packages installed with `--no-save`, unpublished, or from a registry you no longer reach |
 | `gradle-caches` | `$GRADLE_USER_HOME/caches` | all while Gradle, Android Studio or IntelliJ run | |
 | `docker-images` | images no container uses (`timeout`, `30s`; `prune-timeout`, `15m`) | volumes | an image neither a registry nor a Dockerfile still has |
-| `go-cache` | the Go module and build caches | all while `go` builds | |
+| `go-cache` | the Go module and build caches | each cache when a Go command is detected before deletion | |
 | `swiftpm-cache` | the SwiftPM package cache | all while Swift or Xcode build | |
 | `xcode-derived-data` | Xcode DerivedData | all while Xcode builds; in a folder you picked in Xcode, what Xcode did not make | |
 | `simulator-caches` | Core ML caches and lock-screen wallpaper snapshots of shut-down simulators | app data | |

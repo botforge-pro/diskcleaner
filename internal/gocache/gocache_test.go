@@ -37,7 +37,11 @@ func newCaches(t *testing.T) fixture {
 
 func run(s Step, dryRun bool) (*report.Report, string, string) {
 	var stdout, stderr bytes.Buffer
-	r := &report.Report{Out: &stdout, Err: &stderr, DryRun: dryRun}
+	r := &report.Report{
+		Out:    &stdout,
+		Err:    &stderr,
+		DryRun: dryRun,
+	}
 	s.Run(r)
 	return r, stdout.String(), stderr.String()
 }
@@ -47,7 +51,11 @@ func idle(string) (bool, error) { return false, nil }
 func TestCleansBothCaches(t *testing.T) {
 	c := newCaches(t)
 
-	r, stdout, stderr := run(Step{Go: "go", Processes: "go", Running: idle}, false)
+	r, stdout, stderr := run(Step{
+		Go:        "go",
+		Processes: "go",
+		Running:   idle,
+	}, false)
 
 	assert.Empty(t, stderr)
 	assert.NoDirExists(t, c.module)
@@ -62,7 +70,11 @@ func TestCleansBothCaches(t *testing.T) {
 func TestDryRunCleansNothing(t *testing.T) {
 	c := newCaches(t)
 
-	r, stdout, _ := run(Step{Go: "go", Processes: "go", Running: idle}, true)
+	r, stdout, _ := run(Step{
+		Go:        "go",
+		Processes: "go",
+		Running:   idle,
+	}, true)
 
 	assert.FileExists(t, filepath.Join(c.module, "example.com", "module@v1.0.0", "module.go"))
 	assert.FileExists(t, filepath.Join(c.build, "00", "entry-d"))
@@ -76,7 +88,11 @@ func TestSkipsWhileAGoCommandRuns(t *testing.T) {
 	c := newCaches(t)
 	busy := func(string) (bool, error) { return true, nil }
 
-	r, _, stderr := run(Step{Go: "go", Processes: "go", Running: busy}, false)
+	r, _, stderr := run(Step{
+		Go:        "go",
+		Processes: "go",
+		Running:   busy,
+	}, false)
 
 	assert.DirExists(t, c.module)
 	assert.Zero(t, r.Count)
@@ -88,7 +104,11 @@ func TestProcessCheckErrorSkipsAndFails(t *testing.T) {
 	c := newCaches(t)
 	broken := func(string) (bool, error) { return false, errors.New("exit status 2") }
 
-	r, _, _ := run(Step{Go: "go", Processes: "go", Running: broken}, false)
+	r, _, _ := run(Step{
+		Go:        "go",
+		Processes: "go",
+		Running:   broken,
+	}, false)
 
 	assert.DirExists(t, c.module)
 	assert.Len(t, r.Failures, 1)
@@ -97,7 +117,11 @@ func TestProcessCheckErrorSkipsAndFails(t *testing.T) {
 func TestWithoutGoDoesNothing(t *testing.T) {
 	newCaches(t)
 
-	r, stdout, stderr := run(Step{Go: "diskcleaner-test-absent-go", Processes: "go", Running: idle}, false)
+	r, stdout, stderr := run(Step{
+		Go:        "diskcleaner-test-absent-go",
+		Processes: "go",
+		Running:   idle,
+	}, false)
 
 	assert.Zero(t, r.Count)
 	assert.Empty(t, stdout)
@@ -109,14 +133,22 @@ func TestMissingCachesAreQuiet(t *testing.T) {
 	t.Setenv("GOMODCACHE", filepath.Join(root, "absent-mod"))
 	t.Setenv("GOCACHE", filepath.Join(root, "absent-build"))
 
-	r, _, stderr := run(Step{Go: "go", Processes: "go", Running: idle}, false)
+	r, _, stderr := run(Step{
+		Go:        "go",
+		Processes: "go",
+		Running:   idle,
+	}, false)
 
 	assert.Zero(t, r.Count)
 	assert.Empty(t, stderr)
 }
 
 func TestGoEnvFailureFails(t *testing.T) {
-	r, _, _ := run(Step{Go: "false", Processes: "go", Running: idle}, false)
+	r, _, _ := run(Step{
+		Go:        "false",
+		Processes: "go",
+		Running:   idle,
+	}, false)
 
 	assert.Zero(t, r.Count)
 	require.Len(t, r.Failures, 2)
@@ -134,7 +166,11 @@ func TestCleanFailureFailsAndCountsNothing(t *testing.T) {
 	c := newCaches(t)
 	fake := fakeGo(t, "[ \"$1\" = env ] || { echo cannot clean >&2; exit 3; }\nprintenv \"$2\"\n")
 
-	r, _, _ := run(Step{Go: fake, Processes: "go", Running: idle}, false)
+	r, _, _ := run(Step{
+		Go:        fake,
+		Processes: "go",
+		Running:   idle,
+	}, false)
 
 	assert.DirExists(t, c.module)
 	assert.Zero(t, r.Count)
@@ -159,7 +195,11 @@ func TestPartialCleanCountsOnlyFreedSpaceAndGoesOn(t *testing.T) {
 esac
 `)
 
-	r, _, _ := run(Step{Go: fake, Processes: "go", Running: idle}, false)
+	r, _, _ := run(Step{
+		Go:        fake,
+		Processes: "go",
+		Running:   idle,
+	}, false)
 
 	assert.FileExists(t, kept)
 	assert.NoDirExists(t, filepath.Join(c.build, "00"))
@@ -179,7 +219,11 @@ func TestGoEnvDiagnosticsStayOutOfThePath(t *testing.T) {
 esac
 `)
 
-	r, _, stderr := run(Step{Go: fake, Processes: "go", Running: idle}, false)
+	r, _, stderr := run(Step{
+		Go:        fake,
+		Processes: "go",
+		Running:   idle,
+	}, false)
 
 	assert.Empty(t, r.Failures)
 	assert.Equal(t, 2, r.Count)
@@ -192,10 +236,94 @@ func TestUnexpectedGoEnvOutputFails(t *testing.T) {
 	c := newCaches(t)
 	fake := fakeGo(t, "[ \"$1\" = env ] || exit 64\necho first\nprintenv \"$2\"\n")
 
-	r, _, _ := run(Step{Go: fake, Processes: "go", Running: idle}, false)
+	r, _, _ := run(Step{
+		Go:        fake,
+		Processes: "go",
+		Running:   idle,
+	}, false)
 
 	assert.DirExists(t, c.module)
 	assert.Zero(t, r.Count)
 	require.Len(t, r.Failures, 2)
 	assert.Contains(t, r.Failures[0], "go env GOMODCACHE: expected one line")
+}
+
+func goStartingWork(t *testing.T, during string) (string, func(string) (bool, error)) {
+	t.Helper()
+	marker := filepath.Join(t.TempDir(), "go-running")
+	t.Setenv("GO_RUNNING", marker)
+	t.Setenv("START_DURING", during)
+	fake := fakeGo(t, `case "$1 $2" in
+"env "*) printenv "$2" ;;
+"clean -modcache") rm -rf "$GOMODCACHE" ;;
+"clean -cache") rm -rf "$GOCACHE" ;;
+esac
+[ "$1 $2" != "$START_DURING" ] || touch "$GO_RUNNING"
+`)
+	running := func(string) (bool, error) {
+		_, err := os.Stat(marker)
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return err == nil, err
+	}
+	return fake, running
+}
+
+func TestGoStartingDuringCachePreparationKeepsTheCache(t *testing.T) {
+	for _, during := range []string{
+		"env GOMODCACHE",
+		"env GOCACHE",
+		"clean -modcache",
+	} {
+		t.Run(during, func(t *testing.T) {
+			c := newCaches(t)
+			fake, running := goStartingWork(t, during)
+
+			r, stdout, stderr := run(Step{
+				Go:        fake,
+				Processes: "go",
+				Running:   running,
+			}, false)
+
+			assert.Empty(t, r.Failures)
+			assert.FileExists(t, filepath.Join(c.build, "00", "entry-d"))
+			assert.Contains(t, stderr, "SKIPPED")
+			assert.NotContains(t, stdout, "clean -cache")
+			if during == "env GOMODCACHE" {
+				assert.DirExists(t, c.module)
+				assert.Zero(t, r.Count)
+				assert.Zero(t, r.KB)
+				assert.NotContains(t, stdout, "clean -modcache")
+			} else {
+				assert.NoDirExists(t, c.module)
+				assert.Equal(t, 1, r.Count)
+			}
+		})
+	}
+}
+
+func TestProcessCheckFailureDuringCachePreparationKeepsBothCaches(t *testing.T) {
+	c := newCaches(t)
+	fake, activity := goStartingWork(t, "env GOMODCACHE")
+	running := func(pattern string) (bool, error) {
+		busy, err := activity(pattern)
+		if busy {
+			return false, errors.New("process list unavailable")
+		}
+		return false, err
+	}
+
+	r, _, _ := run(Step{
+		Go:        fake,
+		Processes: "go",
+		Running:   running,
+	}, false)
+
+	assert.DirExists(t, c.module)
+	assert.DirExists(t, c.build)
+	assert.Zero(t, r.Count)
+	assert.Zero(t, r.KB)
+	require.NotEmpty(t, r.Failures)
+	assert.Contains(t, r.Failures[0], "process list unavailable")
 }

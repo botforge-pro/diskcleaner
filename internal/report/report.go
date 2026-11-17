@@ -98,11 +98,14 @@ func (r *Report) alreadyRemoved(path string) bool {
 	return false
 }
 
-func (r *Report) RunCleanup(dir string, name string, args ...string) {
+func (r *Report) RunCleanup(dir string, keep func() bool, name string, args ...string) {
 	command := strings.Join(append([]string{name}, args...), " ")
 	sizeKB, err := DiskUsageKB(dir)
 	if err != nil {
 		r.Fail("du %s: %v", dir, err)
+	}
+	if keep() {
+		return
 	}
 	if r.DryRun {
 		fmt.Fprintf(r.Out, "WOULD RUN     %s  (%s in %s)\n", command, FormatKB(sizeKB), dir)

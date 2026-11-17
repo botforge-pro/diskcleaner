@@ -15,7 +15,10 @@ func TestRemoveCountsWhatItRemoved(t *testing.T) {
 	require.NoError(t, os.MkdirAll(dir, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "entry"), make([]byte, 8192), 0o644))
 	var stdout, stderr bytes.Buffer
-	r := &Report{Out: &stdout, Err: &stderr}
+	r := &Report{
+		Out: &stdout,
+		Err: &stderr,
+	}
 
 	r.Remove(dir)
 
@@ -34,7 +37,11 @@ func TestRemoveCountsAPathInsideARemovedOneOnce(t *testing.T) {
 	sibling := dir + "-other"
 	require.NoError(t, os.MkdirAll(sibling, 0o755))
 	var stdout, stderr bytes.Buffer
-	r := &Report{Out: &stdout, Err: &stderr, DryRun: true}
+	r := &Report{
+		Out:    &stdout,
+		Err:    &stderr,
+		DryRun: true,
+	}
 
 	r.Remove(dir)
 	kb := r.KB
@@ -56,7 +63,11 @@ func TestRemoveKnowsARelativeSpellingOfARemovedPath(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, "repos", "app", ".build", "cache"), 0o755))
 	t.Chdir(dir)
 	var stdout, stderr bytes.Buffer
-	r := &Report{Out: &stdout, Err: &stderr, DryRun: true}
+	r := &Report{
+		Out:    &stdout,
+		Err:    &stderr,
+		DryRun: true,
+	}
 
 	r.Remove(filepath.Join(dir, "repos", "app", ".build"))
 	r.Remove("./repos/app/.build")
@@ -74,7 +85,10 @@ func TestRemoveReportsWhatItCouldNotRemove(t *testing.T) {
 	require.NoError(t, os.Chmod(dir, 0o555))
 	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
 	var stdout, stderr bytes.Buffer
-	r := &Report{Out: &stdout, Err: &stderr}
+	r := &Report{
+		Out: &stdout,
+		Err: &stderr,
+	}
 
 	r.Remove(dir)
 
@@ -82,4 +96,53 @@ func TestRemoveReportsWhatItCouldNotRemove(t *testing.T) {
 	assert.Zero(t, r.Count)
 	require.Len(t, r.Failures, 1)
 	assert.Contains(t, stderr.String(), "FAILED        rm "+dir)
+}
+
+func TestCleanupChecksAfterMeasuring(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "cache")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "old"), make([]byte, 8192), 0o644))
+	before, err := DiskUsageKB(dir)
+	require.NoError(t, err)
+	var stdout, stderr bytes.Buffer
+	r := &Report{
+		Out: &stdout,
+		Err: &stderr,
+	}
+	keep := func() bool {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "new"), make([]byte, 8192), 0o644))
+		return false
+	}
+
+	r.RunCleanup(dir, keep, "rm", "-rf", dir)
+
+	assert.NoDirExists(t, dir)
+	assert.Equal(t, 1, r.Count)
+	assert.Equal(t, before, r.KB)
+	assert.Empty(t, r.Failures)
+}
+
+func TestBlockedCleanupNeitherRunsNorCounts(t *testing.T) {
+	for _, dryRun := range []bool{
+		false,
+		true,
+	} {
+		dir := filepath.Join(t.TempDir(), "cache")
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "entry"), make([]byte, 8192), 0o644))
+		var stdout, stderr bytes.Buffer
+		r := &Report{
+			Out:    &stdout,
+			Err:    &stderr,
+			DryRun: dryRun,
+		}
+
+		r.RunCleanup(dir, func() bool { return true }, "rm", "-rf", dir)
+
+		assert.FileExists(t, filepath.Join(dir, "entry"))
+		assert.Zero(t, r.Count)
+		assert.Zero(t, r.KB)
+		assert.Empty(t, stdout.String())
+		assert.Empty(t, r.Failures)
+	}
 }

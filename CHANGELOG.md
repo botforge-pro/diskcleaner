@@ -15,8 +15,9 @@ Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.22.1`.
   after measuring its size. Previously it checked only once, before preparing
   either cache, so a build started during that work could lose required files.
   A detected command or failed process check now keeps that cache. Go can
-  still start after the check or during deletion: announce cleanup first, and
-  defer new Go commands until `clean` finishes.
+  still start after the check or during deletion. Before cleanup, tell everyone
+  using the machine to defer new Go commands until `clean` finishes, and wait
+  for running Go commands to finish.
 
 ## [0.22.0] - 2026-11-16
 

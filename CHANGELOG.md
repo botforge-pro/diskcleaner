@@ -33,13 +33,16 @@ Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.23.0`.
 - `system-temp` skips every mounted volume and everything in it. It learns the
   mount points from the system's mount table without asking the volumes, so a
   volume that stopped answering cannot stall the run.
-- Every step that checks open files with `lsof` (`projects`, `temp-leftovers`,
-  `system-temp`, `code-sign-clones`, `claude-logs`, `codex-logs`) gives up when
-  `lsof` does not exit 5 seconds after its 30-second timeout, even after being
-  killed, as when `lsof` waits on a stalled file system. Before, such an `lsof`
-  hung the whole run. That step then deletes nothing, other steps go on, and
-  `clean` exits 1, as for any failed step. The stuck `lsof` cannot be stopped
-  and stays until the file system recovers or the Mac restarts.
+- The steps that check open files with `lsof` (`projects`, `temp-leftovers`,
+  `system-temp`, `code-sign-clones`, `claude-logs`, `codex-logs`) keep working
+  while a process is stuck exiting, as one reading a stalled file system can
+  be. Asking `lsof` about such a process hung `lsof` for good, so every run
+  hung. Now `lsof` skips the open files of processes that are exiting or are
+  zombies, which can no longer use any file.
+- If `lsof` still does not exit 5 seconds after its 30-second timeout, even
+  after being killed, the step gives up instead of hanging the whole run: it
+  deletes nothing, other steps go on, and `clean` exits 1, as for any failed
+  step.
 
 ### Removed
 

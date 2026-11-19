@@ -89,6 +89,28 @@ func (r *Report) Remove(path string) {
 	r.KB += sizeKB
 }
 
+func (r *Report) RemoveEntry(path string, bytes int64, remove func() error) {
+	sizeKB := (bytes + 1023) / 1024
+	if r.DryRun {
+		fmt.Fprintf(r.Out, "WOULD REMOVE  %s  %s\n", FormatKB(sizeKB), path)
+		r.Count++
+		r.KB += sizeKB
+		return
+	}
+	err := remove()
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+	case errors.Is(err, syscall.ENOTEMPTY), errors.Is(err, syscall.EEXIST):
+		r.Skip("%s: no longer empty", path)
+	case err != nil:
+		r.Fail("rm %s: %v", path, err)
+	default:
+		fmt.Fprintf(r.Out, "REMOVE        %s  %s\n", FormatKB(sizeKB), path)
+		r.Count++
+		r.KB += sizeKB
+	}
+}
+
 func (r *Report) alreadyRemoved(path string) bool {
 	for _, removed := range r.removed {
 		if path == removed || strings.HasPrefix(path, removed+string(filepath.Separator)) {

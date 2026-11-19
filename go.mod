@@ -9,6 +9,7 @@ require (
 	github.com/knadh/koanf/v2 v2.4.1
 	github.com/spf13/pflag v1.1.0
 	github.com/stretchr/testify v1.12.1
+	golang.org/x/sys v0.32.0
 )
 
 require (
@@ -19,5 +20,4 @@ require (
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/pelletier/go-toml/v2 v2.4.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/sys v0.32.0 // indirect
 )

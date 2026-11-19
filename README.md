@@ -29,6 +29,8 @@ diskcleaner config                                 # every setting and where it 
 its step skips it when its process check detects the tool running. In projects
 and temporary folders a path stays while a process holds it
 open, when it was written within `min-age`, or when Git tracks a file in it.
+`system-temp` ignores `min-age` and keeps what was used within 3 days, as macOS
+does there.
 When `lsof` or Git cannot answer, the path stays and the step fails. Each kept
 path is listed as `SKIPPED` with the reason; `--report FILE` writes the totals.
 
@@ -78,7 +80,7 @@ enabled = false
 | Setting | Default | |
 |---|---|---|
 | `project-dirs` | those of `~/Developer`, `~/Projects`, `~/src`, `~/code`, `~/GolandProjects`, `~/IdeaProjects`, `~/AndroidStudioProjects` that exist | where Git repositories sit, one level down; `node_modules` is found at any depth |
-| `min-age` | `1h` | in projects, temporary folders and app copies, anything written more recently stays |
+| `min-age` | `1h` | in projects, temporary folders and app copies, anything written more recently stays; `system-temp` keeps 3 days instead |
 | `min-free` | `0` (off) | exit 4 when less is free after `clean` |
 | `<step>.enabled` | on | |
 
@@ -105,7 +107,7 @@ are under it below.
 | **`homebrew`** | old versions of formulae and casks; every download, whatever its age (`timeout`, `15m`) | installed versions | the old versions |
 | **`xcode-archives`** | archives older than `min-age` (`15d`) | the newest `keep` (`1`) of each app; any archive in a folder not named by a date | the signed builds and their debug symbols |
 | **`ide-old-versions`** | settings, caches and logs of IDE versions older than the installed one | data of every installed version | settings the new version did not copy |
-| **`system-temp`** | your files in `/private/tmp` larger than `min-size` (`1MB`) | sockets, mounted volumes, dot files, what a process holds open | whatever was kept there |
+| **`system-temp`** | what macOS itself removes from `/private/tmp` after 3 days, if it is yours: files not read, written or changed for 3 days, at any depth, and folders empty and unchanged for 3 days | files touched in the last 3 days, sockets, symbolic links, mounted volumes (never looked into), the dot entries and `claude-*` folders at the top, the X11, quota and resource-stream entries macOS keeps, what a process holds open | whatever was kept there |
 | **`claude-logs`** | Claude Code session logs older than `min-age` (`20d`) | open logs | resuming those sessions |
 | **`codex-logs`** | Codex session logs older than `min-age` (`20d`) | open logs | resuming those sessions |
 

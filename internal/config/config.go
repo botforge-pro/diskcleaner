@@ -52,7 +52,7 @@ func NewTable(steps []Step) Table {
 	table := Table{
 		{"project-dirs", Dirs, "", "folders whose subfolders are Git repositories " +
 			"(default: those of ~/" + strings.Join(ProjectDirCandidates, ", ~/") + " that exist)"},
-		{"min-age", Duration, "1h", "keep anything written more recently"},
+		{"min-age", Duration, "1h", "keep anything written more recently; system-temp keeps 3 days instead"},
 		{"min-free", Size, "0", "exit 4 when less is free after clean; 0 is off"},
 	}
 	for _, step := range steps {

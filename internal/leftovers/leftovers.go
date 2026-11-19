@@ -17,28 +17,10 @@ import (
 
 var patterns = []string{"go-build*", "go-link-*", "XcodeDistPipeline.*"}
 
-var keptInSystemTemp = []string{".*", "claude-*"}
-
 type Step struct {
 	Dir      string
 	Patterns []string
-	Exclude  []string
-	Files    bool
-	Owner    *int
-	MinKB    int64
 	InUse    inuse.Check
-}
-
-func SystemTemp(minAge time.Duration, minSize int64) Step {
-	return Step{
-		Dir:      "/private/tmp",
-		Patterns: []string{"*"},
-		Exclude:  keptInSystemTemp,
-		Files:    true,
-		Owner:    new(os.Getuid()),
-		MinKB:    (minSize + 1023) / 1024,
-		InUse:    inuse.Default(minAge),
-	}
 }
 
 func Default(minAge time.Duration) (Step, error) {
@@ -65,7 +47,7 @@ func (s Step) Run(r *report.Report) {
 			r.Fail("glob %s: %v", pattern, err)
 			continue
 		}
-		paths = append(paths, slices.DeleteFunc(matches, s.excluded)...)
+		paths = append(paths, matches...)
 	}
 	if len(paths) == 0 {
 		return
@@ -101,23 +83,15 @@ func (s Step) check(r *report.Report, path string, volume int64) {
 		r.Fail("stat %s: %v", path, err)
 		return
 	}
-	if !s.owns(info) {
+	if !info.IsDir() {
 		return
 	}
-	found := tree{volume: volume}
-	switch {
-	case info.IsDir():
-		found, err = walk(path, volume)
-		if errors.Is(err, fs.ErrNotExist) {
-			return
-		}
-		if err != nil {
-			r.Fail("look into %s: %v", path, err)
-			return
-		}
-	case s.Files && info.Mode().IsRegular():
-		found.add(path, info)
-	default:
+	found, err := walk(path, volume)
+	if errors.Is(err, fs.ErrNotExist) {
+		return
+	}
+	if err != nil {
+		r.Fail("look into %s: %v", path, err)
 		return
 	}
 	if found.mounted == path {
@@ -126,9 +100,6 @@ func (s Step) check(r *report.Report, path string, volume int64) {
 	}
 	if found.mounted != "" {
 		r.Skip("%s: %s in it is a mounted volume, not space on this disk", path, found.mounted)
-		return
-	}
-	if found.kb < s.MinKB {
 		return
 	}
 	if found.socket != "" {
@@ -147,25 +118,9 @@ func (s Step) check(r *report.Report, path string, volume int64) {
 	r.Remove(path)
 }
 
-func (s Step) excluded(path string) bool {
-	return slices.ContainsFunc(s.Exclude, func(pattern string) bool {
-		matched, _ := filepath.Match(pattern, filepath.Base(path))
-		return matched
-	})
-}
-
-func (s Step) owns(info fs.FileInfo) bool {
-	if s.Owner == nil {
-		return true
-	}
-	stat, ok := info.Sys().(*syscall.Stat_t)
-	return ok && int(stat.Uid) == *s.Owner
-}
-
 type tree struct {
 	volume  int64
 	latest  time.Time
-	kb      int64
 	socket  string
 	mounted string
 }
@@ -177,9 +132,6 @@ func (t *tree) add(path string, info fs.FileInfo) {
 	}
 	if info.ModTime().After(t.latest) {
 		t.latest = info.ModTime()
-	}
-	if stat, ok := info.Sys().(*syscall.Stat_t); ok {
-		t.kb += stat.Blocks * 512 / 1024
 	}
 	if info.Mode().Type() == fs.ModeSocket && t.socket == "" {
 		t.socket = path

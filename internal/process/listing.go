@@ -13,6 +13,8 @@ func OpenNames(seconds int, lsof string) ([]string, error) {
 	result := RunGroup(seconds, lsof, "-n", "-P", "-Fn")
 	var exit *exec.ExitError
 	switch {
+	case result.TimedOut && result.Leftover:
+		return nil, fmt.Errorf("no answer within %ds: %v", seconds, result.Err)
 	case result.TimedOut:
 		return nil, fmt.Errorf("no answer within %ds", seconds)
 	case result.Leftover:

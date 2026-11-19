@@ -5,6 +5,49 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.23.0] - 2026-11-19
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.23.0`.
+
+### Changed
+
+- `system-temp` now applies the rule macOS itself uses in `/private/tmp`, to
+  files and folders owned by the user running diskcleaner. It permanently
+  deletes every regular file, at any depth and of any size, whose last access,
+  last write and last status change are all more than 3 days old, and every
+  folder that is empty and was not modified for 3 days. Previously it deleted
+  only top-level entries larger than 1 MB and written over an hour ago, so a
+  large file used yesterday went and thousands of small old files stayed.
+  A file used within 3 days now stays, even when large. The step no longer
+  follows `min-age`: its 3 days are fixed, as in macOS.
+- `system-temp` still keeps sockets, symbolic links, files a process has open,
+  and at the top of `/private/tmp` the names starting with a dot and the
+  `claude-*` folders. It also keeps the names macOS keeps: `.X*-lock`,
+  `.X11-unix`, `.ICE-unix`, `.font-unix`, `.XIM-unix`, `quota.user`,
+  `quota.group` and `.vfs_rsrc_streams_*`, with everything in them. Listing files does not count as access, so the scan itself
+  resets no clock. Under `--dry-run` it lists what would go; to turn the step
+  off, set `enabled = false` under `[system-temp]`.
+- `system-temp` reports, as one `SKIPPED` line, how many files it kept for
+  being used within 3 days. A folder whose files this run deleted was just
+  modified, so it goes, if still empty, on a run at least 3 days later.
+- `system-temp` skips every mounted volume and everything in it. It learns the
+  mount points from the system's mount table without asking the volumes, so a
+  volume that stopped answering cannot stall the run.
+- Every step that checks open files with `lsof` (`projects`, `temp-leftovers`,
+  `system-temp`, `code-sign-clones`, `claude-logs`, `codex-logs`) gives up when
+  `lsof` does not exit 5 seconds after its 30-second timeout, even after being
+  killed, as when `lsof` waits on a stalled file system. Before, such an `lsof`
+  hung the whole run. That step then deletes nothing, other steps go on, and
+  `clean` exits 1, as for any failed step. The stuck `lsof` cannot be stopped
+  and stays until the file system recovers or the Mac restarts.
+
+### Removed
+
+- The `system-temp.min-size` setting; there is no size limit any more. Delete
+  it from your config file and command line, or `clean` refuses to run with an
+  unknown setting. A set `DISKCLEANER_SYSTEM_TMP_MIN_KB` variable now stops
+  `clean` with "no longer a setting", like the other old variables.
+
 ## [0.22.1] - 2026-11-17
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.22.1`.
@@ -855,6 +898,7 @@ this release removes one kind of them. Install it with a Go toolchain:
   status 1.
 - `diskcleaner version` prints the installed version.
 
+[0.23.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.23.0
 [0.22.1]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.22.1
 [0.18.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.18.0
 [0.17.1]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.17.1

@@ -14,6 +14,7 @@ import (
 	"github.com/botforge-pro/diskcleaner/internal/sessionlogs"
 	"github.com/botforge-pro/diskcleaner/internal/simulator"
 	"github.com/botforge-pro/diskcleaner/internal/swiftpm"
+	"github.com/botforge-pro/diskcleaner/internal/systemtemp"
 	"github.com/botforge-pro/diskcleaner/internal/xcode"
 )
 
@@ -64,10 +65,8 @@ var catalog = []stepInfo{
 		s, err := leftovers.Default(c.Duration("min-age"))
 		return s, err
 	}},
-	{config.Step{Name: "system-temp", Settings: []config.Setting{
-		{Key: "min-size", Kind: config.Size, Default: "1MB", Help: "leave smaller entries"},
-	}}, "your files and folders left in /private/tmp", func(_ string, c *config.Config) (step, error) {
-		return leftovers.SystemTemp(c.Duration("min-age"), c.Size("system-temp.min-size")), nil
+	{config.Step{Name: "system-temp"}, "your files and empty folders in /private/tmp untouched for 3 days, as macOS removes them", func(string, *config.Config) (step, error) {
+		return systemtemp.Default(), nil
 	}},
 	{config.Step{Name: "code-sign-clones", Reversible: true}, "copies of Chrome and other apps no running app uses", func(_ string, c *config.Config) (step, error) {
 		s, err := clones.Default(c.Duration("min-age"))

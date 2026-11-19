@@ -23,9 +23,32 @@ func (r Result) Output() string {
 	return strings.TrimSpace(strings.TrimSpace(r.Stdout) + "\n" + strings.TrimSpace(r.Stderr))
 }
 
+const killGrace = 5 * time.Second
+
 func RunGroup(seconds int, name string, args ...string) Result {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(seconds)*time.Second)
+	return awaitGroup(time.Duration(seconds)*time.Second, killGrace, func(ctx context.Context) Result {
+		return runGroup(ctx, name, args...)
+	})
+}
+
+func awaitGroup(limit, grace time.Duration, run func(context.Context) Result) Result {
+	ctx, cancel := context.WithTimeout(context.Background(), limit)
 	defer cancel()
+	finished := make(chan Result, 1)
+	go func() { finished <- run(ctx) }()
+	select {
+	case result := <-finished:
+		return result
+	case <-time.After(limit + grace):
+		return Result{
+			TimedOut: true,
+			Leftover: true,
+			Err:      fmt.Errorf("still running %s past its %s limit, left behind", grace, limit),
+		}
+	}
+}
+
+func runGroup(ctx context.Context, name string, args ...string) Result {
 	var stdout, stderr bytes.Buffer
 	command := exec.CommandContext(ctx, name, args...)
 	command.Stdout = &stdout

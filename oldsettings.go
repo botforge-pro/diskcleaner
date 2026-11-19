@@ -35,7 +35,6 @@ var replacedSettings = map[string]replacement{
 	"DISKCLEANER_XCODE_ARCHIVE_KEEP":   {"xcode-archives.keep", same},
 	"DISKCLEANER_CLAUDE_LOG_DAYS":      {"claude-logs.min-age", wholeDaysOver},
 	"DISKCLEANER_CODEX_LOG_DAYS":       {"codex-logs.min-age", wholeDaysOver},
-	"DISKCLEANER_SYSTEM_TMP_MIN_KB":    {"system-temp.min-size", unit("KB")},
 	"DISKCLEANER_DOCKER_TIMEOUT":       {"docker-images.timeout", unit("s")},
 	"DISKCLEANER_DOCKER_PRUNE_TIMEOUT": {"docker-images.prune-timeout", unit("s")},
 	"DISKCLEANER_BREW_TIMEOUT":         {"homebrew.timeout", unit("s")},

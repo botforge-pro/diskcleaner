@@ -4,6 +4,7 @@ import (
 	"github.com/botforge-pro/diskcleaner/internal/clones"
 	"github.com/botforge-pro/diskcleaner/internal/config"
 	"github.com/botforge-pro/diskcleaner/internal/docker"
+	"github.com/botforge-pro/diskcleaner/internal/emulator"
 	"github.com/botforge-pro/diskcleaner/internal/gocache"
 	"github.com/botforge-pro/diskcleaner/internal/gradle"
 	"github.com/botforge-pro/diskcleaner/internal/homebrew"
@@ -77,6 +78,9 @@ var catalog = []stepInfo{
 	}},
 	{config.Step{Name: "simulator-caches", Reversible: true}, "Core ML caches and lock-screen wallpaper snapshots of shut-down iOS simulators", func(home string, _ *config.Config) (step, error) {
 		return simulator.Default(home), nil
+	}},
+	{config.Step{Name: "emulator-snapshots", Reversible: true}, "saved quick-boot states of Android emulators that are not running", func(home string, _ *config.Config) (step, error) {
+		return emulator.Default(home), nil
 	}},
 	{config.Step{Name: "claude-logs", Settings: []config.Setting{
 		{Key: "min-age", Kind: config.Duration, Default: "20d", Help: "remove session logs older than this"},

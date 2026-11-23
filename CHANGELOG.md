@@ -5,6 +5,30 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.24.0] - 2026-11-23
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.24.0`.
+
+### Added
+
+- A new step, `emulator-snapshots`, on by default like every step. An Android
+  emulator saves a copy of its memory when it closes so that it can resume
+  quickly next time; each copy takes several gigabytes. The step deletes these
+  copies, and nothing else:
+  - Each virtual device keeps its own disk, so the apps installed in it, the
+    accounts signed in and its settings stay.
+  - The next start of that emulator takes longer, because it boots from scratch.
+    A new copy is saved when it closes, unless it was started with
+    `-no-snapshot-save`.
+  - While any emulator runs, the step deletes nothing and prints a `SKIPPED`
+    line; `clean` still exits 0.
+  - The devices are looked for in `ANDROID_AVD_HOME` when it is set, otherwise
+    in `ANDROID_USER_HOME/avd`, otherwise in `~/.android/avd`: one folder, the
+    first that applies.
+  - `diskcleaner clean --dry-run --only emulator-snapshots` shows what it would
+    delete. To keep the copies, set `enabled = false` under
+    `[emulator-snapshots]`.
+
 ## [0.23.0] - 2026-11-19
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.23.0`.

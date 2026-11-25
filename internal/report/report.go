@@ -52,6 +52,7 @@ func (r *Report) RemoveEntry(path string, bytes int64, remove func() error) {
 		r.removed = append(r.removed, key)
 	case errors.Is(err, syscall.ENOTEMPTY), errors.Is(err, syscall.EEXIST):
 		r.Skip("%s: no longer empty", path)
+		r.CountFreed(path, sizeKB, "a removal something was written into")
 	case err != nil:
 		r.Fail("rm %s: %v", path, err)
 		r.CountFreed(path, sizeKB, "a failed rm")

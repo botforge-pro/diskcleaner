@@ -7,53 +7,70 @@ is 0.x, commands and output may still change.
 
 ## [Unreleased]
 
-The steps, their settings and their flags keep their names; the changes below
-are to what `clean` prints, when it fails, and what it keeps. If a script reads
-the output of `clean`, check it against the first four items under Changed.
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.25.0`.
+
+The steps, their settings and their flags keep their names. What changes is
+what `clean` prints, when it exits with 1, and in a few cases what it keeps or
+removes. If a script reads the output or the exit status of `clean`, check it
+against every item under Changed; a `clean --dry-run` before and after the
+upgrade shows the difference on your machine.
 
 ### Changed
 
 - A step prints its heading only when it removes, keeps or fails something.
-  The heading names the folder the step works in, with symbolic links
-  resolved, and its label is the first word of the step's name: `SYSTEM` for
-  `system-temp`, which printed `TEMP`. Two steps may share a label, such as
-  `CLAUDE` for `claude-logs` and `claude-scratchpads`; the folder after it
-  tells them apart. `projects` prints one heading for each folder in
-  `project-dirs`, where it printed one for each repository.
+  A step that works in a folder names that folder, with symbolic links in its
+  path resolved; a step that only runs a command, such as `homebrew`, names
+  what it removes. The label before it is now the first word of the step's
+  name in capitals, so five labels change: `projects` prints `PROJECTS`
+  (was `PROJECT`), `xcode-archives` `XCODE` (was `ARCHIVES`), `system-temp`
+  `SYSTEM` (was `TEMP`), `code-sign-clones` `CODE` (was `CLONES`) and
+  `claude-scratchpads` `CLAUDE` (was `SCRATCH`). Steps sharing a label are
+  told apart by the folder after it. `projects` prints one heading for each
+  folder in `project-dirs`, where it printed one for each repository.
 - Something kept only because it is younger than its age setting is no longer
-  printed as `SKIPPED`. It is still kept, but not counted or listed, and
-  `system-temp` no longer prints a line such as `/private/tmp: 413 files
-  younger than 3 days`. Something kept for another reason is still printed: a
-  file a process has open, a file Git tracks, a socket, a mounted volume, a
-  simulator that is running.
-- A step that looks for what to remove, such as `xcode-archives` or
-  `simulator-caches`, checks whether its tool is running only once it has
-  found something to remove, and prints that it skips only then. With nothing
-  to remove, a running Xcode or a booted simulator is no longer mentioned.
-- When a step runs a command, such as `brew cleanup`, its `RUN` line comes
-  after the command finishes and gives the space it freed. In a dry run, the
+  printed as `SKIPPED`. It is still kept, and it is neither listed nor among
+  the paths the summary counts. `system-temp` no longer prints a line such as
+  `/private/tmp: 413 files younger than 3 days`. Something kept for any other
+  reason is still printed: a file a process has open, a file Git tracks, a
+  socket, a mounted volume, a simulator that is running.
+- `xcode-archives`, `emulator-snapshots` and `claude-scratchpads` check
+  whether their tool is running, and `simulator-caches` whether a simulator is
+  shut down, only after they have found something to remove, and print that
+  they skip only then. With nothing to remove, a running Xcode or emulator, a
+  Swift build or a booted simulator is no longer mentioned by these steps.
+- When a step runs a command, such as `brew cleanup`, its `RUN` line is
+  printed after the command finishes and gives the space freed: the size the
+  command reports, or how much the folder it cleans shrank. In a dry run, the
   pruning of Git LFS objects is printed like any other command, as
   `WOULD RUN git -C <repository> lfs prune --verify-remote`, with the size
-  Git LFS expects to free.
+  Git LFS says it would free.
 - A folder listed in `project-dirs` that does not exist is reported as a
   failure, so `clean` exits 1, and the other folders are still cleaned.
   Before, `clean` did not start and exited 2.
-- A step whose folder is `/`, your home folder, or a folder that contains
-  your home folder does nothing there and is reported as a failure. This
-  happens only when `project-dirs`, or an environment variable that names a
-  tool's folder, such as `GRADLE_USER_HOME`, names one of these.
-- A folder that contains a mounted volume, such as an opened disk image, is
-  always kept. A symbolic link inside a folder being cleaned is never
-  followed: what it points to stays, as an Android virtual device stored
-  elsewhere and linked into `~/.android/avd` does.
-- Every age setting works the same in every step: something exactly as old
-  as the setting, or younger, stays, and the value `0` lets age keep nothing.
-  Before, a session log or an Xcode archive exactly as old as `min-age` was
-  removed. With `0`, a file whose modification time lay in the future was
-  kept in some steps; now it is removed like any other.
-- Temporary files left by `git fetch` and `git repack` are checked for use in
-  the same way as build output. If that check cannot be made, the files stay
-  and `clean` exits 1.
+- If a step's folder is `/`, your home folder or a folder that contains your
+  home folder, the step stops without removing anything and is reported as a
+  failure, so `clean` exits 1. Only something you set can name such a folder:
+  `project-dirs`; the environment variables `GRADLE_USER_HOME`,
+  `ANDROID_AVD_HOME`, `ANDROID_USER_HOME`, `CLAUDE_CONFIG_DIR` or `CODEX_HOME`;
+  Go's `GOCACHE` or `GOMODCACHE`; or a custom DerivedData folder in Xcode.
+- In every step, a folder that contains a mounted volume, such as an opened
+  disk image, is kept.
+- A symbolic link found inside a folder being cleaned is neither followed nor
+  removed. An Android virtual device stored elsewhere and linked into
+  `~/.android/avd` therefore keeps its saved states, and the link stays. A
+  step's own folder may itself be a link, such as `~/.gradle/caches` linked
+  to another disk: a step that cleans inside its folder follows that one link,
+  and a step that removes its folder whole removes only the link.
+- Every age setting means the same in every step: something stays while its
+  age is at most the setting. Before, a session log or an Xcode archive
+  exactly as old as `min-age` was removed; now it stays until the next run.
+  An age setting of `0` keeps nothing for its age, not even a file whose
+  modification time lies in the future, which some steps used to keep.
+- Temporary files left by `git fetch` and `git repack` are now kept while a
+  process has them open, as build output is, besides being kept for
+  `projects.git-tmp-min-age` and while the `git repack` that writes them runs.
+  If `diskcleaner` cannot ask which files are open, they stay and `clean`
+  exits 1.
 
 ### Fixed
 
@@ -62,11 +79,11 @@ the output of `clean`, check it against the first four items under Changed.
   than it has on disk, such as `~/developer` for `~/Developer`. It is now kept
   whatever case the setting uses.
 - A copy of Chrome that a running Chrome was started from could be removed.
-  Chrome makes such a copy, `code_sign_clone`, when it starts. Its program
-  file is the same file as the one in `/Applications`, so `diskcleaner` could
-  not tell which copy a running Chrome used. A copy is now kept while any
-  running Chrome uses that file; once Chrome quits or updates, the next `clean`
-  removes it.
+  Chrome makes such a copy, `code_sign_clone`, when it starts, and the
+  copy's program file is a hard link to the one in `/Applications`: one file
+  under two names. Which of the two a running Chrome was started from cannot be
+  told, so a copy is now kept while any running Chrome uses that file; once
+  Chrome quits or updates, the next `clean` removes it.
 
 ## [0.24.0] - 2026-11-23
 

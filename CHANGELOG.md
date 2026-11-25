@@ -11,9 +11,20 @@ is 0.x, commands and output may still change.
 
 - Every age setting means the same in every step: what is not older than it
   stays, and `0` keeps nothing for its age. Before, a session log or an Xcode
-  archive exactly as old as its `min-age` was removed, and `min-age = 0` still
-  kept files stamped with a time in the future in projects, temporary folders
-  and app copies.
+  archive exactly as old as its `min-age` was removed, and with an age of `0`
+  a file stamped with a time in the future still stayed in projects, temporary
+  folders, app copies, session logs and Xcode archives.
+- Temporary files of `git fetch` and `git repack` are checked against one list
+  of open files per repository, as build output is. When `lsof` warns while
+  making that list, the files stay and `clean` exits 1, as it does for build
+  output.
+
+### Fixed
+
+- A path a process holds open is recognized even when the folder above it was
+  given in another case than the disk has, such as `project-dirs =
+  ["~/developer"]` for `~/Developer`. Before, build output, `node_modules` or a
+  temporary file of Git in use could be removed.
 
 ## [0.24.0] - 2026-11-23
 

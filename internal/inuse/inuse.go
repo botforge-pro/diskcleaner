@@ -61,9 +61,6 @@ func (c Check) written() string {
 }
 
 func (c Check) writtenSince(root string) (bool, error) {
-	if c.Age.Min == 0 {
-		return false, nil
-	}
 	fresh := false
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if errors.Is(err, fs.ErrNotExist) && path != root {

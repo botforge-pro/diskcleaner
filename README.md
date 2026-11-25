@@ -80,13 +80,13 @@ enabled = false
 | Setting | Default | |
 |---|---|---|
 | `project-dirs` | those of `~/Developer`, `~/Projects`, `~/src`, `~/code`, `~/GolandProjects`, `~/IdeaProjects`, `~/AndroidStudioProjects` that exist | where Git repositories sit, one level down; `node_modules` is found at any depth |
-| `min-age` | `1h` | in projects, temporary folders and app copies, anything written more recently stays; `system-temp` keeps 3 days instead |
+| `min-age` | `1h` | in projects, temporary folders and app copies, anything written within it stays; `system-temp` keeps 3 days instead |
 | `min-free` | `0` (off) | exit 4 when less is free after `clean` |
 | `<step>.enabled` | on | |
 
-A duration is like `90m`, `1h30m` or `15d`; a size like `500KB` or `5GB`, where
-1KB is 1024 bytes; a folder starts with `/` or `~/`. Each step's own settings
-are under it below.
+A duration is like `90m`, `1h30m` or `15d`; an age of `0` keeps nothing for its
+age. A size is like `500KB` or `5GB`, where 1KB is 1024 bytes; a folder starts
+with `/` or `~/`. Each step's own settings are under it below.
 
 ## Steps
 

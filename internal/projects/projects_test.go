@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/botforge-pro/diskcleaner/internal/age"
+	"github.com/botforge-pro/diskcleaner/internal/candidates"
 	"github.com/botforge-pro/diskcleaner/internal/inuse"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/stretchr/testify/assert"
@@ -311,7 +312,7 @@ func TestLsofDecidesTheGitGarbage(t *testing.T) {
 		fail    string
 	}{
 		{"open", "printf 'p1\\nnFILE\\n'\n", 5, "tmp_pack_died: a process still has it open", ""},
-		{"error", "echo \"lsof: status error on $2: Permission denied\" >&2\nexit 1\n", 5, "", "tmp_pack_died: exit 1: lsof: status error on"},
+		{"error", "echo 'lsof: status error on /Volumes/share: Permission denied' >&2\nexit 1\n", 5, "", "tmp_pack_died: exit 1: lsof: status error on /Volumes/share"},
 		{"hung", "exec sleep 30\n", 1, "", "tmp_pack_died: no answer within 1s"},
 		{"hung in a child", "sleep 30 &\necho $! >\"$0.pid\"\nwait\n", 1, "", "tmp_pack_died: no answer within 1s"},
 		{"child left behind", "sleep 30 >/dev/null 2>&1 &\necho $! >\"$0.pid\"\nexit 1\n", 5, "", "tmp_pack_died: exited but left a process running"},
@@ -455,6 +456,23 @@ func TestLFSWithoutGitLFSFails(t *testing.T) {
 	r, _, _ := run(step(t, repos), false)
 
 	assert.Equal(t, []string{filepath.Join(repo, ".git", "lfs") + ": git-lfs is not installed"}, r.Failures)
+}
+
+func TestTheTemporaryFilesOfARepositoryAreAnsweredFromOneListing(t *testing.T) {
+	repos := newRepos(t)
+	calls := filepath.Join(t.TempDir(), "calls")
+	s := step(t, repos)
+	s.Garbage.Lsof.Command = script(t, "lsof", "echo x >>"+calls+"\nprintf 'p1\\nn/\\n'\n")
+	var stdout, stderr bytes.Buffer
+	r := &report.Report{Out: &stdout, Err: &stderr}
+	var set candidates.Set
+
+	s.Garbage.Collect(r, &set, filepath.Join(repos, "swiftapp"))
+
+	assert.Len(t, set.Paths(), 3, "three dead temporary files")
+	recorded, err := os.ReadFile(calls)
+	require.NoError(t, err)
+	assert.Equal(t, "x\n", string(recorded))
 }
 
 func TestNoMinAgeRemovesAFreshDeadTemporaryFileAndKeepsALiveRepack(t *testing.T) {

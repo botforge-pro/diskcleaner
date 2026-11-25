@@ -115,6 +115,19 @@ func TestKeepsAsManyNewestArchivesAsSet(t *testing.T) {
 	assert.Equal(t, 1, r.Count)
 }
 
+func TestAnArchiveExactlyAsOldAsTheSetAgeStays(t *testing.T) {
+	folder := newArchives(t)
+	exact := "2026-10-20/App 20.10.2026.xcarchive"
+	writeArchive(t, filepath.Join(folder, exact), "com.example.app", 15*day)
+	past := "2026-10-19/App 19.10.2026.xcarchive"
+	writeArchive(t, filepath.Join(folder, past), "com.example.app", 15*day+time.Second)
+
+	_, _, _ = runArchives(archives(folder), false)
+
+	assert.DirExists(t, filepath.Join(folder, exact))
+	assert.NoDirExists(t, filepath.Join(folder, past))
+}
+
 func TestKeepsArchivesYoungerThanTheSetAge(t *testing.T) {
 	folder := newArchives(t)
 	s := archives(folder)

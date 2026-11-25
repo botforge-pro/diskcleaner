@@ -158,6 +158,20 @@ func TestAFailedOpenCheckRemovesNothing(t *testing.T) {
 	assert.Contains(t, r.Failures[0], "lsof "+folder+": exit 1: lsof: status error")
 }
 
+func TestNoMinAgeRemovesEvenALogStampedInTheFuture(t *testing.T) {
+	folder, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	future := filepath.Join(folder, "future.jsonl")
+	writeLog(t, future, -time.Hour)
+	s := step(folder)
+	s.Age.Min = 0
+
+	r, _, _ := run(s, false)
+
+	assert.NoFileExists(t, future)
+	assert.Equal(t, 1, r.Count)
+}
+
 func TestRemovesLogsOlderThanMinAge(t *testing.T) {
 	folder := newFolder(t)
 

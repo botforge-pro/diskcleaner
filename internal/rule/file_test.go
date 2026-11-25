@@ -73,6 +73,7 @@ func TestAStepWrittenInCodeDeclaresItsSettings(t *testing.T) {
 describes: old Xcode archives, the newest of each app kept
 readme:
   removes: archives older than {min-age}
+  keeps: the newest {keep} of each app
 settings:
   - key: min-age
     kind: duration
@@ -93,13 +94,13 @@ run: code
 	require.Len(t, step.Settings, 2)
 	assert.Equal(t, config.Setting{Key: "min-age", Kind: config.Duration, Default: "15d", Help: "remove archives older than this"}, step.Settings[0])
 	assert.Equal(t, config.Count, step.Settings[1].Kind)
-	assert.Equal(t, "archives older than `min-age` (`15d`)", f.Explain(f.Readme.Removes))
+	assert.Equal(t, "archives older than `xcode-archives.min-age` (`15d`)", f.Explain(f.Readme.Removes))
 }
 
-func TestTheRootMentionedInTheREADMEReadsAsWritten(t *testing.T) {
+func TestTheRootMentionedInTheREADMEReadsAsItsChoicesInOrder(t *testing.T) {
 	f := parse(t, "some-cache.yaml", valid)
 
-	assert.Equal(t, "the cache of some tool in `$SOME_CACHE or $SOME_HOME/cache or ~/Library/Caches/some`", f.Explain(f.Readme.Removes))
+	assert.Equal(t, "the cache of some tool in `$SOME_CACHE`, else `$SOME_HOME/cache`, else `~/Library/Caches/some`", f.Explain(f.Readme.Removes))
 }
 
 func TestAMistakeInAFileIsNamed(t *testing.T) {
@@ -117,7 +118,8 @@ func TestAMistakeInAFileIsNamed(t *testing.T) {
 		{"no order", "a.yaml", "describes: x\nroot: ~/a\nremove: root\n", "order: want a whole number above 0"},
 		{"run something else", "a.yaml", "order: 1\ndescribes: x\nreadme: {removes: x}\nrun: a\n", `run "a": want code`},
 		{"code with a root", "a.yaml", code + "root: ~/a\n", "belong to it there"},
-		{"code with keep", "a.yaml", code + "settings: [{key: min-age, kind: duration, default: 1h, help: x}]\nkeep: {written-within: min-age}\n", "belong to it there"},
+		{"code with keep", "a.yaml", bare + "readme: {removes: 'older than {min-age}'}\nsettings: [{key: min-age, kind: duration, default: 1h, help: x}]\nkeep: {written-within: min-age}\n", "belong to it there"},
+		{"a setting the readme does not name", "a.yaml", code + "settings: [{key: min-age, kind: duration, default: 1h, help: x}]\n", "want {min-age} in its text"},
 		{"setting of an unknown kind", "a.yaml", code + "settings: [{key: wait, kind: minutes, default: '1', help: x}]\n", "want one of count, duration, timeout"},
 		{"setting with a bad default", "a.yaml", code + "settings: [{key: wait, kind: duration, default: soon, help: x}]\n", "settings: wait: default: want a duration"},
 		{"setting named enabled", "a.yaml", code + "settings: [{key: enabled, kind: count, default: '1', help: x}]\n", "other than enabled"},
@@ -136,7 +138,7 @@ func TestAMistakeInAFileIsNamed(t *testing.T) {
 		{"folder leaves the root", "a.yaml", head + "root: ~/a\nremove: {folders: ['../b']}\n", "want a pattern inside the root"},
 		{"a folder after any depth", "a.yaml", head + "root: ~/a\nremove: {files: ['**/logs/*.log']}\n", "or **/ and a name pattern"},
 		{"files deep in the middle", "a.yaml", head + "root: ~/a\nremove: {files: ['a/**/b']}\n", "want a pattern inside the root, like logs/*.log"},
-		{"keep without files", "a.yaml", head + "settings: [{key: min-age, kind: duration, default: 1h, help: x}]\nroot: ~/a\nremove: root\nkeep: {written-within: min-age}\n", "keep: want remove: files"},
+		{"keep without files", "a.yaml", "order: 1\ndescribes: x\nreadme: {removes: 'older than {min-age}'}\nsettings: [{key: min-age, kind: duration, default: 1h, help: x}]\nroot: ~/a\nremove: root\nkeep: {written-within: min-age}\n", "keep: want remove: files"},
 		{"keep open is always on", "a.yaml", head + "root: ~/a\nremove: {files: ['**/*.log']}\nkeep: {open: true}\n", "field open not found"},
 		{"keep by an unknown age", "a.yaml", head + "root: ~/a\nremove: {files: ['**/*.log']}\nkeep: {written-within: min-age}\n", `keep: written-within "min-age": want`},
 		{"keep with an unknown key", "a.yaml", head + "root: ~/a\nremove: {files: ['**/*.log']}\nkeep: {opened: true}\n", "field opened not found"},

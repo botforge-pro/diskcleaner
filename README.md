@@ -94,22 +94,22 @@ with `/` or `~/`. Each step's own settings are under it below.
 
 | Step | Removes | Keeps | Can lose |
 |---|---|---|---|
-| `projects` | in each project: `.build` of Swift packages, Gradle `build`, `.apk`/`.aab`, Python's `__pycache__` anywhere outside `node_modules` and `.build`, `node_modules` with a lockfile, temporary files of a dead `git fetch` or `git repack` older than `git-tmp-min-age` (`1h`), Git LFS objects the remote has, giving up on a repository after `lfs-timeout` (`10m`) | `node_modules` without a lockfile | packages installed with `--no-save`, unpublished, or from a registry you no longer reach |
+| `projects` | in each project: `.build` of Swift packages, Gradle `build`, `.apk`/`.aab`, Python's `__pycache__` anywhere outside `node_modules` and `.build`, `node_modules` with a lockfile, temporary files of a dead `git fetch` or `git repack` older than `projects.git-tmp-min-age` (`1h`), Git LFS objects the remote has, giving up on a repository after `projects.lfs-timeout` (`10m`) | `node_modules` without a lockfile | packages installed with `--no-save`, unpublished, or from a registry you no longer reach |
 | `gradle-caches` | `$GRADLE_USER_HOME/caches` | all while Gradle, Android Studio or IntelliJ run |  |
-| `docker-images` | images no container uses, giving up on a Docker that does not answer after `timeout` (`30s`) and on a prune after `prune-timeout` (`15m`) | volumes | an image neither a registry nor a Dockerfile still has |
+| `docker-images` | images no container uses, giving up on a Docker that does not answer after `docker-images.timeout` (`30s`) and on a prune after `docker-images.prune-timeout` (`15m`) | volumes | an image neither a registry nor a Dockerfile still has |
 | `go-cache` | the Go module and build caches | each cache when a Go command is detected before deletion |  |
-| **`homebrew`** | old versions of formulae and casks; every download, whatever its age, giving up after `timeout` (`15m`) | installed versions | the old versions |
+| **`homebrew`** | old versions of formulae and casks; every download, whatever its age, giving up after `homebrew.timeout` (`15m`) | installed versions | the old versions |
 | `swiftpm-cache` | the SwiftPM package cache | all while Swift or Xcode build |  |
 | `xcode-derived-data` | Xcode DerivedData | all while Xcode builds; in a folder you picked in Xcode, what Xcode did not make |  |
-| **`xcode-archives`** | archives older than `min-age` (`15d`) | the newest `keep` (`1`) of each app; any archive in a folder not named by a date | the signed builds and their debug symbols |
+| **`xcode-archives`** | archives older than `xcode-archives.min-age` (`15d`) | the newest `xcode-archives.keep` (`1`) of each app; any archive in a folder not named by a date | the signed builds and their debug symbols |
 | `temp-leftovers` | work folders of killed Go builds, Xcode export leftovers |  |  |
 | **`system-temp`** | what macOS itself removes from `/private/tmp` after 3 days, if it is yours: files not read, written or changed for 3 days, at any depth, and folders empty and unchanged for 3 days | files touched in the last 3 days, sockets, symbolic links, mounted volumes (never looked into), the dot entries and `claude-*` folders at the top, the X11, quota and resource-stream entries macOS keeps, what a process holds open | whatever was kept there |
 | `code-sign-clones` | copies of Chrome and other apps no running app was started from |  |  |
 | **`ide-old-versions`** | settings, caches and logs of IDE versions older than the installed one | data of every installed version | settings the new version did not copy |
 | `simulator-caches` | Core ML caches and lock-screen wallpaper snapshots of shut-down simulators | app data |  |
-| `emulator-snapshots` | saved quick-boot states of Android emulators in `$ANDROID_AVD_HOME or $ANDROID_USER_HOME/avd or ~/.android/avd`, all while an emulator runs | each device's data: installed apps, accounts, settings | the next start is a cold boot |
-| **`claude-logs`** | Claude Code session logs older than `min-age` (`20d`) | open logs | resuming those sessions |
-| **`codex-logs`** | Codex session logs older than `min-age` (`20d`) | open logs | resuming those sessions |
+| `emulator-snapshots` | saved quick-boot states of Android emulators in `$ANDROID_AVD_HOME`, else `$ANDROID_USER_HOME/avd`, else `~/.android/avd`, all while an emulator runs | each device's data: installed apps, accounts, settings | the next start is a cold boot |
+| **`claude-logs`** | Claude Code session logs older than `claude-logs.min-age` (`20d`) | open logs | resuming those sessions |
+| **`codex-logs`** | Codex session logs older than `codex-logs.min-age` (`20d`) | open logs | resuming those sessions |
 | `claude-scratchpads` | build output in Claude Code scratchpads | the scratchpads |  |
 
 ## Lines of Code

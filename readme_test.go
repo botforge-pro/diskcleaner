@@ -25,6 +25,6 @@ func TestTheREADMEListsTheStepsAsTheirFilesSay(t *testing.T) {
 func TestASettingMentionedInTheREADMEReadsAsItsKeyAndDefault(t *testing.T) {
 	table := stepsTable()
 
-	assert.Contains(t, table, "| **`xcode-archives`** | archives older than `min-age` (`15d`) | the newest `keep` (`1`) of each app;")
+	assert.Contains(t, table, "| **`xcode-archives`** | archives older than `xcode-archives.min-age` (`15d`) | the newest `xcode-archives.keep` (`1`) of each app;")
 	assert.Contains(t, table, "| `gradle-caches` | `$GRADLE_USER_HOME/caches` | all while Gradle, Android Studio or IntelliJ run |  |\n")
 }

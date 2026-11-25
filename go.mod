@@ -9,7 +9,7 @@ require (
 	github.com/knadh/koanf/v2 v2.4.1
 	github.com/spf13/pflag v1.1.0
 	github.com/stretchr/testify v1.12.1
-	golang.org/x/sys v0.32.0
+	golang.org/x/sys v0.50.0
 )
 
 require (

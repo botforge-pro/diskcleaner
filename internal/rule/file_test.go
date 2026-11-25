@@ -128,6 +128,8 @@ func TestAMistakeInAFileIsNamed(t *testing.T) {
 		{"remove with an unknown key", "a.yaml", "name: a\n" + head + "root: ~/a\nremove: {folder: [x]}\n", "remove: want root, or one of folders"},
 		{"no folders", "a.yaml", "name: a\n" + head + "root: ~/a\nremove: {folders: []}\n", "want at least one pattern"},
 		{"folder leaves the root", "a.yaml", "name: a\n" + head + "root: ~/a\nremove: {folders: ['../b']}\n", "want a pattern inside the root"},
+		{"a folder after any depth", "a.yaml", "name: a\n" + head + "root: ~/a\nremove: {files: ['**/logs/*.log']}\n", "or **/ and a name pattern"},
+		{"code with keep", "a.yaml", "name: a\n" + code + "keep: {open: true}\n", "belong to it there"},
 		{"files deep in the middle", "a.yaml", "name: a\n" + head + "root: ~/a\nremove: {files: ['a/**/b']}\n", "want a pattern inside the root, like logs/*.log"},
 		{"keep without files", "a.yaml", "name: a\n" + head + "root: ~/a\nremove: root\nkeep: {open: true}\n", "keep: want remove: files"},
 		{"keep by an unknown age", "a.yaml", "name: a\n" + head + "root: ~/a\nremove: {files: ['**/*.log']}\nkeep: {written-within: min-age}\n", `keep: written-within "min-age": want`},

@@ -216,8 +216,8 @@ func (f *File) check(base string) error {
 		return err
 	}
 	if f.Run != "" {
-		if f.Label != "" || f.Root != "" || f.Busy.Says != "" || len(f.Busy.Processes) > 0 || len(f.Busy.Groups) > 0 || f.Remove.given {
-			return fmt.Errorf("run %q: the step is written in code, so label, root, busy and remove belong to it there", f.Run)
+		if f.Label != "" || f.Root != "" || f.Busy.Says != "" || len(f.Busy.Processes) > 0 || len(f.Busy.Groups) > 0 || f.Remove.given || f.Keep != (KeepWhen{}) {
+			return fmt.Errorf("run %q: the step is written in code, so label, root, busy, remove and keep belong to it there", f.Run)
 		}
 		return nil
 	}
@@ -255,8 +255,8 @@ func (f *File) check(base string) error {
 		}
 	}
 	for _, pattern := range f.Remove.Files {
-		rest, _ := strings.CutPrefix(pattern, "**/")
-		if !inside(rest) || strings.Contains(rest, "**") {
+		rest, anywhere := strings.CutPrefix(pattern, "**/")
+		if !inside(rest) || strings.Contains(rest, "**") || anywhere && strings.Contains(rest, "/") {
 			return fmt.Errorf("remove: files: %q: want a pattern inside the root, like logs/*.log, or **/ and a name pattern, like **/*.jsonl", pattern)
 		}
 	}

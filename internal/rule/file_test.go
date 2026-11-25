@@ -69,7 +69,7 @@ func TestAMistakeInAFileIsNamed(t *testing.T) {
 		{"an unknown group", "a.yaml", head + "root: ~/a\nunless: [{running: [{group: eclipse}]}]\nremove: .\n", "group \"eclipse\": want one of the groups"},
 		{"an unknown placeholder", "a.yaml", head + "root: ~/a/{nothing}\nremove: .\n", "{nothing}: want path, name, uid, a let above or a setting"},
 		{"a duration where a path is wanted", "a.yaml", head + "root: ~/a/{min-age}\nremove: .\n", "{min-age}: a duration setting belongs where"},
-		{"a set of folders inside a path", "a.yaml", head + "root: '{project-dirs}/x'\nremove: .\n", "a set of folders is the whole value or nothing"},
+		{"a set of folders in a command", "a.yaml", head + "run: [tool, '{project-dirs}']\ndry-run: [-n]\n", "a set of folders belongs in a path"},
 		{"a let used above it", "a.yaml", head + "root: '{apps}'\nlet: {apps: /Applications}\nremove: .\n", "{apps}: want path, name, uid, a let above"},
 		{"rank without remove entries", "a.yaml", head + "root: ~/a\nremove: .\nrank: {spare: {newest: 1}}\n", "rank: want remove entries"},
 		{"rank sparing two ways", "a.yaml", head + "root: ~/a\nremove: [{folders: '*'}]\nrank: {spare: {newest: 1, in: x}}\n", "rank: spare: want one of"},

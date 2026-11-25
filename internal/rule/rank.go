@@ -112,18 +112,18 @@ func (c *ctx) cut(r *Rank, members []member, spared map[string]bool) []int {
 	if len(deciders) == 0 {
 		return nil
 	}
-	for _, d := range deciders {
-		if d.present < 0 {
-			c.r.Skip("%s: nothing here goes until %s is made", c.folder, d.name)
-			return nil
-		}
-	}
 	var goes []int
 	for _, m := range members {
 		switch {
 		case m.present < 0 || isSpared(m):
 		case r.Order == nil || compareValues(m.order, deciders[0].order) < 0:
 			goes = append(goes, m.present)
+		}
+	}
+	for _, d := range deciders {
+		if d.present < 0 && len(goes) > 0 {
+			c.r.Skip("%s: nothing here goes until %s is made", c.folder, d.name)
+			return nil
 		}
 	}
 	return goes

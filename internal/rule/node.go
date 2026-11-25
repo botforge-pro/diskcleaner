@@ -496,8 +496,8 @@ func (c checker) text(text, where string, whole bool) error {
 		if kind != kinds["folders"] {
 			return fmt.Errorf("%s: {%s}: a %s setting belongs where a duration, timeout or count is wanted", where, name, settingKindName(kind))
 		}
-		if found[0] != text || !whole {
-			return fmt.Errorf("%s: {%s}: a set of folders is the whole value or nothing", where, name)
+		if !whole {
+			return fmt.Errorf("%s: {%s}: a set of folders belongs in a path, which it makes one per folder", where, name)
 		}
 		c.used[name] = true
 	}

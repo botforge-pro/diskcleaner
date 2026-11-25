@@ -220,10 +220,46 @@ func (c *ctx) choice(text, at string) ([]string, bool) {
 	if match := placeholder.FindStringSubmatch(text); match != nil && match[0] == text {
 		return c.named(match[1])
 	}
-	text, ok := c.fill(text, false)
+	texts, ok := c.spread(text)
 	if !ok {
 		return nil, false
 	}
+	var all []string
+	for _, each := range texts {
+		found, ok := c.path(each, at)
+		if !ok {
+			return nil, false
+		}
+		all = append(all, found...)
+	}
+	return all, true
+}
+
+func (c *ctx) spread(text string) ([]string, bool) {
+	texts := []string{""}
+	last := 0
+	for _, loc := range placeholder.FindAllStringSubmatchIndex(text, -1) {
+		literal := text[last:loc[0]]
+		values, _ := c.named(text[loc[2]:loc[3]])
+		var next []string
+		for _, prefix := range texts {
+			for _, value := range values {
+				if loc[0] > 0 && (strings.Contains(value, "/") || value == "." || value == "..") {
+					c.r.Fail("%s: %s is %q, where a name is wanted, not a path", text, text[loc[0]:loc[1]], value)
+					return nil, false
+				}
+				next = append(next, prefix+literal+value)
+			}
+		}
+		texts, last = next, loc[1]
+	}
+	for i := range texts {
+		texts[i] += text[last:]
+	}
+	return texts, true
+}
+
+func (c *ctx) path(text, at string) ([]string, bool) {
 	var path string
 	switch match := variable.FindStringSubmatch(text); {
 	case match != nil:

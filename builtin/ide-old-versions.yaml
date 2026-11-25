@@ -15,18 +15,20 @@ let:
     - ~/Applications/*.app
     - ~/Applications/*/*.app
     - ~/Library/Application Support/JetBrains/Toolbox/apps/**/*.app
+  vendors: {each: '{apps}', file: Contents/Resources/product-info.json, key: [productVendor]}
+  editors: {each: '{apps}', file: Contents/Resources/app/product.json, key: [nameShort]}
 when:
   - value: '{spotlight}'
     is: set
     fails: Spotlight lists no apps, so IDEs outside the Applications folders and JetBrains Toolbox cannot be found; is its indexing off?
 do:
-  - root: [~/Library/Application Support/*, ~/Library/Caches/*, ~/Library/Logs/*]
+  - root: ['~/Library/Application Support/{vendors}', '~/Library/Caches/{vendors}', '~/Library/Logs/{vendors}']
     remove: [{folders: '*'}]
     rank:
       per: {name: '^([A-Za-z]+)[0-9]'}
       order: {name: '^[A-Za-z]+([0-9][0-9.]*)$'}
       spare: {in: {each: '{apps}', file: Contents/Resources/product-info.json, key: [dataDirectoryName], where: {productVendor: '{name}'}}}
-  - root: ~/Library/Application Support/*
+  - root: '~/Library/Application Support/{editors}'
     let: {app: '{name}'}
     do:
       - root: CachedData

@@ -150,16 +150,16 @@
   removes: []
   fails: [Odd.app]
 
-- case: an app naming a vendor that is a path spares nothing outside its vendor's folder
+- case: a vendor that is a path removes nothing and fails
   commands:
     mdfind kMDItemContentType == "com.apple.application-bundle": {stdout: /System/Applications/Calculator.app}
   files:
     fs/Applications/GoLand.app/Contents/Resources/product-info.json: {text: '{"productVendor": "JetBrains", "dataDirectoryName": "GoLand2026.2"}'}
     fs/Applications/Odd.app/Contents/Resources/product-info.json: {text: '{"productVendor": "../x", "dataDirectoryName": "GoLand2026.2"}'}
-    x/GoLand2025.3/keep:
     Library/Application Support/JetBrains/GoLand2025.3/options/ide.xml:
     Library/Application Support/JetBrains/GoLand2026.2/options/ide.xml:
-  removes: [Library/Application Support/JetBrains/GoLand2025.3]
+  removes: []
+  fails: ['{vendors} is "../x", where a name is wanted, not a path']
 
 - case: an unversioned data folder name is no version and decides nothing
   commands:

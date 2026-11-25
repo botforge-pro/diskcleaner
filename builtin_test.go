@@ -5,7 +5,9 @@ import (
 	"path/filepath"
 	"regexp"
 	"testing"
+	"time"
 
+	"github.com/botforge-pro/diskcleaner/internal/config"
 	"github.com/botforge-pro/diskcleaner/internal/rule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,7 +20,20 @@ func builtinRule(t *testing.T, name, home string, env map[string]string) rule.Ru
 	require.NoError(t, err)
 	f, err := rule.Parse(name+".yaml", data)
 	require.NoError(t, err)
-	return f.Rule(home, func(key string) string { return env[key] }, idleProcesses)
+	return f.Rule(rule.Environment{
+		Home:     home,
+		Getenv:   func(key string) string { return env[key] },
+		Running:  idleProcesses,
+		Duration: func(key string) time.Duration { return settingsDefault(t, name+"."+key) },
+	})
+}
+
+func settingsDefault(t *testing.T, key string) time.Duration {
+	s, ok := settingsTable.Find(key)
+	require.True(t, ok, key)
+	value, err := config.Parse(s, s.Default, "/")
+	require.NoError(t, err)
+	return value.(time.Duration)
 }
 
 func TestEveryBuiltinFileLoadsAndIsInTheCatalog(t *testing.T) {
@@ -70,6 +85,32 @@ func TestSwiftPMCacheGoesWholeWhileNoSwiftOrXcodeBuilds(t *testing.T) {
 		assert.True(t, pattern.MatchString(command), command)
 	}
 	assert.False(t, pattern.MatchString("/Applications/Xcode.app/Contents/Developer/usr/bin/git status"))
+}
+
+func TestSessionLogsAreLookedForWhereEachToolKeepsThem(t *testing.T) {
+	home := t.TempDir()
+
+	claude := builtinRule(t, "claude-logs", home, nil)
+	assert.Equal(t, filepath.Join(home, ".claude", "projects"), claude.Root)
+	assert.Equal(t, "CLAUDE", claude.Label)
+	assert.Equal(t, "/opt/claude/projects", builtinRule(t, "claude-logs", home, map[string]string{"CLAUDE_CONFIG_DIR": "/opt/claude"}).Root)
+
+	codex := builtinRule(t, "codex-logs", home, nil)
+	assert.Equal(t, filepath.Join(home, ".codex", "sessions"), codex.Root)
+	assert.Equal(t, "CODEX", codex.Label)
+	assert.Equal(t, "/opt/codex/sessions", builtinRule(t, "codex-logs", home, map[string]string{"CODEX_HOME": "/opt/codex"}).Root)
+}
+
+func TestSessionLogsKeepWhatIsYoungOpenOrTracked(t *testing.T) {
+	for _, name := range []string{"claude-logs", "codex-logs"} {
+		s := builtinRule(t, name, t.TempDir(), nil)
+
+		assert.Equal(t, []string{"**/*.jsonl"}, s.Files, name)
+		assert.Equal(t, 20*24*time.Hour, s.Keep.Age.Min, name)
+		assert.True(t, s.Keep.Open, name)
+		assert.Equal(t, 50, s.Keep.OpenPerListing, name)
+		assert.True(t, s.Keep.Tracked, name)
+	}
 }
 
 func TestEmulatorSnapshotsAreLookedForWhereAndroidKeepsDevices(t *testing.T) {

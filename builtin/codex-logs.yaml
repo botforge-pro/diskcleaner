@@ -1,5 +1,6 @@
 name: codex-logs
 order: 160
+label: CODEX
 describes: old Codex session logs
 reversible: false
 
@@ -14,4 +15,12 @@ settings:
     default: 20d
     help: remove session logs older than this
 
-run: codex-logs
+root: $CODEX_HOME/sessions or ~/.codex/sessions
+
+remove:
+  files: ['**/*.jsonl']
+
+keep:
+  written-within: min-age
+  open: true
+  tracked-by-git: true

@@ -9,6 +9,7 @@ import (
 	"maps"
 	"os"
 	"slices"
+	"time"
 
 	"github.com/botforge-pro/diskcleaner/internal/config"
 	"github.com/botforge-pro/diskcleaner/internal/process"
@@ -78,8 +79,13 @@ func constructor(f rule.File) construct {
 	if f.Run != "" {
 		return written[f.Run]
 	}
-	return func(home string, _ *config.Config) (step, error) {
-		return f.Rule(home, os.Getenv, process.Running), nil
+	return func(home string, c *config.Config) (step, error) {
+		return f.Rule(rule.Environment{
+			Home:     home,
+			Getenv:   os.Getenv,
+			Running:  process.Running,
+			Duration: func(key string) time.Duration { return c.Duration(f.Name + "." + key) },
+		}), nil
 	}
 }
 

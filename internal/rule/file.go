@@ -11,12 +11,17 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"go.yaml.in/yaml/v3"
 
+	"github.com/botforge-pro/diskcleaner/internal/age"
 	"github.com/botforge-pro/diskcleaner/internal/config"
+	"github.com/botforge-pro/diskcleaner/internal/inuse"
 	"github.com/botforge-pro/diskcleaner/internal/process"
 )
+
+const openAnswersPerListing = 50
 
 var groups = map[string]string{
 	"xcode": process.Xcode,
@@ -39,6 +44,7 @@ type File struct {
 	Root       string    `yaml:"root"`
 	Busy       BusyWhen  `yaml:"busy"`
 	Remove     Removal   `yaml:"remove"`
+	Keep       KeepWhen  `yaml:"keep"`
 	places     []place
 }
 
@@ -108,28 +114,44 @@ type BusyWhen struct {
 	Says      string   `yaml:"says"`
 }
 
+type KeepWhen struct {
+	WrittenWithin string `yaml:"written-within"`
+	Open          bool   `yaml:"open"`
+	TrackedByGit  bool   `yaml:"tracked-by-git"`
+}
+
 type Removal struct {
 	Root    bool
 	Folders []string
+	Files   []string
 	given   bool
 }
 
 func (m *Removal) UnmarshalYAML(node *yaml.Node) error {
 	m.given = true
+	want := fmt.Errorf("line %d: remove: want root, or one of folders: [patterns] and files: [patterns]", node.Line)
 	if node.Kind == yaml.ScalarNode {
 		if node.Value != "root" {
-			return fmt.Errorf("line %d: remove: want root, or folders: [patterns]", node.Line)
+			return want
 		}
 		m.Root = true
 		return nil
 	}
-	var folders struct {
-		Folders []string `yaml:"folders"`
+	if node.Kind != yaml.MappingNode || len(node.Content) != 2 {
+		return want
 	}
-	if err := node.Decode(&folders); err != nil {
+	var patterns []string
+	if err := node.Content[1].Decode(&patterns); err != nil {
 		return err
 	}
-	m.Folders = folders.Folders
+	switch node.Content[0].Value {
+	case "folders":
+		m.Folders = patterns
+	case "files":
+		m.Files = patterns
+	default:
+		return want
+	}
 	return nil
 }
 
@@ -223,14 +245,39 @@ func (f *File) check(base string) error {
 	}
 	switch {
 	case !f.Remove.given:
-		return errors.New("remove: want root, or folders: [patterns inside the root]")
-	case !f.Remove.Root && len(f.Remove.Folders) == 0:
-		return errors.New("remove: folders: want at least one pattern")
+		return errors.New("remove: want root, or one of folders: [patterns] and files: [patterns] inside the root")
+	case !f.Remove.Root && len(f.Remove.Folders) == 0 && len(f.Remove.Files) == 0:
+		return errors.New("remove: want at least one pattern")
 	}
 	for _, pattern := range f.Remove.Folders {
-		if _, err := filepath.Match(pattern, ""); err != nil || filepath.IsAbs(pattern) || slices.Contains(strings.Split(pattern, "/"), "..") {
+		if !inside(pattern) || strings.Contains(pattern, "**") {
 			return fmt.Errorf("remove: folders: %q: want a pattern inside the root, like *.avd/snapshots/*", pattern)
 		}
+	}
+	for _, pattern := range f.Remove.Files {
+		rest, _ := strings.CutPrefix(pattern, "**/")
+		if !inside(rest) || strings.Contains(rest, "**") {
+			return fmt.Errorf("remove: files: %q: want a pattern inside the root, like logs/*.log, or **/ and a name pattern, like **/*.jsonl", pattern)
+		}
+	}
+	return f.checkKeep()
+}
+
+func inside(pattern string) bool {
+	_, err := filepath.Match(pattern, "")
+	return err == nil && pattern != "" && !filepath.IsAbs(pattern) && !slices.Contains(strings.Split(pattern, "/"), "..")
+}
+
+func (f File) checkKeep() error {
+	k := f.Keep
+	if k == (KeepWhen{}) {
+		return nil
+	}
+	if len(f.Remove.Files) == 0 {
+		return errors.New("keep: want remove: files; only files have keep yet")
+	}
+	if k.WrittenWithin != "" && !slices.ContainsFunc(f.Settings, func(s Setting) bool { return s.Key == k.WrittenWithin && s.Kind == "duration" }) {
+		return fmt.Errorf("keep: written-within %q: want the key of one of this step's duration settings", k.WrittenWithin)
 	}
 	return nil
 }
@@ -275,16 +322,30 @@ func parseRoot(root string) ([]place, error) {
 	return places, nil
 }
 
-func (f File) Rule(home string, getenv func(string) string, running func(string) (bool, error)) Rule {
+type Environment struct {
+	Home     string
+	Getenv   func(string) string
+	Running  func(string) (bool, error)
+	Duration func(key string) time.Duration
+}
+
+func (f File) Rule(env Environment) Rule {
 	patterns := slices.Clone(f.Busy.Processes)
 	for _, group := range f.Busy.Groups {
 		patterns = append(patterns, groups[group])
 	}
+	keep := Keep{Open: f.Keep.Open, OpenPerListing: openAnswersPerListing, Tracked: f.Keep.TrackedByGit, Age: age.Of(0)}
+	if f.Keep.WrittenWithin != "" {
+		keep.Age = age.Of(env.Duration(f.Keep.WrittenWithin))
+	}
 	return Rule{
 		Label:   f.Label,
-		Root:    f.root(home, getenv),
-		Busy:    Busy{Processes: strings.Join(patterns, "|"), Running: running, Says: f.Busy.Says},
+		Root:    f.root(env.Home, env.Getenv),
+		Busy:    Busy{Processes: strings.Join(patterns, "|"), Running: env.Running, Says: f.Busy.Says},
 		Targets: f.Remove.Folders,
+		Files:   f.Remove.Files,
+		Keep:    keep,
+		Lsof:    inuse.DefaultLsof(),
 	}
 }
 

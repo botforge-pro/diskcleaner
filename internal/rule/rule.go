@@ -1,12 +1,19 @@
 package rule
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
+	"github.com/botforge-pro/diskcleaner/internal/age"
+	"github.com/botforge-pro/diskcleaner/internal/candidates"
+	"github.com/botforge-pro/diskcleaner/internal/inuse"
 	"github.com/botforge-pro/diskcleaner/internal/report"
+	"github.com/botforge-pro/diskcleaner/internal/settings"
 )
 
 type Busy struct {
@@ -15,11 +22,21 @@ type Busy struct {
 	Says      string
 }
 
+type Keep struct {
+	Age            age.Limit
+	Open           bool
+	OpenPerListing int
+	Tracked        bool
+}
+
 type Rule struct {
 	Label   string
 	Root    string
 	Busy    Busy
 	Targets []string
+	Files   []string
+	Keep    Keep
+	Lsof    inuse.Lsof
 }
 
 func (s Rule) Run(r *report.Report) {
@@ -33,12 +50,15 @@ func (s Rule) Run(r *report.Report) {
 		r.Skip("%s: %s", s.Root, s.Busy.Says)
 		return
 	}
-	if len(s.Targets) == 0 {
+	switch {
+	case len(s.Files) > 0:
+		s.removeFiles(r)
+	case len(s.Targets) > 0:
+		for _, folder := range s.folders(r) {
+			r.Remove(folder)
+		}
+	default:
 		r.Remove(s.Root)
-		return
-	}
-	for _, folder := range s.folders(r) {
-		r.Remove(folder)
 	}
 }
 
@@ -65,4 +85,91 @@ func (s Rule) folders(r *report.Report) []string {
 		}
 	}
 	return folders
+}
+
+func (s Rule) removeFiles(r *report.Report) {
+	root, err := settings.Canonical(s.Root)
+	if err != nil {
+		r.Fail("resolve %s: %v", s.Root, err)
+		return
+	}
+	var set candidates.Set
+	var scanErrors []error
+	err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			scanErrors = append(scanErrors, err)
+			return nil
+		}
+		if !entry.Type().IsRegular() || !s.wanted(root, path) {
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			scanErrors = append(scanErrors, err)
+			return nil
+		}
+		if s.Keep.Age.Recent(info.ModTime()) {
+			return nil
+		}
+		if s.Keep.Tracked {
+			set.Add(r, path)
+		} else {
+			set.Put(path)
+		}
+		return nil
+	})
+	if err != nil {
+		scanErrors = append(scanErrors, err)
+	}
+	if len(scanErrors) > 0 {
+		r.Fail("scan %s: %v", s.Root, errors.Join(scanErrors...))
+	}
+	set.RemoveUnless(r, s.keeper(r))
+}
+
+func (s Rule) wanted(root, path string) bool {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return false
+	}
+	return slices.ContainsFunc(s.Files, func(pattern string) bool {
+		if anywhere, ok := strings.CutPrefix(pattern, "**/"); ok {
+			matched, _ := filepath.Match(anywhere, filepath.Base(rel))
+			return matched
+		}
+		matched, _ := filepath.Match(pattern, rel)
+		return matched
+	})
+}
+
+func (s Rule) keeper(r *report.Report) func(path string) bool {
+	open := s.Lsof.Every(s.Keep.OpenPerListing)
+	failed := false
+	return func(path string) bool {
+		if s.Keep.Open {
+			if failed {
+				return true
+			}
+			held, err := open.HoldsAny(path)
+			if err != nil {
+				r.Fail("lsof %s: %v", s.Root, err)
+				failed = true
+				return true
+			}
+			if held {
+				r.Skip("%s: a process still has it open", path)
+				return true
+			}
+		}
+		info, err := os.Lstat(path)
+		if err != nil {
+			r.Fail("stat %s: %v", path, err)
+			return true
+		}
+		if s.Keep.Age.Recent(info.ModTime()) {
+			r.Skip("%s: written again since the scan", path)
+			return true
+		}
+		return false
+	}
 }

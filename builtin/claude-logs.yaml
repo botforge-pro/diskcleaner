@@ -1,5 +1,6 @@
 name: claude-logs
 order: 150
+label: CLAUDE
 describes: old Claude Code session logs
 reversible: false
 
@@ -14,4 +15,12 @@ settings:
     default: 20d
     help: remove session logs older than this
 
-run: claude-logs
+root: $CLAUDE_CONFIG_DIR/projects or ~/.claude/projects
+
+remove:
+  files: ['**/*.jsonl']
+
+keep:
+  written-within: min-age
+  open: true
+  tracked-by-git: true

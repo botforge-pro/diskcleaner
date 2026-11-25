@@ -3,6 +3,7 @@ package rule
 import (
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/botforge-pro/diskcleaner/internal/config"
 	"github.com/stretchr/testify/assert"
@@ -24,10 +25,12 @@ remove:
   folders: ['*/old']
 `
 
-func noVariables(string) string { return "" }
-
-func variables(set map[string]string) func(string) string {
-	return func(key string) string { return set[key] }
+func at(home string, variables map[string]string) Environment {
+	return Environment{
+		Home:     home,
+		Getenv:   func(key string) string { return variables[key] },
+		Duration: func(string) time.Duration { return 0 },
+	}
 }
 
 func parse(t *testing.T, name, body string) File {
@@ -37,7 +40,7 @@ func parse(t *testing.T, name, body string) File {
 }
 
 func TestAValidFileBecomesARule(t *testing.T) {
-	r := parse(t, "some-cache.yaml", valid).Rule("/Users/me", noVariables, nil)
+	r := parse(t, "some-cache.yaml", valid).Rule(at("/Users/me", nil))
 
 	assert.Equal(t, "SOME", r.Label)
 	assert.Equal(t, "/Users/me/Library/Caches/some", r.Root)
@@ -49,12 +52,12 @@ func TestAValidFileBecomesARule(t *testing.T) {
 func TestTheRootIsTheFirstChoiceWhoseVariableIsSet(t *testing.T) {
 	f := parse(t, "some-cache.yaml", valid)
 
-	assert.Equal(t, "/opt/some/cache", f.Rule("/Users/me", variables(map[string]string{"SOME_HOME": "/opt/some"}), nil).Root)
-	assert.Equal(t, "/var/some", f.Rule("/Users/me", variables(map[string]string{"SOME_CACHE": "/var/some", "SOME_HOME": "/opt/some"}), nil).Root)
+	assert.Equal(t, "/opt/some/cache", f.Rule(at("/Users/me", map[string]string{"SOME_HOME": "/opt/some"})).Root)
+	assert.Equal(t, "/var/some", f.Rule(at("/Users/me", map[string]string{"SOME_CACHE": "/var/some", "SOME_HOME": "/opt/some"})).Root)
 }
 
 func TestRemoveRootTakesTheRootWhole(t *testing.T) {
-	r := parse(t, "tmp.yaml", "name: tmp\norder: 1\nlabel: TMP\ndescribes: x\nreadme: {removes: x}\nroot: /private/tmp/tool\nremove: root\n").Rule("/Users/me", noVariables, nil)
+	r := parse(t, "tmp.yaml", "name: tmp\norder: 1\nlabel: TMP\ndescribes: x\nreadme: {removes: x}\nroot: /private/tmp/tool\nremove: root\n").Rule(at("/Users/me", nil))
 
 	assert.Equal(t, "/private/tmp/tool", r.Root)
 	assert.Empty(t, r.Targets)
@@ -119,10 +122,16 @@ func TestAMistakeInAFileIsNamed(t *testing.T) {
 		{"no root", "a.yaml", "name: a\n" + head + "remove: root\n", "root: want a folder"},
 		{"variable last", "a.yaml", "name: a\n" + head + "root: ~/a or $A_HOME\nremove: root\n", "the last choice must be a path"},
 		{"relative path", "a.yaml", "name: a\n" + head + "root: Library/a\nremove: root\n", "want $VARIABLE"},
-		{"no remove", "a.yaml", "name: a\n" + head + "root: ~/a\n", "remove: want root, or folders"},
-		{"remove something else", "a.yaml", "name: a\n" + head + "root: ~/a\nremove: all\n", "remove: want root, or folders"},
+		{"no remove", "a.yaml", "name: a\n" + head + "root: ~/a\n", "remove: want root, or one of folders"},
+		{"remove something else", "a.yaml", "name: a\n" + head + "root: ~/a\nremove: all\n", "remove: want root, or one of folders"},
+		{"remove folders and files", "a.yaml", "name: a\n" + head + "root: ~/a\nremove: {folders: [x], files: [y]}\n", "remove: want root, or one of folders"},
+		{"remove with an unknown key", "a.yaml", "name: a\n" + head + "root: ~/a\nremove: {folder: [x]}\n", "remove: want root, or one of folders"},
 		{"no folders", "a.yaml", "name: a\n" + head + "root: ~/a\nremove: {folders: []}\n", "want at least one pattern"},
 		{"folder leaves the root", "a.yaml", "name: a\n" + head + "root: ~/a\nremove: {folders: ['../b']}\n", "want a pattern inside the root"},
+		{"files deep in the middle", "a.yaml", "name: a\n" + head + "root: ~/a\nremove: {files: ['a/**/b']}\n", "want a pattern inside the root, like logs/*.log"},
+		{"keep without files", "a.yaml", "name: a\n" + head + "root: ~/a\nremove: root\nkeep: {open: true}\n", "keep: want remove: files"},
+		{"keep by an unknown age", "a.yaml", "name: a\n" + head + "root: ~/a\nremove: {files: ['**/*.log']}\nkeep: {written-within: min-age}\n", `keep: written-within "min-age": want`},
+		{"keep with an unknown key", "a.yaml", "name: a\n" + head + "root: ~/a\nremove: {files: ['**/*.log']}\nkeep: {opened: true}\n", "field opened not found"},
 		{"processes without says", "a.yaml", "name: a\n" + head + "root: ~/a\nbusy: {processes: [a]}\nremove: root\n", "together with says"},
 		{"says without processes", "a.yaml", "name: a\n" + head + "root: ~/a\nbusy: {says: a runs}\nremove: root\n", "together with says"},
 		{"bad pattern", "a.yaml", "name: a\n" + head + "root: ~/a\nbusy: {processes: ['('], says: a runs}\nremove: root\n", "missing closing )"},

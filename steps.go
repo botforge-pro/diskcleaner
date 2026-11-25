@@ -11,7 +11,6 @@ import (
 	"github.com/botforge-pro/diskcleaner/internal/leftovers"
 	"github.com/botforge-pro/diskcleaner/internal/projects"
 	"github.com/botforge-pro/diskcleaner/internal/scratchpads"
-	"github.com/botforge-pro/diskcleaner/internal/sessionlogs"
 	"github.com/botforge-pro/diskcleaner/internal/simulator"
 	"github.com/botforge-pro/diskcleaner/internal/systemtemp"
 	"github.com/botforge-pro/diskcleaner/internal/xcode"
@@ -58,12 +57,6 @@ var written = map[string]construct{
 	},
 	"simulator-caches": func(home string, _ *config.Config) (step, error) {
 		return simulator.Default(home), nil
-	},
-	"claude-logs": func(home string, c *config.Config) (step, error) {
-		return sessionlogs.Claude(home, c.Duration("claude-logs.min-age")), nil
-	},
-	"codex-logs": func(home string, c *config.Config) (step, error) {
-		return sessionlogs.Codex(home, c.Duration("codex-logs.min-age")), nil
 	},
 	"claude-scratchpads": func(string, *config.Config) (step, error) {
 		return scratchpads.Default(), nil

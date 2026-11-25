@@ -304,8 +304,16 @@ func existing(home string) []string {
 
 func (c *Config) Source(key string) Source { return c.sources[key] }
 
-func (c *Config) Bool(key string) bool              { return c.values[key].(bool) }
-func (c *Config) Duration(key string) time.Duration { return c.values[key].(time.Duration) }
-func (c *Config) Size(key string) int64             { return c.values[key].(int64) }
-func (c *Config) Count(key string) int              { return c.values[key].(int) }
-func (c *Config) Dirs(key string) []string          { return c.values[key].([]string) }
+func (c *Config) Bool(key string) bool              { return value[bool](c, key) }
+func (c *Config) Duration(key string) time.Duration { return value[time.Duration](c, key) }
+func (c *Config) Size(key string) int64             { return value[int64](c, key) }
+func (c *Config) Count(key string) int              { return value[int](c, key) }
+func (c *Config) Dirs(key string) []string          { return value[[]string](c, key) }
+
+func value[T any](c *Config, key string) T {
+	v, ok := c.values[key].(T)
+	if !ok {
+		panic(fmt.Sprintf("the code reads the setting %q as %T, but the table has %T under it", key, v, c.values[key]))
+	}
+	return v
+}

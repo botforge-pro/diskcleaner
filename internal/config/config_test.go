@@ -63,6 +63,15 @@ func TestWithoutAFileEverySettingIsItsDefault(t *testing.T) {
 	assert.Equal(t, FromDefault, c.Source("min-age"))
 }
 
+func TestReadingASettingTheTableLacksNamesIt(t *testing.T) {
+	c, err := load(t, t.TempDir())
+	require.NoError(t, err)
+
+	assert.PanicsWithValue(t, `the code reads the setting "xcode-archives.max-age" as time.Duration, but the table has <nil> under it`, func() {
+		c.Duration("xcode-archives.max-age")
+	})
+}
+
 func TestTheFileOverridesTheDefaultAndAFlagTheFile(t *testing.T) {
 	home := t.TempDir()
 	writeConfig(t, home, "min-age = \"2h\"\nmin-free = \"5GB\"\nproject-dirs = [\"~/work\"]\n\n"+

@@ -23,7 +23,7 @@ type EachWhen struct {
 
 type CommandValue struct {
 	Command []string `yaml:"command"`
-	Is      string   `yaml:"is"`
+	MustBe  string   `yaml:"must-be"`
 	Says    string   `yaml:"says"`
 }
 
@@ -41,8 +41,8 @@ func (f File) checkEach() error {
 		return errors.New("each: want folders, the patterns of the folders handled one by one")
 	case len(f.Remove.Folders) == 0 && len(f.Remove.Files) == 0 && len(f.Remove.Commands) == 0:
 		return errors.New("each: want remove: folders, files or run, looked for or run in each of them")
-	case e.Value != nil && (len(e.Value.Command) == 0 || e.Value.Says == ""):
-		return errors.New("each: value: want command, whose output is the value, is and says")
+	case e.Value != nil && (len(e.Value.Command) == 0 || e.Value.MustBe == "" || e.Value.Says == ""):
+		return errors.New("each: value: want command, whose output is the value; must-be, the value under which the folder is cleaned; and says, why it is not")
 	case (len(e.Busy.Processes) > 0) != (e.Busy.Says != ""):
 		return errors.New("each: busy: want processes together with says")
 	}
@@ -127,7 +127,7 @@ func (s Rule) eachAllows(r *report.Report, folder string) bool {
 			r.Fail("%s: %v: %s", strings.Join(args, " "), result.Err, result.Output())
 			return false
 		}
-		if value := strings.TrimSpace(result.Stdout); value != v.Is {
+		if value := strings.TrimSpace(result.Stdout); value != v.MustBe {
 			r.Skip("%s: %s", folder, strings.ReplaceAll(v.Says, "{value}", value))
 			return false
 		}

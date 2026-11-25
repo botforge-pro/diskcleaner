@@ -22,13 +22,13 @@ var (
 )
 
 type Apps struct {
-	Run  []string `yaml:"run"`
-	Says string   `yaml:"says"`
-	In   []string `yaml:"in"`
+	Run    []string `yaml:"run"`
+	Says   string   `yaml:"says"`
+	AlsoIn []string `yaml:"also-in"`
 }
 
 func (a *Apps) given() bool {
-	return a != nil && (len(a.Run) > 0 || len(a.In) > 0)
+	return a != nil && (len(a.Run) > 0 || len(a.AlsoIn) > 0)
 }
 
 type Superseded struct {
@@ -42,15 +42,15 @@ func (f File) checkSuperseded() error {
 	case len(f.Remove.Superseded) == 0:
 		return nil
 	case !f.Apps.given():
-		return errors.New("remove: superseded: want apps: the run that lists installed apps or the patterns in which they lie")
+		return errors.New("remove: superseded: want apps: a run that lists installed apps, also-in: patterns where more of them lie, or both")
 	case (len(f.Apps.Run) > 0) != (f.Apps.Says != ""):
 		return errors.New("apps: want run together with says, which explains a run that lists no app")
 	case !f.Root.empty() || f.Keep.given() || f.Each.given():
 		return errors.New("remove: superseded: its folders say where they are and the installed apps keep theirs, so want no root, keep or each beside it")
 	}
-	for _, pattern := range f.Apps.In {
+	for _, pattern := range f.Apps.AlsoIn {
 		if !strings.HasPrefix(pattern, "~/") && !filepath.IsAbs(pattern) {
-			return fmt.Errorf("apps: in %q: want a pattern under ~/ or /", pattern)
+			return fmt.Errorf("apps: also-in %q: want a pattern under ~/ or /", pattern)
 		}
 	}
 	for _, s := range f.Remove.Superseded {
@@ -147,7 +147,7 @@ func (s Rule) installedApps() ([]string, error) {
 			return nil, errors.New(apps.Says)
 		}
 	}
-	for _, pattern := range s.file.Apps.In {
+	for _, pattern := range s.file.Apps.AlsoIn {
 		matches, err := s.matchApps(s.local(pattern))
 		if err != nil {
 			return nil, err

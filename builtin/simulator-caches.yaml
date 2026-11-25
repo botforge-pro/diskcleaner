@@ -17,7 +17,7 @@ each:
   has: [data/]
   value:
     command: [plutil, -extract, state, raw, -o, -, '{path}/device.plist']
-    is: '1'
+    must-be: '1'
     says: the simulator is not shut down (state {value})
   busy:
     processes: ['{path}/']

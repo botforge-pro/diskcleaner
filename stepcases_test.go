@@ -79,7 +79,7 @@ func TestEachStepDoesWhatItsTestFileSays(t *testing.T) {
 func builtinFile(t *testing.T, name string) rule.File {
 	data, err := fs.ReadFile(builtinFiles, "builtin/"+name+".yaml")
 	require.NoError(t, err, "a test file for a step that has no file")
-	f, err := rule.Parse(name+".yaml", data)
+	f, err := rule.Parse(name+".yaml", data, builtinGroups)
 	require.NoError(t, err)
 	return f
 }

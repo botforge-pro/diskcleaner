@@ -5,11 +5,8 @@ reversible: true
 readme:
   keeps: a copy made within {min-age}
 
-root: {command: [getconf, DARWIN_USER_TEMP_DIR], then: ../X}
-
-remove:
-  folders: ['*.code_sign_clone/code_sign_clone.*']
-
+root: {run: [getconf, DARWIN_USER_TEMP_DIR], then: ../X}
+remove: [{folders: '*.code_sign_clone/code_sign_clone.*'}]
 keep:
-  age: {of: mtime, within: min-age}
+  age: {of: mtime, within: '{min-age}'}
   open: ['*/Contents/MacOS/*', '*/Contents/Frameworks/*.framework/Versions/*/*']

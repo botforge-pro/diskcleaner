@@ -6,12 +6,6 @@ readme:
   removes: work folders of killed Go builds, Xcode export leftovers
   keeps: a folder written within {min-age}, held open by a process, holding a socket or a mounted volume
 
-root: {command: [getconf, DARWIN_USER_TEMP_DIR]}
-
-remove:
-  folders: ['go-build*', 'go-link-*', 'XcodeDistPipeline.*']
-
-keep:
-  sockets: true
-  age: {of: newest-write, within: min-age}
-  open: true
+root: {run: [getconf, DARWIN_USER_TEMP_DIR]}
+remove: [{folders: 'go-build*'}, {folders: 'go-link-*'}, {folders: 'XcodeDistPipeline.*'}]
+keep: {age: {of: newest-write, within: '{min-age}'}, open: true}

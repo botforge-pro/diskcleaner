@@ -39,8 +39,9 @@
   running: [/Applications/Docker.app/Contents/MacOS/com.docker.backend]
   commands:
     docker info: {stderr: failed to connect to the docker API at unix:///var/run/docker.sock, exit: 1}
+    "docker system df --format {{.Type}}\t{{.Reclaimable}}": {stderr: failed to connect to the docker API at unix:///var/run/docker.sock, exit: 1}
   removes: []
-  fails: ['docker info: exit status 1: failed to connect to the docker API']
+  fails: ["docker system df --format {{.Type}}\t{{.Reclaimable}}: exit status 1: failed to connect to the docker API"]
 
 - case: a hung Docker fails with what to do
   commands:

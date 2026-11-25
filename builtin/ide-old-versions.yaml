@@ -6,25 +6,30 @@ readme:
   keeps: data of every installed version
   can-lose: settings the new version did not copy
 
-apps:
-  run: [mdfind, 'kMDItemContentType == "com.apple.application-bundle"']
-  says: Spotlight lists no apps, so IDEs outside the Applications folders and JetBrains Toolbox cannot be found; is its indexing off?
-  also-in:
+let:
+  spotlight: {run: [mdfind, 'kMDItemContentType == "com.apple.application-bundle"'], lines: true}
+  apps:
+    - '{spotlight}'
     - /Applications/*.app
     - /Applications/*/*.app
     - ~/Applications/*.app
     - ~/Applications/*/*.app
     - ~/Library/Application Support/JetBrains/Toolbox/apps/**/*.app
-
-remove:
-  superseded:
-    - read: Contents/Resources/product-info.json
-      folders:
-        - ~/Library/Application Support/{productVendor}/{dataDirectoryName}
-        - ~/Library/Caches/{productVendor}/{dataDirectoryName}
-        - ~/Library/Logs/{productVendor}/{dataDirectoryName}
-      by: version
-    - read: Contents/Resources/app/product.json
-      folders:
-        - ~/Library/Application Support/{nameShort}/CachedData/{commit}
-      by: name
+when:
+  - value: '{spotlight}'
+    is: set
+    fails: Spotlight lists no apps, so IDEs outside the Applications folders and JetBrains Toolbox cannot be found; is its indexing off?
+do:
+  - root: [~/Library/Application Support/*, ~/Library/Caches/*, ~/Library/Logs/*]
+    remove: [{folders: '*'}]
+    rank:
+      per: {name: '^([A-Za-z]+)[0-9]'}
+      order: {name: '^[A-Za-z]+([0-9][0-9.]*)$'}
+      spare: {in: {each: '{apps}', file: Contents/Resources/product-info.json, key: [dataDirectoryName], where: {productVendor: '{name}'}}}
+  - root: ~/Library/Application Support/*
+    let: {app: '{name}'}
+    do:
+      - root: CachedData
+        remove: [{folders: '*'}]
+        rank:
+          spare: {in: {each: '{apps}', file: Contents/Resources/app/product.json, key: [commit], where: {nameShort: '{app}'}}}

@@ -3,6 +3,7 @@ package rule
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -11,13 +12,15 @@ import (
 
 const openFolder = unix.O_RDONLY | unix.O_DIRECTORY | unix.O_NOFOLLOW | unix.O_CLOEXEC
 
+var errMounted = errors.New("a mounted volume is on its way")
+
 type entry struct {
 	parent int
 	name   string
 	stat   unix.Stat_t
 }
 
-func openEntry(dir, path string, volume int64, mounts map[string]bool) (entry, error) {
+func openEntry(dir, path string, volume int64) (entry, error) {
 	rel, err := filepath.Rel(dir, path)
 	if err != nil {
 		return entry{}, err
@@ -28,13 +31,7 @@ func openEntry(dir, path string, volume int64, mounts map[string]bool) (entry, e
 	}
 	fd, err := unix.Open(dir, openFolder, 0)
 	if err != nil {
-		return entry{}, err
-	}
-	for i := range parts {
-		if mounts[filepath.Join(dir, filepath.Join(parts[:i+1]...))] {
-			_ = unix.Close(fd)
-			return entry{}, errors.New("a mounted volume is on its way")
-		}
+		return entry{}, noFollow(err)
 	}
 	for _, part := range parts[:len(parts)-1] {
 		next, err := unix.Openat(fd, part, openFolder, 0)
@@ -50,7 +47,7 @@ func openEntry(dir, path string, volume int64, mounts map[string]bool) (entry, e
 		}
 		if int64(folder.Dev) != volume {
 			_ = unix.Close(fd)
-			return entry{}, errors.New("a mounted volume is on its way")
+			return entry{}, errMounted
 		}
 	}
 	e := entry{parent: fd, name: parts[len(parts)-1]}
@@ -60,7 +57,7 @@ func openEntry(dir, path string, volume int64, mounts map[string]bool) (entry, e
 	}
 	if int64(e.stat.Dev) != volume {
 		_ = unix.Close(fd)
-		return entry{}, errors.New("now on another volume")
+		return entry{}, errMounted
 	}
 	return e, nil
 }
@@ -72,14 +69,45 @@ func noFollow(err error) error {
 	return err
 }
 
-func (e entry) remove(isDir bool) error {
-	flags := 0
-	if isDir {
-		flags = unix.AT_REMOVEDIR
-	}
-	return unix.Unlinkat(e.parent, e.name, flags)
-}
-
 func (e entry) close() {
 	_ = unix.Close(e.parent)
+}
+
+func removeTree(parent int, name string, volume uint64) error {
+	fd, err := unix.Openat(parent, name, openFolder, 0)
+	if err != nil {
+		return noFollow(err)
+	}
+	folder := os.NewFile(uintptr(fd), name)
+	defer folder.Close()
+	var self unix.Stat_t
+	if err := unix.Fstat(fd, &self); err != nil {
+		return err
+	}
+	if uint64(self.Dev) != volume {
+		return errMounted
+	}
+	names, err := folder.Readdirnames(-1)
+	if err != nil {
+		return err
+	}
+	for _, child := range names {
+		var stat unix.Stat_t
+		err := unix.Fstatat(fd, child, &stat, unix.AT_SYMLINK_NOFOLLOW)
+		if errors.Is(err, unix.ENOENT) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if stat.Mode&unix.S_IFMT == unix.S_IFDIR {
+			err = removeTree(fd, child, volume)
+		} else {
+			err = unix.Unlinkat(fd, child, 0)
+		}
+		if err != nil && !errors.Is(err, unix.ENOENT) {
+			return err
+		}
+	}
+	return unix.Unlinkat(parent, name, unix.AT_REMOVEDIR)
 }

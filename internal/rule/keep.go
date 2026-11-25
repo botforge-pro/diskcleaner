@@ -2,260 +2,250 @@ package rule
 
 import (
 	"errors"
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
-	"strconv"
 	"syscall"
 	"time"
 
-	"go.yaml.in/yaml/v3"
+	"golang.org/x/sys/unix"
 
 	"github.com/botforge-pro/diskcleaner/internal/age"
-	"github.com/botforge-pro/diskcleaner/internal/inuse"
+	"github.com/botforge-pro/diskcleaner/internal/candidates"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 )
 
-type KeepWhen struct {
-	Age     AgeWhen    `yaml:"age"`
-	Open    OpenWhen   `yaml:"open"`
-	Alive   *AliveWhen `yaml:"alive"`
-	Sockets bool       `yaml:"sockets"`
-	Tracked bool       `yaml:"tracked"`
-}
-
-type AliveWhen struct {
-	Pid  string `yaml:"pid"`
-	Says string `yaml:"says"`
-	name *regexp.Regexp
-}
-
-func (a *AliveWhen) check() error {
-	re, err := regexp.Compile(a.Pid)
-	switch {
-	case err != nil:
-		return fmt.Errorf("keep: alive: pid %q: %w", a.Pid, err)
-	case re.NumSubexp() != 1:
-		return fmt.Errorf("keep: alive: pid %q: want one group, the process id in the name", a.Pid)
-	case a.Says == "":
-		return errors.New("keep: alive: want says, why the file of a running process stays")
-	}
-	a.name = re
-	return nil
-}
-
-func (a *AliveWhen) writing(path string) bool {
-	match := a.name.FindStringSubmatch(filepath.Base(path))
-	if match == nil {
-		return false
-	}
-	pid, err := strconv.Atoi(match[1])
-	if err != nil {
-		return false
-	}
-	err = syscall.Kill(pid, 0)
-	return err == nil || errors.Is(err, syscall.EPERM)
-}
-
-type AgeWhen struct {
-	Of     AgeOf  `yaml:"of"`
-	Within string `yaml:"within"`
-}
-
-func (a AgeWhen) given() bool {
-	return a.Within != "" || a.Of.Clock != "" || a.Of.Value != nil
-}
-
-type AgeOf struct {
-	Clock string
-	Value *Value
-}
-
-func (a *AgeOf) UnmarshalYAML(node *yaml.Node) error {
-	if node.Kind == yaml.ScalarNode {
-		a.Clock = node.Value
-		return nil
-	}
-	a.Value = &Value{}
-	return strict(node, a.Value)
-}
-
-type OpenWhen struct {
-	Anything bool
-	Files    []string
-}
-
-func (o *OpenWhen) UnmarshalYAML(node *yaml.Node) error {
-	if node.Kind == yaml.ScalarNode {
-		return node.Decode(&o.Anything)
-	}
-	return node.Decode(&o.Files)
-}
-
-func (o OpenWhen) given() bool {
-	return o.Anything || len(o.Files) > 0
-}
-
-func (k KeepWhen) given() bool {
-	return k.Age.given() || k.Open.given() || k.Alive != nil || k.Sockets || k.Tracked
-}
-
-var ages = []string{"mtime", "newest-write"}
-
-func (f File) checkKeep() error {
-	k := f.Keep
-	if !k.given() {
-		return nil
-	}
-	if k.Age.given() {
-		switch {
-		case k.Age.Of.Value != nil:
-			if err := k.Age.Of.Value.check(); err != nil {
-				return fmt.Errorf("keep: age: of: %w", err)
-			}
-		case !slices.Contains(ages, k.Age.Of.Clock):
-			return fmt.Errorf("keep: age: of %q: want one of %v, or {file, key}, a date read from the folder", k.Age.Of.Clock, ages)
-		}
-		if !hasSetting(f.Settings, k.Age.Within, "duration") && k.Age.Within != "min-age" {
-			return fmt.Errorf("keep: age: within %q: want the key of one of this step's duration settings or min-age", k.Age.Within)
+func (c *ctx) removeIn(n *Node) {
+	var all []found
+	if n.Remove.Itself {
+		all = []found{{path: c.folder, kind: Folders}}
+	} else {
+		var ok bool
+		if all, ok = c.search(n.Remove.Entries); !ok {
+			c.broken = true
+			return
 		}
 	}
-	for _, pattern := range k.Open.Files {
-		if !inside(pattern) {
-			return fmt.Errorf("keep: open: %q: want a pattern inside what is removed, like */Contents/MacOS/*", pattern)
+	if n.Rank != nil {
+		var ok bool
+		if all, ok = c.rank(n.Rank, all); !ok {
+			c.broken = true
+			return
 		}
 	}
-	if f.Remove.Root || len(f.Remove.Commands) > 0 {
-		return errors.New("keep: want remove: folders or files; a root or a command has nothing to keep")
+	for _, f := range all {
+		if !c.allowed() {
+			return
+		}
+		if _, err := os.Lstat(f.path); errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if c.kept(n.Keep, f) {
+			continue
+		}
+		c.remove(n.Keep, f)
 	}
-	if len(f.Remove.Files) > 0 && (k.Sockets || len(k.Open.Files) > 0 || k.Age.Of.Clock != "mtime" && k.Age.given()) {
-		return errors.New("keep: for files, want age of mtime, open: true, alive and tracked; the rest is for folders")
-	}
-	if k.Alive != nil && len(f.Remove.Files) == 0 {
-		return errors.New("keep: alive: want remove: files, whose names hold the process id")
-	}
-	if k.Alive != nil {
-		return k.Alive.check()
-	}
-	return nil
 }
 
-func (s Rule) ageLimit() age.Limit {
-	limit := age.Limit{Now: s.env.Now}
-	if key := s.file.Keep.Age.Within; key != "" {
-		limit.Min = s.duration(key)
+func (c *ctx) limit(k *Keep) age.Limit {
+	limit := age.Limit{Now: c.env.Now}
+	if k != nil && k.Age != nil {
+		limit.Min = c.duration(k.Age.Within)
 	}
 	return limit
 }
 
-func (s Rule) duration(key string) time.Duration {
-	if hasSetting(s.file.Settings, key, "") {
-		return s.env.Duration(s.file.Name + "." + key)
-	}
-	return s.env.Duration(key)
-}
-
-func (s Rule) removeFolders(r *report.Report, folders []string) {
-	open := s.env.Lsof.Every(openAnswersPerListing)
-	failed := false
-	keep := func(path string) bool {
-		if failed {
+func (c *ctx) kept(k *Keep, f found) bool {
+	isDir := f.kind != Files
+	if k != nil && k.Tracked {
+		switch candidates.GitTracking(c.r, f.path) {
+		case candidates.Tracked:
+			c.r.Skip("%s: contains files tracked by git", f.path)
+			return true
+		case candidates.Unknown:
+			c.r.Skip("%s: git cannot tell whether it holds tracked files", f.path)
 			return true
 		}
-		kept, err := s.keepFolder(r, path, open)
+	}
+	var inside tree
+	if isDir {
+		volume, err := os.Stat(c.folder)
 		if err != nil {
-			r.Fail("lsof %s: %v", s.root, err)
-			failed = true
+			c.r.Fail("stat %s: %v", c.folder, err)
 			return true
 		}
-		return kept
+		inside, err = inspect(f.path, device(volume))
+		if errors.Is(err, fs.ErrNotExist) {
+			return true
+		}
+		if err != nil {
+			c.r.Fail("look into %s: %v", f.path, err)
+			return true
+		}
+		switch {
+		case inside.mounted == f.path:
+			c.r.Skip("%s: a mounted volume, not space on this disk", f.path)
+			return true
+		case inside.mounted != "":
+			c.r.Skip("%s: %s in it is a mounted volume, not space on this disk", f.path, inside.mounted)
+			return true
+		case inside.socket != "":
+			c.r.Skip("%s: holds the socket %s, which a process may be listening on", f.path, inside.socket)
+			return true
+		}
 	}
-	s.removeAll(r, folders, keep)
+	if k == nil {
+		return false
+	}
+	if k.Age != nil {
+		recent, ok := c.recent(k, f, inside)
+		if !ok || recent {
+			return true
+		}
+	}
+	return c.held(k, f, isDir)
 }
 
-func (s Rule) keepFolder(r *report.Report, path string, open *inuse.Listing) (bool, error) {
-	k := s.file.Keep
-	limit := s.ageLimit()
-	volume, err := os.Stat(s.base)
-	if err != nil {
-		r.Fail("stat %s: %v", s.base, err)
-		return true, nil
-	}
-	found, err := inspect(path, device(volume))
-	if errors.Is(err, fs.ErrNotExist) {
-		return true, nil
-	}
-	if err != nil {
-		r.Fail("look into %s: %v", path, err)
-		return true, nil
-	}
-	switch {
-	case found.mounted == path:
-		r.Skip("%s: a mounted volume, not space on this disk", path)
-		return true, nil
-	case found.mounted != "":
-		r.Skip("%s: %s in it is a mounted volume, not space on this disk", path, found.mounted)
-		return true, nil
-	case k.Sockets && found.socket != "":
-		r.Skip("%s: holds the socket %s, which a process may be listening on", path, found.socket)
-		return true, nil
-	case k.Age.Of.Clock == "newest-write" && limit.Recent(found.latest):
-		return true, nil
-	}
-	if k.Age.Of.Clock == "mtime" {
-		info, err := os.Lstat(path)
-		if err != nil {
-			r.Fail("stat %s: %v", path, err)
-			return true, nil
-		}
-		if limit.Recent(info.ModTime()) {
-			return true, nil
-		}
-	}
+func (c *ctx) recent(k *Keep, f found, inside tree) (bool, bool) {
+	limit := c.limit(k)
 	if v := k.Age.Of.Value; v != nil {
-		made, err := v.time(path)
-		if err != nil {
-			r.Skip("%s: %s does not say when it was made", path, v.File)
-			r.Fail("read %s: %v", filepath.Join(path, v.File), err)
-			return true, nil
+		values, ok := c.eval(*v, f.path)
+		if !ok {
+			return false, false
 		}
-		if limit.Recent(made) {
-			return true, nil
+		if len(values) != 1 {
+			c.r.Skip("%s: says nothing of when it was made", f.path)
+			return false, false
+		}
+		made, err := parseTime(values[0])
+		if err != nil {
+			c.r.Skip("%s: says nothing of when it was made", f.path)
+			c.r.Fail("%s: %q is not a date: %v", f.path, values[0], err)
+			return false, false
+		}
+		return limit.Recent(made), true
+	}
+	if k.Age.Of.Name == newestWrite && f.kind != Files {
+		return limit.Recent(inside.latest), true
+	}
+	var stat unix.Stat_t
+	if err := unix.Lstat(f.path, &stat); err != nil {
+		c.r.Fail("stat %s: %v", f.path, err)
+		return false, false
+	}
+	return limit.Recent(clockOf(k.Age.Of.Name, &stat)), true
+}
+
+func clockOf(name string, stat *unix.Stat_t) time.Time {
+	latest := moment(stat.Mtim)
+	if name == anyTime && stat.Mode&unix.S_IFMT != unix.S_IFDIR {
+		for _, t := range []unix.Timespec{stat.Atim, stat.Ctim} {
+			if moment(t).After(latest) {
+				latest = moment(t)
+			}
 		}
 	}
+	return latest
+}
+
+func moment(t unix.Timespec) time.Time {
+	return time.Unix(t.Unix())
+}
+
+func (c *ctx) held(k *Keep, f found, isDir bool) bool {
+	if c.broken {
+		return true
+	}
+	var paths []string
 	switch {
-	case len(k.Open.Files) > 0:
-		files, err := matchingFiles(path, k.Open.Files)
+	case len(k.Open.Inside) > 0:
+		files, err := matchingFiles(f.path, k.Open.Inside)
 		if err != nil {
-			r.Fail("look into %s: %v", path, err)
-			return true, nil
+			c.r.Fail("look into %s: %v", f.path, err)
+			return true
 		}
 		if len(files) == 0 {
-			r.Skip("%s: nothing in it matches %v to ask lsof about", path, k.Open.Files)
-			return true, nil
+			c.r.Skip("%s: nothing in it matches %v to ask lsof about", f.path, k.Open.Inside)
+			return true
 		}
-		held, err := open.HoldsAny(files...)
-		if err != nil {
-			return true, err
-		}
-		if held {
-			r.Skip("%s: a running program was started from it", path)
-			return true, nil
-		}
+		paths = files
 	case k.Open.Anything:
-		held, err := open.HoldsAny(path)
-		if err != nil {
-			return true, err
-		}
-		if held {
-			r.Skip("%s: a process still has something in it open", path)
-			return true, nil
-		}
+		paths = []string{f.path}
+	default:
+		return false
 	}
-	return false, nil
+	held, err := c.open.HoldsAny(paths...)
+	if err != nil {
+		c.r.Fail("lsof %s: %v", c.subject(), err)
+		c.broken = true
+		return true
+	}
+	switch {
+	case !held:
+		return false
+	case len(k.Open.Inside) > 0:
+		c.r.Skip("%s: a running program was started from it", f.path)
+	case isDir:
+		c.r.Skip("%s: a process still has something in it open", f.path)
+	default:
+		c.r.Skip("%s: a process still has it open", f.path)
+	}
+	return true
+}
+
+func (c *ctx) remove(k *Keep, f found) {
+	base := c.folder
+	if f.path == c.folder {
+		base = filepath.Dir(c.folder)
+	}
+	volume, err := os.Stat(f.path)
+	if err != nil {
+		c.r.Fail("stat %s: %v", f.path, err)
+		return
+	}
+	e, err := openEntry(base, f.path, device(volume))
+	if errors.Is(err, fs.ErrNotExist) {
+		return
+	}
+	if err != nil {
+		c.r.Skip("%s: changed since it was found: %v", f.path, err)
+		return
+	}
+	defer e.close()
+	kind := e.stat.Mode & unix.S_IFMT
+	switch {
+	case e.stat.Uid != uint32(os.Getuid()):
+		c.r.Skip("%s: not yours", f.path)
+		return
+	case f.kind == Files && kind != unix.S_IFREG:
+		c.r.Skip("%s: no longer a file since it was found", f.path)
+		return
+	case f.kind != Files && kind != unix.S_IFDIR:
+		c.r.Skip("%s: no longer a folder since it was found", f.path)
+		return
+	case f.kind == Files && k != nil && k.Age != nil && k.Age.Of.Value == nil && c.limit(k).Recent(clockOf(k.Age.Of.Name, &e.stat)):
+		c.r.Skip("%s: used since it was found", f.path)
+		return
+	}
+	bytes := e.stat.Blocks * 512
+	if f.kind == Folders {
+		kb, err := report.DiskUsageKB(f.path)
+		if err != nil {
+			c.r.Fail("du %s: %v", f.path, err)
+		}
+		bytes = kb * 1024
+	}
+	volumeID := uint64(e.stat.Dev)
+	c.r.RemoveEntry(f.path, bytes, func() error {
+		switch f.kind {
+		case Files:
+			return unix.Unlinkat(e.parent, e.name, 0)
+		case Empty:
+			return unix.Unlinkat(e.parent, e.name, unix.AT_REMOVEDIR)
+		}
+		return removeTree(e.parent, e.name, volumeID)
+	})
 }
 
 func matchingFiles(dir string, patterns []string) ([]string, error) {
@@ -308,12 +298,8 @@ func (t *tree) add(path string, info fs.FileInfo) {
 }
 
 func inspect(root string, volume int64) (tree, error) {
-	return inspectFS(os.DirFS(root), root, volume)
-}
-
-func inspectFS(fsys fs.FS, root string, volume int64) (tree, error) {
 	found := tree{volume: volume}
-	err := fs.WalkDir(fsys, ".", func(name string, entry fs.DirEntry, err error) error {
+	err := fs.WalkDir(os.DirFS(root), ".", func(name string, entry fs.DirEntry, err error) error {
 		if errors.Is(err, fs.ErrNotExist) && name != "." {
 			return nil
 		}

@@ -25,7 +25,7 @@ func TestEveryBuiltinFileLoadsAndIsInTheCatalog(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, names)
 	for _, name := range names {
-		if strings.HasSuffix(name, rule.TestSuffix) {
+		if strings.HasSuffix(name, rule.TestSuffix) || filepath.Base(name) == rule.GroupsFile {
 			continue
 		}
 		step := filepath.Base(name[:len(name)-len(".yaml")])

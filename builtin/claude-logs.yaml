@@ -14,11 +14,5 @@ settings:
     help: remove session logs older than this
 
 root: $CLAUDE_CONFIG_DIR/projects or ~/.claude/projects
-
-remove:
-  files: ['**/*.jsonl']
-
-keep:
-  age: {of: mtime, within: min-age}
-  open: true
-  tracked: true
+remove: [{files: '**/*.jsonl'}]
+keep: {age: {of: mtime, within: '{min-age}'}, open: true, tracked: true}

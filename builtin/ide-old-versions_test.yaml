@@ -79,7 +79,7 @@
     fs/Applications/GoLand.app/Contents/Resources/product-info.json: {text: '{"productVendor": "JetBrains", "dataDirectoryName": "GoLand2026.2"}'}
     Library/Application Support/JetBrains/GoLand2025.3/options/ide.xml:
   removes: []
-  says: ['GoLand2025.3: GoLand.app has not made its own folder here yet']
+  says: ['JetBrains: nothing here goes until GoLand2026.2 is made']
 
 - case: newer versions and products not installed stay
   commands:
@@ -126,7 +126,7 @@
     fs/Applications/Visual Studio Code.app/Contents/Resources/app/product.json: {text: '{"nameShort": "Code", "commit": "6d62b1d5"}'}
     Library/Application Support/Code/CachedData/08d4889f/x:
   removes: []
-  says: ['CachedData: Visual Studio Code.app has not made its own folder here yet']
+  says: ['CachedData: nothing here goes until 6d62b1d5 is made']
 
 - case: a dry run removes nothing
   dry-run: true
@@ -150,27 +150,26 @@
   removes: []
   fails: [Odd.app]
 
-- case: a vendor that is a path removes nothing and fails
+- case: an app naming a vendor that is a path spares nothing outside its vendor's folder
   commands:
     mdfind kMDItemContentType == "com.apple.application-bundle": {stdout: /System/Applications/Calculator.app}
   files:
     fs/Applications/GoLand.app/Contents/Resources/product-info.json: {text: '{"productVendor": "JetBrains", "dataDirectoryName": "GoLand2026.2"}'}
     fs/Applications/Odd.app/Contents/Resources/product-info.json: {text: '{"productVendor": "../x", "dataDirectoryName": "GoLand2026.2"}'}
+    x/GoLand2025.3/keep:
     Library/Application Support/JetBrains/GoLand2025.3/options/ide.xml:
     Library/Application Support/JetBrains/GoLand2026.2/options/ide.xml:
-  removes: []
-  fails: ['productVendor "../x": want a name, not a path']
+  removes: [Library/Application Support/JetBrains/GoLand2025.3]
 
-- case: an unversioned data folder name removes nothing and fails
+- case: an unversioned data folder name is no version and decides nothing
   commands:
     mdfind kMDItemContentType == "com.apple.application-bundle": {stdout: /System/Applications/Calculator.app}
   files:
-    fs/Applications/GoLand.app/Contents/Resources/product-info.json: {text: '{"productVendor": "JetBrains", "dataDirectoryName": "GoLand2026.2"}'}
     fs/Applications/Odd.app/Contents/Resources/product-info.json: {text: '{"productVendor": "JetBrains", "dataDirectoryName": "GoLand"}'}
+    Library/Application Support/JetBrains/GoLand/options/ide.xml:
     Library/Application Support/JetBrains/GoLand2025.3/options/ide.xml:
-    Library/Application Support/JetBrains/GoLand2026.2/options/ide.xml:
   removes: []
-  fails: ['GoLand: want a name followed by a version']
+  counts: 0
 
 - case: with no IDE installed the step is quiet
   commands:

@@ -7,26 +7,23 @@ import (
 	"io/fs"
 	"maps"
 	"path"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
-	"time"
 
 	"go.yaml.in/yaml/v3"
 
 	"github.com/botforge-pro/diskcleaner/internal/config"
-	"github.com/botforge-pro/diskcleaner/internal/process"
 )
 
-var groups = map[string]string{
-	"xcode": process.Xcode,
-}
-
-var (
-	stepName = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`)
-	variable = regexp.MustCompile(`^\$([A-Z_][A-Z0-9_]*)(/.*)?$`)
+const (
+	TestSuffix  = "_test.yaml"
+	GroupsFile  = "processes.yaml"
+	fileSuffix  = ".yaml"
+	enabledName = "enabled"
 )
+
+var stepName = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`)
 
 type File struct {
 	Name       string    `yaml:"-"`
@@ -35,126 +32,14 @@ type File struct {
 	Reversible bool      `yaml:"reversible"`
 	Readme     Readme    `yaml:"readme"`
 	Settings   []Setting `yaml:"settings"`
-	Needs      []string  `yaml:"needs"`
-	Root       Root      `yaml:"root"`
-	Ready      Ready     `yaml:"ready"`
-	Busy       BusyWhen  `yaml:"busy"`
-	Stop       StopWhen  `yaml:"stop"`
-	Each       EachWhen  `yaml:"each"`
-	Apps       *Apps     `yaml:"apps"`
-	Remove     Removal   `yaml:"remove"`
-	Keep       KeepWhen  `yaml:"keep"`
-	Parts      []Part    `yaml:"parts"`
+	Node       `yaml:",inline"`
+	groups     Groups
 }
 
 type Readme struct {
 	Removes string `yaml:"removes"`
 	Keeps   string `yaml:"keeps"`
 	CanLose string `yaml:"can-lose"`
-}
-
-var mention = regexp.MustCompile(`\{([^{}]*)\}`)
-
-func (f File) Explain(text string) string {
-	return mention.ReplaceAllStringFunc(text, func(found string) string {
-		words, _ := f.mentioned(found[1 : len(found)-1])
-		return words
-	})
-}
-
-var globals = config.NewTable(nil)
-
-func (f File) mentioned(key string) (string, bool) {
-	if key == "root" && !f.Root.empty() {
-		return f.Root.words(), true
-	}
-	if i := slices.IndexFunc(f.Settings, func(s Setting) bool { return s.Key == key }); i >= 0 {
-		return fmt.Sprintf("`%s.%s` (`%s`)", f.Name, key, f.Settings[i].Default), true
-	}
-	if global, ok := globals.Find(key); ok && global.Kind == config.Duration {
-		return fmt.Sprintf("`%s` (`%s`)", key, global.Default), true
-	}
-	return "", false
-}
-
-func (f File) Removes() string {
-	if f.Readme.Removes == "" {
-		return f.Explain(f.Describes)
-	}
-	return f.Explain(f.Readme.Removes)
-}
-
-func (f File) checkReadme() error {
-	if f.Readme.Removes == f.Describes {
-		return errors.New("readme: removes: it says what describes says; leave it out and the README takes describes")
-	}
-	mentioned := map[string]bool{}
-	for _, text := range []string{f.Describes, f.Readme.Removes, f.Readme.Keeps, f.Readme.CanLose} {
-		for _, found := range mention.FindAllStringSubmatch(text, -1) {
-			if _, ok := f.mentioned(found[1]); !ok {
-				return fmt.Errorf("readme: {%s}: want {root} of a declared step, the key of one of this step's settings or min-age", found[1])
-			}
-			mentioned[found[1]] = true
-		}
-	}
-	for _, s := range f.Settings {
-		if !mentioned[s.Key] {
-			return fmt.Errorf("readme: want {%s} in its text, so that the README names every setting of the step", s.Key)
-		}
-	}
-	used := f.usedSettings()
-	for _, s := range f.Settings {
-		if !used[s.Key] {
-			return fmt.Errorf("settings: %s: nothing in the file uses it, so the README would promise what the step does not do", s.Key)
-		}
-	}
-	for key := range mentioned {
-		if _, own := f.mentioned(key); own && key != "root" && !hasSetting(f.Settings, key, "") && !used[key] {
-			return fmt.Errorf("readme: {%s}: the step does not apply it, so the README would promise what the step does not do", key)
-		}
-	}
-	return nil
-}
-
-func (f File) usedSettings() map[string]bool {
-	used := map[string]bool{}
-	add := func(key string) {
-		if key != "" {
-			used[key] = true
-		}
-	}
-	add(f.Ready.Timeout)
-	for _, v := range f.views() {
-		add(v.Keep.Age.Within)
-		if v.Remove.Newest != nil {
-			add(v.Remove.Newest.Keep)
-		}
-		for _, c := range v.Remove.Commands {
-			add(c.Timeout)
-			add(c.Estimate.Timeout)
-		}
-	}
-	return used
-}
-
-type Part struct {
-	Each   EachWhen `yaml:"each"`
-	Remove Removal  `yaml:"remove"`
-	Keep   KeepWhen `yaml:"keep"`
-}
-
-func (f File) views() []File {
-	if len(f.Parts) == 0 {
-		return []File{f}
-	}
-	views := make([]File, len(f.Parts))
-	for i, p := range f.Parts {
-		v := f
-		v.Parts = nil
-		v.Each, v.Remove, v.Keep = p.Each, p.Remove, p.Keep
-		views[i] = v
-	}
-	return views
 }
 
 type Setting struct {
@@ -168,81 +53,28 @@ var kinds = map[string]config.Kind{
 	"duration": config.Duration,
 	"timeout":  config.Timeout,
 	"count":    config.Count,
+	"folders":  config.Dirs,
 }
 
-func (f File) Step() config.Step {
-	settings := make([]config.Setting, len(f.Settings))
-	for i, s := range f.Settings {
-		settings[i] = config.Setting{Key: s.Key, Kind: kinds[s.Kind], Default: s.Default, Help: s.Help}
-	}
-	return config.Step{Name: f.Name, Reversible: f.Reversible, Settings: settings}
-}
-
-type BusyWhen struct {
-	Processes []string `yaml:"processes"`
-	Groups    []string `yaml:"groups"`
-	Says      string   `yaml:"says"`
-}
-
-type StopWhen struct {
-	Processes     []string `yaml:"processes"`
-	Names         string   `yaml:"names"`
-	UnlessBusyFor string   `yaml:"unless-busy-for"`
-	Timeout       string   `yaml:"timeout"`
-	Says          string   `yaml:"says"`
-	quiet         time.Duration
-	limit         time.Duration
-}
-
-func (s StopWhen) given() bool {
-	return len(s.Processes) > 0 || s.Names != "" || s.UnlessBusyFor != "" || s.Timeout != "" || s.Says != ""
-}
-
-func (s StopWhen) pattern() string {
-	return strings.Join(s.Processes, "|")
-}
-
-func (s *StopWhen) check() error {
-	if !s.given() {
-		return nil
-	}
-	if len(s.Processes) == 0 || s.Names == "" || s.UnlessBusyFor == "" || s.Timeout == "" || s.Says == "" {
-		return errors.New("stop: want processes, names, unless-busy-for, timeout and says together")
-	}
-	for _, pattern := range s.Processes {
-		if _, err := regexp.CompilePOSIX(pattern); err != nil {
-			return fmt.Errorf("stop: processes %q: %w", pattern, err)
-		}
-	}
-	var err error
-	if s.quiet, err = literalDuration(s.UnlessBusyFor); err != nil {
-		return fmt.Errorf("stop: unless-busy-for: %w", err)
-	}
-	if s.limit, err = literalDuration(s.Timeout); err != nil {
-		return fmt.Errorf("stop: timeout: %w", err)
-	}
-	return nil
-}
-
-func literalDuration(text string) (time.Duration, error) {
-	value, err := config.Parse(config.Setting{Key: "duration", Kind: config.Duration}, text, "/")
-	if err != nil {
-		return 0, err
-	}
-	return value.(time.Duration), nil
-}
-
-const TestSuffix = "_test.yaml"
+var globals = config.NewTable(nil)
 
 func Load(fsys fs.FS) ([]File, error) {
-	names, err := fs.Glob(fsys, "*.yaml")
+	data, err := fs.ReadFile(fsys, GroupsFile)
+	if err != nil {
+		return nil, err
+	}
+	groups, err := ParseGroups(data)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", GroupsFile, err)
+	}
+	names, err := fs.Glob(fsys, "*"+fileSuffix)
 	if err != nil {
 		return nil, err
 	}
 	var files []File
 	var errs []error
 	for _, name := range names {
-		if strings.HasSuffix(name, TestSuffix) {
+		if strings.HasSuffix(name, TestSuffix) || name == GroupsFile {
 			continue
 		}
 		data, err := fs.ReadFile(fsys, name)
@@ -250,7 +82,7 @@ func Load(fsys fs.FS) ([]File, error) {
 			errs = append(errs, err)
 			continue
 		}
-		file, err := Parse(name, data)
+		file, err := Parse(name, data, groups)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -260,14 +92,14 @@ func Load(fsys fs.FS) ([]File, error) {
 	return files, errors.Join(errs...)
 }
 
-func Parse(name string, data []byte) (File, error) {
+func Parse(name string, data []byte, groups Groups) (File, error) {
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	decoder.KnownFields(true)
-	var f File
+	f := File{groups: groups}
 	if err := decoder.Decode(&f); err != nil {
 		return File{}, fmt.Errorf("%s: %w", name, err)
 	}
-	f.Name = strings.TrimSuffix(path.Base(name), ".yaml")
+	f.Name = strings.TrimSuffix(path.Base(name), fileSuffix)
 	if err := f.check(); err != nil {
 		return File{}, fmt.Errorf("%s: %w", name, err)
 	}
@@ -279,103 +111,120 @@ func (f File) Label() string {
 	return strings.ToUpper(first)
 }
 
+func (f File) Step() config.Step {
+	settings := make([]config.Setting, len(f.Settings))
+	for i, s := range f.Settings {
+		settings[i] = config.Setting{Key: s.Key, Kind: kinds[s.Kind], Default: s.Default, Help: s.Help}
+	}
+	return config.Step{Name: f.Name, Reversible: f.Reversible, Settings: settings}
+}
+
+var mention = regexp.MustCompile(`\{([^{}]*)\}`)
+
+func (f File) Explain(text string) string {
+	return mention.ReplaceAllStringFunc(text, func(found string) string {
+		words, _ := f.mentioned(found[1 : len(found)-1])
+		return words
+	})
+}
+
+func (f File) Removes() string {
+	if f.Readme.Removes == "" {
+		return f.Explain(f.Describes)
+	}
+	return f.Explain(f.Readme.Removes)
+}
+
+func (f File) mentioned(key string) (string, bool) {
+	if s, ok := f.own(key); ok {
+		return fmt.Sprintf("`%s.%s` (`%s`)", f.Name, key, s.Default), true
+	}
+	if global, ok := globals.Find(key); ok && global.Kind == config.Duration {
+		return fmt.Sprintf("`%s` (`%s`)", key, global.Default), true
+	}
+	return "", false
+}
+
+func (f File) own(key string) (Setting, bool) {
+	i := slices.IndexFunc(f.Settings, func(s Setting) bool { return s.Key == key })
+	if i < 0 {
+		return Setting{}, false
+	}
+	return f.Settings[i], true
+}
+
+func (f File) setting(key string) (config.Kind, bool) {
+	if s, ok := f.own(key); ok {
+		return kinds[s.Kind], true
+	}
+	if global, ok := globals.Find(key); ok {
+		return global.Kind, true
+	}
+	return 0, false
+}
+
+func (f File) configKey(key string) string {
+	if _, ok := f.own(key); ok {
+		return f.Name + "." + key
+	}
+	return key
+}
+
 func (f *File) check() error {
 	switch {
 	case !stepName.MatchString(f.Name):
-		return fmt.Errorf("the name of the file: want lowercase words joined by -, like xcode-derived-data.yaml")
+		return errors.New("the name of the file: want lowercase words joined by -, like xcode-derived-data.yaml")
 	case f.Order <= 0:
 		return errors.New("order: want a whole number above 0; steps run from the lowest")
 	case f.Describes == "":
 		return errors.New("describes: want what the step removes, for --help")
+	case f.Readme.Removes == f.Describes:
+		return errors.New("readme: removes: it says what describes says; leave it out and the README takes describes")
 	}
 	for _, s := range f.Settings {
 		if err := s.check(); err != nil {
 			return err
 		}
 	}
-	if err := f.checkReadme(); err != nil {
+	used := map[string]bool{}
+	c := checker{file: f, used: used, names: map[string]bool{"path": true, "name": true, "uid": true}}
+	if err := c.node(&f.Node, 0); err != nil {
 		return err
 	}
-	switch {
-	case len(f.Parts) > 0 && (f.Each.given() || f.Remove.given || f.Keep.given()):
-		return errors.New("parts: want each, remove and keep inside the parts, not beside them")
-	case len(f.Parts) == 1:
-		return errors.New("parts: want two or more; one part is written as each, remove and keep of the file")
-	case len(f.Parts) > 0 && slices.ContainsFunc(f.Root.places, func(p place) bool { return p.remove != nil }):
-		return errors.New("parts: a choice of root with its own remove belongs to a file of one part")
-	case f.Apps.given() && !slices.ContainsFunc(f.views(), func(v File) bool { return len(v.Remove.Superseded) > 0 }):
-		return errors.New("apps: want remove: superseded, which reads them")
-	}
-	needsRoot := slices.ContainsFunc(f.views(), func(v File) bool {
-		return v.Each.given() || len(v.Remove.Commands) == 0 && len(v.Remove.Superseded) == 0
-	})
-	if err := f.Root.check(needsRoot); err != nil {
-		return err
-	}
-	if err := f.checkReady(); err != nil {
-		return err
-	}
-	busy := f.Busy
-	if (len(busy.Processes) > 0 || len(busy.Groups) > 0) != (busy.Says != "") {
-		return errors.New("busy: want processes or groups together with says")
-	}
-	for _, pattern := range busy.Processes {
-		if _, err := regexp.CompilePOSIX(pattern); err != nil {
-			return fmt.Errorf("busy: processes %q: %w", pattern, err)
-		}
-	}
-	for _, group := range busy.Groups {
-		if _, ok := groups[group]; !ok {
-			return fmt.Errorf("busy: groups %q: want one of %s", group, strings.Join(slices.Sorted(maps.Keys(groups)), ", "))
-		}
-	}
-	if err := f.Stop.check(); err != nil {
-		return err
-	}
-	for i := range f.Root.places {
-		if choice := f.Root.places[i].remove; choice != nil {
-			if err := f.checkRemoval(*choice); err != nil {
-				return fmt.Errorf("root: %w", err)
+	return f.checkReadme(used)
+}
+
+func (f File) checkReadme(used map[string]bool) error {
+	mentioned := map[string]bool{}
+	for _, text := range []string{f.Describes, f.Readme.Removes, f.Readme.Keeps, f.Readme.CanLose} {
+		for _, found := range mention.FindAllStringSubmatch(text, -1) {
+			if _, ok := f.mentioned(found[1]); !ok {
+				return fmt.Errorf("readme: {%s}: want the key of one of this step's settings or of a global duration, like min-age", found[1])
 			}
+			if !used[found[1]] {
+				return fmt.Errorf("readme: {%s}: the step does not use it, so the README would promise what the step does not do", found[1])
+			}
+			mentioned[found[1]] = true
 		}
 	}
-	for i, v := range f.views() {
-		err := v.checkPart()
-		if err != nil && len(f.Parts) > 0 {
-			err = fmt.Errorf("parts: %d: %w", i+1, err)
-		}
-		if err != nil {
-			return err
+	for _, s := range f.Settings {
+		switch {
+		case !used[s.Key]:
+			return fmt.Errorf("settings: %s: nothing in the file uses it, so the README would promise what the step does not do", s.Key)
+		case !mentioned[s.Key]:
+			return fmt.Errorf("readme: want {%s} in its text, so that the README names every setting of the step", s.Key)
 		}
 	}
 	return nil
 }
 
-func (f File) checkPart() error {
-	if err := f.checkSuperseded(); err != nil {
-		return err
-	}
-	if err := f.checkRemoval(f.Remove); err != nil {
-		return err
-	}
-	if err := f.checkEach(); err != nil {
-		return err
-	}
-	return f.checkKeep()
-}
-
-func inside(pattern string) bool {
-	_, err := filepath.Match(pattern, "")
-	return err == nil && pattern != "" && !filepath.IsAbs(pattern) && !slices.Contains(strings.Split(pattern, "/"), "..")
-}
-
 func (s Setting) check() error {
 	kind, ok := kinds[s.Kind]
 	switch {
-	case !stepName.MatchString(s.Key) || s.Key == "enabled":
-		return fmt.Errorf("settings: key %q: want lowercase words joined by -, other than enabled", s.Key)
-	case !ok:
-		return fmt.Errorf("settings: %s: kind %q: want one of %s", s.Key, s.Kind, strings.Join(slices.Sorted(maps.Keys(kinds)), ", "))
+	case !stepName.MatchString(s.Key) || s.Key == enabledName:
+		return fmt.Errorf("settings: key %q: want lowercase words joined by -, other than %s", s.Key, enabledName)
+	case !ok || kind == config.Dirs:
+		return fmt.Errorf("settings: %s: kind %q: want one of duration, timeout, count", s.Key, s.Kind)
 	case s.Help == "":
 		return fmt.Errorf("settings: %s: help: want what it changes, for --help", s.Key)
 	}
@@ -385,29 +234,24 @@ func (s Setting) check() error {
 	return nil
 }
 
-func (f File) checkReady() error {
-	ready := f.Ready
-	if len(ready.Run) == 0 {
-		if ready.Timeout != "" || ready.Hung != "" || len(ready.Down.Processes) > 0 || ready.Down.Says != "" {
-			return errors.New("ready: want run, the command that must answer first")
-		}
-		return nil
-	}
-	if ready.Hung == "" || len(ready.Down.Processes) == 0 || ready.Down.Says == "" {
-		return errors.New("ready: want run with hung, what to do when it does not answer, and down: {processes, says}, what tells that it is not running")
-	}
-	for _, pattern := range ready.Down.Processes {
-		if _, err := regexp.CompilePOSIX(pattern); err != nil {
-			return fmt.Errorf("ready: down: processes %q: %w", pattern, err)
-		}
-	}
-	return f.checkTimeout(ready.Timeout)
-}
+type Groups map[string][]string
 
-func (f File) BusyPattern() string {
-	patterns := slices.Clone(f.Busy.Processes)
-	for _, group := range f.Busy.Groups {
-		patterns = append(patterns, groups[group])
+func ParseGroups(data []byte) (Groups, error) {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	var groups Groups
+	if err := decoder.Decode(&groups); err != nil {
+		return nil, err
 	}
-	return strings.Join(patterns, "|")
+	for _, name := range slices.Sorted(maps.Keys(groups)) {
+		if !stepName.MatchString(name) || len(groups[name]) == 0 {
+			return nil, fmt.Errorf("%s: want lowercase words joined by - and a list of process patterns", name)
+		}
+		for _, pattern := range groups[name] {
+			if _, err := regexp.CompilePOSIX(pattern); err != nil {
+				return nil, fmt.Errorf("%s: %q: %w", name, pattern, err)
+			}
+		}
+	}
+	return groups, nil
 }

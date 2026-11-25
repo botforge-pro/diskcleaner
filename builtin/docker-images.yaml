@@ -17,24 +17,14 @@ settings:
     default: 15m
     help: give up on a prune that runs longer
 
-needs: [docker]
-
-ready:
-  run: [docker, info]
-  timeout: timeout
-  hung: the Docker daemon is hung, restart Docker Desktop
-  down:
-    processes: ['com\.docker\.backend']
+when:
+  - {program: docker}
+  - any:
+      - {succeeds: {run: [docker, info], timeout: '{timeout}'}, fails: 'the Docker daemon is hung, restart Docker Desktop'}
+      - {running: ['com\.docker\.backend']}
     says: Docker Desktop is not running
-
-remove:
-  run: [docker, image, prune, --all, --force]
-  timeout: prune-timeout
-  estimate:
-    run: [docker, system, df, --format, "{{.Type}}\t{{.Reclaimable}}"]
-    timeout: timeout
-    match: '^Images\t([^ ]+)'
-    none: '^Images\t0B'
-  size:
-    measure: ~/Library/Containers/com.docker.docker
-  shows: '^Total reclaimed space'
+run: [docker, image, prune, --all, --force]
+timeout: '{prune-timeout}'
+estimate: {run: [docker, system, df, --format, "{{.Type}}\t{{.Reclaimable}}"], timeout: '{timeout}', match: '^Images\t([^ ]+)'}
+size: ~/Library/Containers/com.docker.docker
+shows: '^Total reclaimed space'

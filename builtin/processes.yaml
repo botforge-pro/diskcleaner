@@ -1,0 +1,5 @@
+xcode: [xcodebuild, XCBBuildService, '/Xcode[^/]*\.app/Contents/MacOS/Xcode']
+swiftpm: [swift-build, swift-package, swift-test, swift-run]
+gradle: ['org\.gradle\.wrapper\.GradleWrapperMain', 'org\.gradle\.launcher\.GradleMain']
+gradle-daemons: ['org\.gradle\.launcher\.daemon\.bootstrap\.GradleDaemon', 'org\.jetbrains\.kotlin\.daemon\.KotlinCompileDaemon']
+jetbrains: [/Contents/MacOS/studio, /Contents/MacOS/idea]

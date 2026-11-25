@@ -23,16 +23,34 @@ type stepInfo struct {
 	file rule.File
 }
 
+var builtinGroups = mustGroups()
+
 var catalog = mustCatalog()
 
 var settingsTable = config.NewTable(configSteps())
 
-func mustCatalog() []stepInfo {
+func builtinDir() fs.FS {
 	dir, err := fs.Sub(builtinFiles, "builtin")
 	if err != nil {
 		panic(err)
 	}
-	files, err := rule.Load(dir)
+	return dir
+}
+
+func mustGroups() rule.Groups {
+	data, err := fs.ReadFile(builtinDir(), rule.GroupsFile)
+	if err != nil {
+		panic(err)
+	}
+	groups, err := rule.ParseGroups(data)
+	if err != nil {
+		panic(fmt.Sprintf("%s does not load: %v", rule.GroupsFile, err))
+	}
+	return groups
+}
+
+func mustCatalog() []stepInfo {
+	files, err := rule.Load(builtinDir())
 	if err == nil {
 		err = checkCatalog(files)
 	}

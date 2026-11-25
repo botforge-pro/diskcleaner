@@ -8,9 +8,17 @@ readme:
   can-lose: whatever was kept there
 
 root: /private/tmp
-
 remove:
-  untouched:
-    for: 3d
-    except: [.X*-lock, .X11-unix, .ICE-unix, .font-unix, .XIM-unix, quota.user, quota.group, .vfs_rsrc_streams_*]
-    except-at-top: [.*, claude-*]
+  - skip: '.*'
+  - skip: 'claude-*'
+  - skip: '**/.X*-lock'
+  - skip: '**/.X11-unix'
+  - skip: '**/.ICE-unix'
+  - skip: '**/.font-unix'
+  - skip: '**/.XIM-unix'
+  - skip: '**/quota.user'
+  - skip: '**/quota.group'
+  - skip: '**/.vfs_rsrc_streams_*'
+  - files: '**/*'
+  - empty: '**/*'
+keep: {age: {of: any-time, within: 3d}, open: true}

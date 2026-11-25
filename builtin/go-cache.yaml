@@ -5,16 +5,8 @@ reversible: true
 readme:
   keeps: each cache when a Go command is detected before deletion
 
-needs: [go]
-
-busy:
-  processes: ['(^|/)go (build|test|run|install|get|mod|generate|vet|list)( |$)']
-  says: a go command is running
-
-remove:
-  - root: {command: [go, env, GOMODCACHE]}
-    run: [go, clean, -modcache]
-    size: {measure: root}
-  - root: {command: [go, env, GOCACHE]}
-    run: [go, clean, -cache]
-    size: {measure: root}
+when: [{program: go}]
+unless: [{running: ['(^|/)go (build|test|run|install|get|mod|generate|vet|list)( |$)'], says: a go command is running}]
+do:
+  - {root: {run: [go, env, GOMODCACHE]}, run: [go, clean, -modcache], size: '{path}'}
+  - {root: {run: [go, env, GOCACHE]}, run: [go, clean, -cache], size: '{path}'}

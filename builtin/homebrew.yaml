@@ -13,16 +13,9 @@ settings:
     default: 15m
     help: give up on a cleanup that runs longer
 
-needs: [brew]
-
-busy:
-  processes: ['/Library/Homebrew/brew\.(sh|rb)']
-  says: a brew command is running
-
-remove:
-  run: [brew, cleanup, --prune=all]
-  dry-run: [--dry-run]
-  timeout: timeout
-  estimate:
-    match: '(?:would free|has freed) approximately (.+?) of disk space'
-    units: binary
+when: [{program: brew}]
+unless: [{running: ['/Library/Homebrew/brew\.(sh|rb)'], says: a brew command is running}]
+run: [brew, cleanup, --prune=all]
+dry-run: [--dry-run]
+timeout: '{timeout}'
+estimate: {match: '(?:would free|has freed) approximately (.+?) of disk space', units: binary}

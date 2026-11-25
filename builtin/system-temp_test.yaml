@@ -14,13 +14,13 @@
     fs/private/tmp/read.json: 1d
     fs/private/tmp/written.json: 2d
   removes: []
-  says: [2 files younger than 3 days by access, change or write time]
+  counts: 0
 
 - case: a file whose status changed within 3 days stays, however old its writes
   files:
     fs/private/tmp/renamed.json: 4d
   removes: []
-  says: [1 file younger than 3 days]
+  counts: 0
 
 - case: an empty folder untouched for 3 days goes
   later: 4d
@@ -49,7 +49,7 @@
     fs/private/tmp/done.db: 4d
   open: [fs/private/tmp/held.db]
   removes: [fs/private/tmp/done.db]
-  says: ['held.db: a process has it open']
+  says: ['held.db: a process still has it open']
 
 - case: a dry run removes nothing
   later: 4d

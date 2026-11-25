@@ -3,15 +3,10 @@ describes: saved quick-boot states of Android emulators that are not running
 reversible: true
 
 readme:
-  removes: "saved quick-boot states of Android emulators in {root}, all while an emulator runs"
+  removes: "saved quick-boot states of Android emulators in `$ANDROID_AVD_HOME`, else `$ANDROID_USER_HOME/avd`, else `~/.android/avd`, all while an emulator runs"
   keeps: "each device's data: installed apps, accounts, settings"
   can-lose: the next start is a cold boot
 
 root: $ANDROID_AVD_HOME or $ANDROID_USER_HOME/avd or ~/.android/avd
-
-busy:
-  processes: ['qemu-system-', '/emulator/emulator( |$)']
-  says: an Android emulator is running
-
-remove:
-  folders: ['*.avd/snapshots/*']
+unless: [{running: ['qemu-system-', '/emulator/emulator( |$)'], says: an Android emulator is running}]
+remove: [{folders: '*.avd/snapshots/*'}]

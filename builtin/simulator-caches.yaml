@@ -7,23 +7,13 @@ readme:
   keeps: app data
 
 root: ~/Library/Developer/CoreSimulator/Devices
-
-busy:
-  processes: [xcodebuild, simctl, '/Simulator\.app/', '/DeviceHub\.app/']
-  says: Simulator, DeviceHub, simctl or an Xcode build is running
-
-each:
-  folders: ['*']
-  has: [data/]
-  value:
-    command: [plutil, -extract, state, raw, -o, -, '{path}/device.plist']
-    must-be: '1'
-    says: the simulator is not shut down (state {value})
-  busy:
-    processes: ['{path}/']
-    says: a process of this simulator is running
-
-remove:
-  folders:
-    - data/**/Library/Caches/**/com.apple.e5rt.e5bundlecache
-    - data/Library/Application Support/PRBPosterExtensionDataStore
+unless: [{running: [xcodebuild, simctl, '/Simulator\.app/', '/DeviceHub\.app/'], says: 'Simulator, DeviceHub, simctl or an Xcode build is running'}]
+do:
+  - root: '*'
+    when:
+      - {exists: data/}
+      - {value: {run: [plutil, -extract, state, raw, -o, -, '{path}/device.plist']}, is: '1', says: the simulator is not shut down}
+    unless: [{running: ['{path}/'], says: a process of this simulator is running}]
+    remove:
+      - folders: data/**/Library/Caches/**/com.apple.e5rt.e5bundlecache
+      - folders: data/Library/Application Support/PRBPosterExtensionDataStore

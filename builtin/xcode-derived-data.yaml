@@ -5,17 +5,13 @@ reversible: true
 readme:
   keeps: all while Xcode builds; in a folder you picked in Xcode, what Xcode did not make
 
-root:
-  - command: [defaults, read, com.apple.dt.Xcode, IDECustomDerivedDataLocation]
-    absolute: true
+unless: [{running: [{group: xcode}], says: Xcode or an Xcode build is running}]
+first:
+  - root: {run: [defaults, read, com.apple.dt.Xcode, IDECustomDerivedDataLocation], absolute: true}
     remove:
-      folders: ['*.noindex', SDKExplicitPrecompiledModules, {match: '^.+-[a-z]{28}$', has: [info.plist]}]
-      others: not made by Xcode
-  - ~/Library/Developer/Xcode/DerivedData
-
-busy:
-  groups: [xcode]
-  says: Xcode or an Xcode build is running
-
-remove:
-  folders: ['*']
+      - folders: '*.noindex'
+      - folders: SDKExplicitPrecompiledModules
+      - {folders: '*', match: '^.+-[a-z]{28}$', when: [{exists: info.plist}]}
+      - {skip: '*/', says: not made by Xcode}
+  - root: ~/Library/Developer/Xcode/DerivedData
+    remove: [{folders: '*'}]

@@ -18,17 +18,10 @@ settings:
     help: keep this many newest archives of each app
 
 root: ~/Library/Developer/Xcode/Archives
-
-busy:
-  groups: [xcode]
-  says: Xcode or an Xcode build is running
-
-remove:
-  folders: ['*.xcarchive', '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/*.xcarchive']
-  newest:
-    keep: keep
-    of-each: {file: Info.plist, key: [ApplicationProperties.CFBundleIdentifier, Name]}
-    by: {file: Info.plist, key: [CreationDate]}
-
-keep:
-  age: {of: {file: Info.plist, key: [CreationDate]}, within: min-age}
+unless: [{running: [{group: xcode}], says: Xcode or an Xcode build is running}]
+remove: [{folders: '*.xcarchive'}, {folders: '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/*.xcarchive'}]
+rank:
+  per: {file: Info.plist, key: [ApplicationProperties.CFBundleIdentifier, Name]}
+  order: {file: Info.plist, key: [CreationDate]}
+  spare: {newest: '{keep}'}
+keep: {age: {of: {file: Info.plist, key: [CreationDate]}, within: '{min-age}'}}

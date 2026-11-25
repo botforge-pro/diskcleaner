@@ -48,7 +48,6 @@
     Library/Developer/Xcode/Archives/2026-09-01/Broken.xcarchive/Info.plist: {text: <plist><dict>}
   removes: []
   fails: [Broken.xcarchive/Info.plist]
-  says: [does not say what it is and when it was made]
 
 - case: archives in folders not named by a date stay
   files:
@@ -64,5 +63,7 @@
   files:
     Library/Developer/Xcode/Archives/2026-01-01/App 01.01.2026.xcarchive/Info.plist:
       text: <plist><dict><key>Name</key><string>App</string><key>CreationDate</key><date>{ago 300d}</date></dict></plist>
+    Library/Developer/Xcode/Archives/2026-01-02/App 02.01.2026.xcarchive/Info.plist:
+      text: <plist><dict><key>Name</key><string>App</string><key>CreationDate</key><date>{ago 299d}</date></dict></plist>
   removes: []
   says: [Xcode or an Xcode build is running]

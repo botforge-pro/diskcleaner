@@ -89,6 +89,11 @@ func (r *Report) Remove(path string) {
 }
 
 func (r *Report) RemoveEntry(path string, bytes int64, remove func() error) {
+	key := filepath.Clean(path)
+	if r.alreadyRemoved(key) {
+		return
+	}
+	r.removed = append(r.removed, key)
 	sizeKB := (bytes + 1023) / 1024
 	if r.DryRun {
 		fmt.Fprintf(r.Out, "WOULD REMOVE  %s  %s\n", FormatKB(sizeKB), path)

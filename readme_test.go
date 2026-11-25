@@ -24,15 +24,15 @@ func TestTheREADMEListsTheStepsAsTheirFilesSay(t *testing.T) {
 }
 
 func parsedStep(t *testing.T, name, body string) stepInfo {
-	f, err := rule.Parse(name+".yaml", []byte(body))
+	f, err := rule.Parse(name+".yaml", []byte(body), builtinGroups)
 	require.NoError(t, err)
 	return stepInfo{f.Step(), f}
 }
 
 func TestEachStepIsARowInBoldWhenItCannotBeUndone(t *testing.T) {
 	steps := []stepInfo{
-		parsedStep(t, "some-cache", "order: 1\ndescribes: the cache of some tool\nreversible: true\nreadme: {keeps: all while it runs}\nroot: ~/Library/Caches/some\nremove: root\n"),
-		parsedStep(t, "old-logs", "order: 2\ndescribes: logs older than {min-age}\nreadme: {can-lose: a pipe | in the text}\nsettings: [{key: min-age, kind: duration, default: 20d, help: x}]\nroot: ~/Library/Logs/some\nremove: {files: ['**/*.log']}\nkeep: {age: {of: mtime, within: min-age}}\n"),
+		parsedStep(t, "some-cache", "order: 1\ndescribes: the cache of some tool\nreversible: true\nreadme: {keeps: all while it runs}\nroot: ~/Library/Caches/some\nremove: .\n"),
+		parsedStep(t, "old-logs", "order: 2\ndescribes: logs older than {min-age}\nreadme: {can-lose: a pipe | in the text}\nsettings: [{key: min-age, kind: duration, default: 20d, help: x}]\nroot: ~/Library/Logs/some\nremove: [{files: '**/*.log'}]\nkeep: {age: {of: mtime, within: '{min-age}'}}\n"),
 	}
 
 	assert.Equal(t, stepsHeader+
@@ -42,7 +42,7 @@ func TestEachStepIsARowInBoldWhenItCannotBeUndone(t *testing.T) {
 }
 
 func TestOnlyTheTableOfStepsIsReplaced(t *testing.T) {
-	steps := []stepInfo{parsedStep(t, "some-cache", "order: 1\ndescribes: the cache\nreversible: true\nroot: ~/Library/Caches/some\nremove: root\n")}
+	steps := []stepInfo{parsedStep(t, "some-cache", "order: 1\ndescribes: the cache\nreversible: true\nroot: ~/Library/Caches/some\nremove: .\n")}
 	readme := "# Tool\n\n" + stepsHeader + "| `old` | x |  |  |\n\n## Next\n"
 
 	replaced, err := withStepsTable(readme, steps)

@@ -13,7 +13,7 @@
     - Library/Developer/CoreSimulator/Devices/shut/data/Containers/Data/Application/APP/Library/Caches/com.example.app/com.apple.e5rt.e5bundlecache
     - Library/Developer/CoreSimulator/Devices/shut/data/Library/Caches/com.apple.icloudmailagent/com.apple.e5rt.e5bundlecache
     - Library/Developer/CoreSimulator/Devices/shut/data/Library/Application Support/PRBPosterExtensionDataStore
-  says: ['booted: the simulator is not shut down (state 3)']
+  says: ['booted: the simulator is not shut down']
   counts: 3
 
 - case: a dry run removes nothing

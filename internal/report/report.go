@@ -33,69 +33,14 @@ func (r *Report) Skip(format string, args ...any) {
 	fmt.Fprintf(r.Err, "SKIPPED       %s\n", fmt.Sprintf(format, args...))
 }
 
-func (r *Report) Directory(path string) bool {
-	info, err := os.Stat(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return false
-	}
-	if err != nil {
-		r.Fail("stat %s: %v", path, err)
-		return false
-	}
-	if !info.IsDir() {
-		r.Fail("%s: not a directory", path)
-		return false
-	}
-	return true
-}
-
-func (r *Report) Busy(running func(pattern string) (bool, error), pattern string) bool {
-	busy, err := running(pattern)
-	if err != nil {
-		r.Fail("pgrep -f '%s': %v", pattern, err)
-		return true
-	}
-	return busy
-}
-
-func (r *Report) Remove(path string) {
-	key, err := filepath.Abs(path)
-	if err != nil {
-		r.Fail("abs %s: %v", path, err)
-		key = filepath.Clean(path)
-	}
-	if r.alreadyRemoved(key) {
-		return
-	}
-	r.removed = append(r.removed, key)
-	sizeKB, err := DiskUsageKB(path)
-	if err != nil {
-		r.Fail("du %s: %v", path, err)
-	}
-	if r.DryRun {
-		fmt.Fprintf(r.Out, "WOULD REMOVE  %s  %s\n", FormatKB(sizeKB), path)
-		r.Count++
-		r.KB += sizeKB
-		return
-	}
-	fmt.Fprintf(r.Out, "REMOVE        %s  %s\n", FormatKB(sizeKB), path)
-	if err := os.RemoveAll(path); err != nil {
-		r.Fail("rm %s: %v", path, err)
-		r.CountFreed(path, sizeKB, "a failed rm")
-		return
-	}
-	r.Count++
-	r.KB += sizeKB
-}
-
 func (r *Report) RemoveEntry(path string, bytes int64, remove func() error) {
 	key := filepath.Clean(path)
 	if r.alreadyRemoved(key) {
 		return
 	}
-	r.removed = append(r.removed, key)
 	sizeKB := (bytes + 1023) / 1024
 	if r.DryRun {
+		r.removed = append(r.removed, key)
 		fmt.Fprintf(r.Out, "WOULD REMOVE  %s  %s\n", FormatKB(sizeKB), path)
 		r.Count++
 		r.KB += sizeKB
@@ -104,11 +49,14 @@ func (r *Report) RemoveEntry(path string, bytes int64, remove func() error) {
 	err := remove()
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
+		r.removed = append(r.removed, key)
 	case errors.Is(err, syscall.ENOTEMPTY), errors.Is(err, syscall.EEXIST):
 		r.Skip("%s: no longer empty", path)
 	case err != nil:
 		r.Fail("rm %s: %v", path, err)
+		r.CountFreed(path, sizeKB, "a failed rm")
 	default:
+		r.removed = append(r.removed, key)
 		fmt.Fprintf(r.Out, "REMOVE        %s  %s\n", FormatKB(sizeKB), path)
 		r.Count++
 		r.KB += sizeKB

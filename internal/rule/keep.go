@@ -99,6 +99,9 @@ func (c *ctx) kept(k *Keep, f found) bool {
 		case inside.socket != "":
 			c.r.Skip("%s: holds the socket %s, which a process may be listening on", f.path, inside.socket)
 			return true
+		case inside.foreign != "":
+			c.r.Skip("%s: holds %s, which is not yours", f.path, inside.foreign)
+			return true
 		}
 	}
 	if k == nil {
@@ -205,9 +208,9 @@ func (c *ctx) remove(k *Keep, f found) {
 	if f.path == c.folder {
 		base = filepath.Dir(c.folder)
 	}
-	volume, err := os.Stat(f.path)
+	volume, err := os.Stat(base)
 	if err != nil {
-		c.r.Fail("stat %s: %v", f.path, err)
+		c.r.Fail("stat %s: %v", base, err)
 		return
 	}
 	e, err := openEntry(base, f.path, device(volume))
@@ -308,6 +311,7 @@ type tree struct {
 	latest  time.Time
 	socket  string
 	mounted string
+	foreign string
 }
 
 func (t *tree) add(path string, info fs.FileInfo) {
@@ -320,6 +324,9 @@ func (t *tree) add(path string, info fs.FileInfo) {
 	}
 	if info.Mode().Type() == fs.ModeSocket && t.socket == "" {
 		t.socket = path
+	}
+	if stat, ok := info.Sys().(*syscall.Stat_t); ok && int(stat.Uid) != os.Getuid() && t.foreign == "" {
+		t.foreign = path
 	}
 }
 

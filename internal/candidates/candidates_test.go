@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newReport(dryRun bool) (*report.Report, *bytes.Buffer, *bytes.Buffer) {
+func newReport() *report.Report {
 	var stdout, stderr bytes.Buffer
-	return &report.Report{Out: &stdout, Err: &stderr, DryRun: dryRun}, &stdout, &stderr
+	return &report.Report{Out: &stdout, Err: &stderr}
 }
 
 func write(t *testing.T, path string) {
@@ -59,7 +59,7 @@ func TestGitTracking(t *testing.T) {
 		{filepath.Join(outside, "build"), Untracked},
 	}
 	for _, tc := range cases {
-		r, _, _ := newReport(false)
+		r := newReport()
 		assert.Equal(t, tc.want, GitTracking(r, tc.path), tc.path)
 		assert.Empty(t, r.Failures, tc.path)
 	}
@@ -68,17 +68,10 @@ func TestGitTracking(t *testing.T) {
 func TestARelativePathIsCheckedAgainstTheRightFile(t *testing.T) {
 	repo := newRepo(t)
 	t.Chdir(repo)
-	r, _, stderr := newReport(false)
-	var set Set
+	r := newReport()
 
 	assert.Equal(t, Tracked, GitTracking(r, filepath.Join("app", "build", "tracked.txt")))
-	set.Add(r, filepath.Join("app", "build", "tracked.txt"))
-	set.Add(r, filepath.Join("lib", "build"))
-	set.Remove(r)
-
-	assert.FileExists(t, filepath.Join(repo, "app", "build", "tracked.txt"))
-	assert.NoDirExists(t, filepath.Join(repo, "lib", "build"))
-	assert.Contains(t, stderr.String(), "SKIPPED       "+filepath.Join(repo, "app", "build", "tracked.txt")+": contains files tracked by git\n")
+	assert.Equal(t, Untracked, GitTracking(r, filepath.Join("lib", "build")))
 }
 
 func TestAPathThroughALinkedFolderNeverCountsAsUntracked(t *testing.T) {
@@ -87,38 +80,14 @@ func TestAPathThroughALinkedFolderNeverCountsAsUntracked(t *testing.T) {
 	require.NoError(t, err)
 	alias := filepath.Join(outside, "alias")
 	require.NoError(t, os.Symlink(filepath.Join(repo, "app", "build"), alias))
-	r, _, _ := newReport(false)
-	var set Set
 
-	assert.NotEqual(t, Untracked, GitTracking(r, filepath.Join(alias, "tracked.txt")))
-	set.Add(r, filepath.Join(alias, "tracked.txt"))
-	set.Remove(r)
-
-	assert.FileExists(t, filepath.Join(repo, "app", "build", "tracked.txt"))
-	assert.Zero(t, r.Count)
-}
-
-func TestALinkCandidateGoesAndItsTargetStays(t *testing.T) {
-	repo := newRepo(t)
-	outside, err := filepath.EvalSymlinks(t.TempDir())
-	require.NoError(t, err)
-	link := filepath.Join(outside, "build")
-	require.NoError(t, os.Symlink(filepath.Join(repo, "app", "build"), link))
-	r, _, _ := newReport(false)
-	var set Set
-
-	set.Add(r, link)
-	set.Remove(r)
-
-	_, err = os.Lstat(link)
-	assert.ErrorIs(t, err, os.ErrNotExist)
-	assert.FileExists(t, filepath.Join(repo, "app", "build", "tracked.txt"))
+	assert.NotEqual(t, Untracked, GitTracking(newReport(), filepath.Join(alias, "tracked.txt")))
 }
 
 func TestBareRepositoryIsUnknown(t *testing.T) {
 	repo := newRepo(t)
 	gitRun(t, repo, "config", "core.bare", "true")
-	r, _, _ := newReport(false)
+	r := newReport()
 
 	assert.Equal(t, Unknown, GitTracking(r, filepath.Join(repo, "lib", "build")))
 	require.Len(t, r.Failures, 1)
@@ -129,95 +98,9 @@ func TestBrokenRepositoryBelowAGitDirectoryIsUnknown(t *testing.T) {
 	repo := newRepo(t)
 	require.NoError(t, os.RemoveAll(filepath.Join(repo, ".git")))
 	require.NoError(t, os.WriteFile(filepath.Join(repo, ".git"), []byte("gitdir: /nowhere\n"), 0o644))
-	r, _, _ := newReport(false)
+	r := newReport()
 
 	assert.Equal(t, Unknown, GitTracking(r, filepath.Join(repo, "lib", "build")))
 	require.Len(t, r.Failures, 1)
 	assert.Contains(t, r.Failures[0], "git rev-parse in "+filepath.Join(repo, "lib"))
-}
-
-func TestSetKeepsTrackedAndRemovesTheRest(t *testing.T) {
-	repo := newRepo(t)
-	r, stdout, stderr := newReport(false)
-	var set Set
-
-	set.Add(r, filepath.Join(repo, "app", "build"))
-	set.Add(r, filepath.Join(repo, "lib", "build"))
-	set.Remove(r)
-
-	assert.DirExists(t, filepath.Join(repo, "app", "build"))
-	assert.NoDirExists(t, filepath.Join(repo, "lib", "build"))
-	assert.Equal(t, 1, r.Count)
-	assert.Contains(t, stderr.String(), "SKIPPED       "+filepath.Join(repo, "app", "build")+": contains files tracked by git\n")
-	assert.Contains(t, stdout.String(), "REMOVE")
-}
-
-func TestSetRemovesANestedPathOnceWithItsParent(t *testing.T) {
-	repo := newRepo(t)
-	inner := filepath.Join(repo, "lib", "build", "nested")
-	write(t, filepath.Join(inner, "x.o"))
-	r, _, stderr := newReport(false)
-	var set Set
-
-	set.Add(r, inner)
-	set.Add(r, filepath.Join(repo, "lib", "build"))
-	set.Remove(r)
-
-	assert.NoDirExists(t, filepath.Join(repo, "lib", "build"))
-	assert.Equal(t, 1, r.Count)
-	assert.NotContains(t, stderr.String(), "no longer exists")
-}
-
-func TestSetSkipsAPathThatIsGone(t *testing.T) {
-	repo := newRepo(t)
-	gone := filepath.Join(repo, "lib", "build")
-	r, _, stderr := newReport(false)
-	var set Set
-
-	set.Add(r, gone)
-	require.NoError(t, os.RemoveAll(gone))
-	set.Remove(r)
-
-	assert.Zero(t, r.Count)
-	assert.Contains(t, stderr.String(), "SKIPPED       "+gone+": no longer exists\n")
-}
-
-func TestSetListsItsPaths(t *testing.T) {
-	repo := newRepo(t)
-	r, _, _ := newReport(false)
-	var set Set
-
-	set.Add(r, filepath.Join(repo, "lib", "build"))
-
-	assert.Equal(t, []string{filepath.Join(repo, "lib", "build")}, set.Paths())
-}
-
-func TestSetKeepsWhatTheLastCheckKeeps(t *testing.T) {
-	repo := newRepo(t)
-	r, _, _ := newReport(false)
-	var set Set
-	kept := filepath.Join(repo, "lib", "build")
-	var asked []string
-
-	set.Add(r, kept)
-	set.RemoveUnless(r, func(path string) bool {
-		asked = append(asked, path)
-		return true
-	})
-
-	assert.DirExists(t, kept)
-	assert.Zero(t, r.Count)
-	assert.Equal(t, []string{kept}, asked)
-}
-
-func TestSetDryRunRemovesNothing(t *testing.T) {
-	repo := newRepo(t)
-	r, _, _ := newReport(true)
-	var set Set
-
-	set.Add(r, filepath.Join(repo, "lib", "build"))
-	set.Remove(r)
-
-	assert.DirExists(t, filepath.Join(repo, "lib", "build"))
-	assert.Equal(t, 1, r.Count)
 }

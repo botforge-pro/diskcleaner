@@ -8,11 +8,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 
 	"github.com/botforge-pro/diskcleaner/internal/inuse"
 	"github.com/botforge-pro/diskcleaner/internal/process"
@@ -226,6 +228,48 @@ func TestAFolderHoldingASocketStays(t *testing.T) {
 	assert.Equal(t, 1, r.Count)
 	assert.Contains(t, stderr, held+": holds the socket")
 }
+
+func TestASocketThatAppearsInAFolderBeingRemovedStopsTheRemoval(t *testing.T) {
+	root, err := os.MkdirTemp("/tmp", "sock")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(root) })
+	folder := filepath.Join(root, "build")
+	write(t, filepath.Join(folder, "x"))
+	listener, err := net.Listen("unix", filepath.Join(folder, "s"))
+	require.NoError(t, err)
+	t.Cleanup(func() { listener.Close() })
+	parent, err := unix.Open(root, openFolder, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() { unix.Close(parent) })
+	var stat unix.Stat_t
+	require.NoError(t, unix.Stat(root, &stat))
+
+	err = removeTree(parent, "build", uint64(stat.Dev))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "the socket s appeared in it")
+	assert.DirExists(t, folder)
+}
+
+func TestAFolderHoldingAnotherUsersFileIsKept(t *testing.T) {
+	found := tree{volume: 1}
+	mine := fakeInfo{stat: syscall.Stat_t{Dev: 1, Uid: uint32(os.Getuid())}}
+	theirs := fakeInfo{stat: syscall.Stat_t{Dev: 1, Uid: uint32(os.Getuid()) + 1}}
+
+	found.add("/a/x", mine)
+	found.add("/a/root-owned", theirs)
+
+	assert.Equal(t, "/a/root-owned", found.foreign)
+}
+
+type fakeInfo struct {
+	os.FileInfo
+	stat syscall.Stat_t
+}
+
+func (f fakeInfo) Sys() any           { return &f.stat }
+func (f fakeInfo) ModTime() time.Time { return time.Time{} }
+func (f fakeInfo) Mode() os.FileMode  { return 0 }
 
 func TestAFailedLsofKeepsEverythingAndFails(t *testing.T) {
 	root := temp(t)

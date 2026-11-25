@@ -100,6 +100,12 @@ func removeTree(parent int, name string, volume uint64) error {
 		if err != nil {
 			return err
 		}
+		switch {
+		case int(stat.Uid) != os.Getuid():
+			return fmt.Errorf("%s is no longer yours", child)
+		case stat.Mode&unix.S_IFMT == unix.S_IFSOCK:
+			return fmt.Errorf("the socket %s appeared in it", child)
+		}
 		if stat.Mode&unix.S_IFMT == unix.S_IFDIR {
 			err = removeTree(fd, child, volume)
 		} else {

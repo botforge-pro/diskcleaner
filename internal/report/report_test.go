@@ -2,6 +2,7 @@ package report
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,90 +11,52 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRemoveCountsWhatItRemoved(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "cache")
-	require.NoError(t, os.MkdirAll(dir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "entry"), make([]byte, 8192), 0o644))
+func newReport(dryRun bool) (*Report, *bytes.Buffer, *bytes.Buffer) {
 	var stdout, stderr bytes.Buffer
-	r := &Report{
-		Out: &stdout,
-		Err: &stderr,
-	}
+	return &Report{Out: &stdout, Err: &stderr, DryRun: dryRun}, &stdout, &stderr
+}
 
-	r.Remove(dir)
+func TestRemoveEntryCountsWhatItRemoved(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "entry")
+	require.NoError(t, os.WriteFile(file, make([]byte, 8192), 0o644))
+	r, stdout, stderr := newReport(false)
 
-	assert.NoDirExists(t, dir)
+	r.RemoveEntry(file, 8192, func() error { return os.Remove(file) })
+
+	assert.NoFileExists(t, file)
 	assert.Equal(t, 1, r.Count)
-	assert.GreaterOrEqual(t, r.KB, int64(8))
-	assert.Regexp(t, `^REMOVE {8}[0-9.]+ KiB  `, stdout.String())
+	assert.EqualValues(t, 8, r.KB)
+	assert.Equal(t, "REMOVE        8.0 KiB  "+file+"\n", stdout.String())
 	assert.Empty(t, stderr.String())
 }
 
-func TestRemoveCountsAPathInsideARemovedOneOnce(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), ".build")
-	inner := filepath.Join(dir, "pkg", "node_modules")
-	require.NoError(t, os.MkdirAll(inner, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(inner, "entry"), make([]byte, 8192), 0o644))
-	sibling := dir + "-other"
-	require.NoError(t, os.MkdirAll(sibling, 0o755))
-	var stdout, stderr bytes.Buffer
-	r := &Report{
-		Out:    &stdout,
-		Err:    &stderr,
-		DryRun: true,
+func TestADryRunCountsAPathInsideACountedOneOnce(t *testing.T) {
+	r, stdout, _ := newReport(true)
+	removes := func() error {
+		t.Fatal("a dry run removed")
+		return nil
 	}
 
-	r.Remove(dir)
-	kb := r.KB
-	r.Remove(inner)
-	r.Remove(dir)
-	r.Remove(sibling)
+	r.RemoveEntry("/a/.build", 4096, removes)
+	r.RemoveEntry("/a/.build/pkg/node_modules", 1024, removes)
+	r.RemoveEntry("/a/.build-other", 1024, removes)
 
-	siblingKB, err := DiskUsageKB(sibling)
-	require.NoError(t, err)
 	assert.Equal(t, 2, r.Count)
-	assert.Equal(t, kb+siblingKB, r.KB)
+	assert.EqualValues(t, 5, r.KB)
 	assert.Equal(t, 2, bytes.Count(stdout.Bytes(), []byte("WOULD REMOVE")))
-	assert.Empty(t, stderr.String())
 }
 
-func TestRemoveKnowsARelativeSpellingOfARemovedPath(t *testing.T) {
-	dir, err := filepath.EvalSymlinks(t.TempDir())
-	require.NoError(t, err)
-	require.NoError(t, os.MkdirAll(filepath.Join(dir, "repos", "app", ".build", "cache"), 0o755))
-	t.Chdir(dir)
-	var stdout, stderr bytes.Buffer
-	r := &Report{
-		Out:    &stdout,
-		Err:    &stderr,
-		DryRun: true,
-	}
+func TestAPathThatFailedToGoIsNotTakenAsGone(t *testing.T) {
+	r, _, stderr := newReport(false)
+	dir := t.TempDir()
+	inner := filepath.Join(dir, "inner")
+	require.NoError(t, os.WriteFile(inner, []byte("x"), 0o644))
 
-	r.Remove(filepath.Join(dir, "repos", "app", ".build"))
-	r.Remove("./repos/app/.build")
-	r.Remove("repos/other/../app/.build/cache")
+	r.RemoveEntry(dir, 4096, func() error { return errors.New("permission denied") })
+	r.RemoveEntry(inner, 1024, func() error { return os.Remove(inner) })
 
+	assert.NoFileExists(t, inner, "what lies inside a folder that did not go is still removed")
 	assert.Equal(t, 1, r.Count)
-	assert.Empty(t, stderr.String())
-}
-
-func TestRemoveReportsWhatItCouldNotRemove(t *testing.T) {
-	parent := t.TempDir()
-	dir := filepath.Join(parent, "locked")
-	require.NoError(t, os.MkdirAll(dir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "entry"), []byte("x"), 0o644))
-	require.NoError(t, os.Chmod(dir, 0o555))
-	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
-	var stdout, stderr bytes.Buffer
-	r := &Report{
-		Out: &stdout,
-		Err: &stderr,
-	}
-
-	r.Remove(dir)
-
-	assert.DirExists(t, dir)
-	assert.Zero(t, r.Count)
-	require.Len(t, r.Failures, 1)
+	assert.Equal(t, []string{"rm " + dir + ": permission denied"}, r.Failures)
 	assert.Contains(t, stderr.String(), "FAILED        rm "+dir)
 }

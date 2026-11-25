@@ -185,7 +185,8 @@ of a `skip` that names it, if there is one.
 - `order: value` sorts a group; versions compare part by part as numbers
   (`17.10` after `17.9`), dates as dates, the rest as text, and equal ones
   keep their names' order;
-- `spare: {newest: count}` spares the newest of each group;
+- `spare: {newest: count}` spares the newest of each group, which `order`
+  must say;
   `spare: {in: value}` spares the candidates whose name is the last part of a
   value in the set; a name not on disk joins the group its `per` reads from
   the name.
@@ -271,12 +272,14 @@ No file can turn these off, and no file needs to ask for them.
   follow a link inside it.
 - A mounted volume is never entered, and a folder holding one is kept.
 - A folder holding a socket is kept.
-- Only the running user's files are taken, and a folder of another user's is
-  not entered.
+- Only the running user's files are taken: a folder of another user's is not
+  entered, and a folder holding another user's file is kept.
 - Removal opens each folder on the way without following links, checks it is
-  still on the same volume and removes the entry in the opened folder; a
-  folder's contents are removed the same way, a link inside it as a link. So a
-  folder swapped for a link between the scan and the removal stays.
+  still on the volume of the node's folder and removes the entry in the opened
+  folder; a folder's contents are removed the same way, a link inside it as a
+  link. So a folder swapped for a link, or a volume mounted on it, between the
+  scan and the removal stays, and a socket or another user's file that appears
+  inside it stops its removal there.
 - A file goes only while it is a regular file and, kept for its age, still old;
   a folder only while it is a folder; an empty folder only while it is empty.
 - A dry run removes nothing, and what lies inside something already counted is

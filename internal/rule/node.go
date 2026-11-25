@@ -356,6 +356,9 @@ func (c checker) rank(r *Rank) error {
 		return errors.New("rank: spare: want one of newest: count and in: a set of names")
 	}
 	if r.Spare.Newest != "" {
+		if r.Order == nil {
+			return errors.New("rank: spare: newest: want order, which says what is newest")
+		}
 		return c.amount(r.Spare.Newest, "rank: spare: newest", "count")
 	}
 	return nil

@@ -136,6 +136,8 @@ func (s Rule) Run(r *report.Report) {
 		s.removeFiles(r)
 	case remove.Untouched != nil:
 		s.sweeper().run(r)
+	case len(remove.Superseded) > 0:
+		s.removeSuperseded(r)
 	}
 	for _, c := range s.remove.Commands {
 		if !s.runCommand(r, c, s.root) {

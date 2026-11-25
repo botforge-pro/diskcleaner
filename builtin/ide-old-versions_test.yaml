@@ -1,0 +1,181 @@
+- case: older versions of an installed IDE of any vendor go
+  commands:
+    mdfind kMDItemContentType == "com.apple.application-bundle": {stdout: /System/Applications/Calculator.app}
+  files:
+    fs/Applications/GoLand.app/Contents/Resources/product-info.json: {text: '{"productVendor": "JetBrains", "dataDirectoryName": "GoLand2026.2"}'}
+    fs/Applications/Android Studio.app/Contents/Resources/product-info.json: {text: '{"productVendor": "Google", "dataDirectoryName": "AndroidStudio2025.3.2"}'}
+    fs/Applications/DevEco-Studio.app/Contents/Resources/product-info.json: {text: '{"productVendor": "Huawei", "dataDirectoryName": "DevEcoStudio5.1"}'}
+    Library/Application Support/JetBrains/GoLand2025.3/options/ide.xml:
+    Library/Application Support/JetBrains/GoLand2026.2/options/ide.xml:
+    Library/Logs/Google/AndroidStudio2025.3.1/idea.log:
+    Library/Logs/Google/AndroidStudio2025.3.2/idea.log:
+    Library/Caches/Huawei/DevEcoStudio5.0/index/x:
+    Library/Caches/Huawei/DevEcoStudio5.1/index/x:
+  removes:
+    - Library/Application Support/JetBrains/GoLand2025.3
+    - Library/Logs/Google/AndroidStudio2025.3.1
+    - Library/Caches/Huawei/DevEcoStudio5.0
+  counts: 3
+
+- case: every installed version is kept
+  commands:
+    mdfind kMDItemContentType == "com.apple.application-bundle": {stdout: /System/Applications/Calculator.app}
+  files:
+    fs/Applications/GoLand.app/Contents/Resources/product-info.json: {text: '{"productVendor": "JetBrains", "dataDirectoryName": "GoLand2026.2"}'}
+    fs/Applications/JetBrains Toolbox/GoLand 2025.3.app/Contents/Resources/product-info.json: {text: '{"productVendor": "JetBrains", "dataDirectoryName": "GoLand2025.3"}'}
+    Library/Application Support/JetBrains/GoLand2025.1/options/ide.xml:
+    Library/Application Support/JetBrains/GoLand2025.3/options/ide.xml:
+    Library/Application Support/JetBrains/GoLand2026.2/options/ide.xml:
+  removes: [Library/Application Support/JetBrains/GoLand2025.1]
+
+- case: a version installed anywhere Spotlight or Toolbox sees is kept
+  commands:
+    mdfind kMDItemContentType == "com.apple.application-bundle": {stdout: "/System/Applications/Calculator.app\n~/Downloads/GoLand 2025.1.app\n"}
+  files:
+    fs/Applications/GoLand.app/Contents/Resources/product-info.json: {text: '{"productVendor": "JetBrains", "dataDirectoryName": "GoLand2026.2"}'}
+    Downloads/GoLand 2025.1.app/Contents/Resources/product-info.json: {text: '{"productVendor": "JetBrains", "dataDirectoryName": "GoLand2025.1"}'}
+    Library/Application Support/JetBrains/Toolbox/apps/GoLand/ch-0/252.1/GoLand.app/Contents/Resources/product-info.json: {text: '{"productVendor": "JetBrains", "dataDirectoryName": "GoLand2025.2"}'}
+    Library/Application Support/JetBrains/GoLand2025.1/options/ide.xml:
+    Library/Application Support/JetBrains/GoLand2025.2/options/ide.xml:
+    Library/Application Support/JetBrains/GoLand2024.3/options/ide.xml:
+    Library/Application Support/JetBrains/GoLand2026.2/options/ide.xml:
+  removes: [Library/Application Support/JetBrains/GoLand2024.3]
+
+- case: when Spotlight fails nothing goes
+  commands:
+    mdfind kMDItemContentType == "com.apple.application-bundle": {exit: 1, stderr: index unavailable}
+  files:
+    fs/Applications/GoLand.app/Contents/Resources/product-info.json: {text: '{"productVendor": "JetBrains", "dataDirectoryName": "GoLand2026.2"}'}
+    Library/Application Support/JetBrains/GoLand2025.3/options/ide.xml:
+    Library/Application Support/JetBrains/GoLand2026.2/options/ide.xml:
+  removes: []
+  fails: [index unavailable]
+
+- case: when Spotlight lists no app nothing goes
+  commands:
+    mdfind kMDItemContentType == "com.apple.application-bundle": {}
+  files:
+    fs/Applications/GoLand.app/Contents/Resources/product-info.json: {text: '{"productVendor": "JetBrains", "dataDirectoryName": "GoLand2026.2"}'}
+    Library/Application Support/JetBrains/GoLand2025.3/options/ide.xml:
+  removes: []
+  fails: ['is its indexing off?']
+
+- case: Toolbox and other apps without the IDE fields are not IDEs
+  commands:
+    mdfind kMDItemContentType == "com.apple.application-bundle": {stdout: /System/Applications/Calculator.app}
+  files:
+    fs/Applications/GoLand.app/Contents/Resources/product-info.json: {text: '{"productVendor": "JetBrains", "dataDirectoryName": "GoLand2026.2"}'}
+    fs/Applications/JetBrains Toolbox.app/Contents/Resources/product-info.json: {text: '{"name": "Toolbox"}'}
+    fs/Applications/Chat.app/Contents/Resources/app/product.json: {text: '{"name": "chat"}'}
+    Library/Application Support/JetBrains/GoLand2025.3/options/ide.xml:
+    Library/Application Support/JetBrains/GoLand2026.2/options/ide.xml:
+    Library/Application Support/Chat/CachedData/abc/x:
+  removes: [Library/Application Support/JetBrains/GoLand2025.3]
+
+- case: the old folder stays until the new version has made its own
+  commands:
+    mdfind kMDItemContentType == "com.apple.application-bundle": {stdout: /System/Applications/Calculator.app}
+  files:
+    fs/Applications/GoLand.app/Contents/Resources/product-info.json: {text: '{"productVendor": "JetBrains", "dataDirectoryName": "GoLand2026.2"}'}
+    Library/Application Support/JetBrains/GoLand2025.3/options/ide.xml:
+  removes: []
+  says: ['GoLand2025.3: GoLand.app has not made its own folder here yet']
+
+- case: newer versions and products not installed stay
+  commands:
+    mdfind kMDItemContentType == "com.apple.application-bundle": {stdout: /System/Applications/Calculator.app}
+  files:
+    fs/Applications/PyCharm.app/Contents/Resources/product-info.json: {text: '{"productVendor": "JetBrains", "dataDirectoryName": "PyCharm2025.3"}'}
+    Library/Application Support/JetBrains/PyCharm2025.3/options/ide.xml:
+    Library/Application Support/JetBrains/PyCharm2026.1/options/ide.xml:
+    Library/Application Support/JetBrains/IntelliJIdea2024.1/options/ide.xml:
+    Library/Application Support/JetBrains/Pycharm/options/ide.xml:
+  removes: []
+  counts: 0
+
+- case: the cache of editor builds no longer installed goes
+  commands:
+    mdfind kMDItemContentType == "com.apple.application-bundle": {stdout: /System/Applications/Calculator.app}
+  files:
+    fs/Applications/Visual Studio Code.app/Contents/Resources/app/product.json: {text: '{"nameShort": "Code", "commit": "6d62b1d5"}'}
+    fs/Applications/Cursor.app/Contents/Resources/app/product.json: {text: '{"nameShort": "Cursor", "commit": "c0ffee01"}'}
+    Library/Application Support/Code/CachedData/08d4889f/x:
+    Library/Application Support/Code/CachedData/6d62b1d5/x:
+    Library/Application Support/Code/CachedExtensionVSIXs/x:
+    Library/Application Support/Cursor/CachedData/deadbeef/x:
+    Library/Application Support/Cursor/CachedData/c0ffee01/x:
+  removes:
+    - Library/Application Support/Code/CachedData/08d4889f
+    - Library/Application Support/Cursor/CachedData/deadbeef
+
+- case: the cache of every installed build of one editor stays
+  commands:
+    mdfind kMDItemContentType == "com.apple.application-bundle": {stdout: /System/Applications/Calculator.app}
+  files:
+    fs/Applications/Visual Studio Code.app/Contents/Resources/app/product.json: {text: '{"nameShort": "Code", "commit": "aaaa"}'}
+    fs/Applications/Old/Visual Studio Code.app/Contents/Resources/app/product.json: {text: '{"nameShort": "Code", "commit": "bbbb"}'}
+    Library/Application Support/Code/CachedData/aaaa/x:
+    Library/Application Support/Code/CachedData/bbbb/x:
+    Library/Application Support/Code/CachedData/cccc/x:
+  removes: [Library/Application Support/Code/CachedData/cccc]
+
+- case: the editor cache stays until the installed build has made its own
+  commands:
+    mdfind kMDItemContentType == "com.apple.application-bundle": {stdout: /System/Applications/Calculator.app}
+  files:
+    fs/Applications/Visual Studio Code.app/Contents/Resources/app/product.json: {text: '{"nameShort": "Code", "commit": "6d62b1d5"}'}
+    Library/Application Support/Code/CachedData/08d4889f/x:
+  removes: []
+  says: ['CachedData: Visual Studio Code.app has not made its own folder here yet']
+
+- case: a dry run removes nothing
+  dry-run: true
+  commands:
+    mdfind kMDItemContentType == "com.apple.application-bundle": {stdout: /System/Applications/Calculator.app}
+  files:
+    fs/Applications/GoLand.app/Contents/Resources/product-info.json: {text: '{"productVendor": "JetBrains", "dataDirectoryName": "GoLand2026.2"}'}
+    Library/Application Support/JetBrains/GoLand2025.3/options/ide.xml:
+    Library/Application Support/JetBrains/GoLand2026.2/options/ide.xml:
+  removes: []
+  counts: 1
+
+- case: an unreadable description removes nothing and fails
+  commands:
+    mdfind kMDItemContentType == "com.apple.application-bundle": {stdout: /System/Applications/Calculator.app}
+  files:
+    fs/Applications/GoLand.app/Contents/Resources/product-info.json: {text: '{"productVendor": "JetBrains", "dataDirectoryName": "GoLand2026.2"}'}
+    fs/Applications/Odd.app/Contents/Resources/product-info.json: {text: '{'}
+    Library/Application Support/JetBrains/GoLand2025.3/options/ide.xml:
+    Library/Application Support/JetBrains/GoLand2026.2/options/ide.xml:
+  removes: []
+  fails: [Odd.app]
+
+- case: a vendor that is a path removes nothing and fails
+  commands:
+    mdfind kMDItemContentType == "com.apple.application-bundle": {stdout: /System/Applications/Calculator.app}
+  files:
+    fs/Applications/GoLand.app/Contents/Resources/product-info.json: {text: '{"productVendor": "JetBrains", "dataDirectoryName": "GoLand2026.2"}'}
+    fs/Applications/Odd.app/Contents/Resources/product-info.json: {text: '{"productVendor": "../x", "dataDirectoryName": "GoLand2026.2"}'}
+    Library/Application Support/JetBrains/GoLand2025.3/options/ide.xml:
+    Library/Application Support/JetBrains/GoLand2026.2/options/ide.xml:
+  removes: []
+  fails: ['productVendor "../x": want a name, not a path']
+
+- case: an unversioned data folder name removes nothing and fails
+  commands:
+    mdfind kMDItemContentType == "com.apple.application-bundle": {stdout: /System/Applications/Calculator.app}
+  files:
+    fs/Applications/GoLand.app/Contents/Resources/product-info.json: {text: '{"productVendor": "JetBrains", "dataDirectoryName": "GoLand2026.2"}'}
+    fs/Applications/Odd.app/Contents/Resources/product-info.json: {text: '{"productVendor": "JetBrains", "dataDirectoryName": "GoLand"}'}
+    Library/Application Support/JetBrains/GoLand2025.3/options/ide.xml:
+    Library/Application Support/JetBrains/GoLand2026.2/options/ide.xml:
+  removes: []
+  fails: ['GoLand: want a name followed by a version']
+
+- case: with no IDE installed the step is quiet
+  commands:
+    mdfind kMDItemContentType == "com.apple.application-bundle": {stdout: /System/Applications/Calculator.app}
+  files:
+    Library/Application Support/JetBrains/GoLand2025.3/options/ide.xml:
+  removes: []
+  counts: 0

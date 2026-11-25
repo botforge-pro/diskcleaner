@@ -6,4 +6,25 @@ readme:
   keeps: data of every installed version
   can-lose: settings the new version did not copy
 
-run: code
+apps:
+  run: [mdfind, 'kMDItemContentType == "com.apple.application-bundle"']
+  says: Spotlight lists no apps, so IDEs outside the folders below cannot be found; is its indexing off?
+  in:
+    - /Applications/*.app
+    - /Applications/*/*.app
+    - ~/Applications/*.app
+    - ~/Applications/*/*.app
+    - ~/Library/Application Support/JetBrains/Toolbox/apps/**/*.app
+
+remove:
+  superseded:
+    - read: Contents/Resources/product-info.json
+      folders:
+        - ~/Library/Application Support/{productVendor}/{dataDirectoryName}
+        - ~/Library/Caches/{productVendor}/{dataDirectoryName}
+        - ~/Library/Logs/{productVendor}/{dataDirectoryName}
+      by: version
+    - read: Contents/Resources/app/product.json
+      folders:
+        - ~/Library/Application Support/{nameShort}/CachedData/{commit}
+      by: name

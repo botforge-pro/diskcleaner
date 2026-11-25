@@ -6,29 +6,24 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
 	"github.com/botforge-pro/diskcleaner/internal/candidates"
-	"github.com/botforge-pro/diskcleaner/internal/process"
+	"github.com/botforge-pro/diskcleaner/internal/inuse"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/botforge-pro/diskcleaner/internal/settings"
 )
 
-const (
-	lsofTimeoutSeconds = 30
-	lsofBatch          = 50
-)
+const lsofBatch = 50
 
 type Step struct {
-	Label              string
-	Folder             string
-	MinAge             time.Duration
-	Now                func() time.Time
-	Lsof               string
-	LsofTimeoutSeconds int
-	Batch              int
+	Label  string
+	Folder string
+	MinAge time.Duration
+	Now    func() time.Time
+	Lsof   inuse.Lsof
+	Batch  int
 }
 
 func Claude(home string, minAge time.Duration) Step {
@@ -41,13 +36,12 @@ func Codex(home string, minAge time.Duration) Step {
 
 func logs(label, folder string, minAge time.Duration) Step {
 	return Step{
-		Label:              label,
-		Folder:             folder,
-		MinAge:             minAge,
-		Now:                time.Now,
-		Lsof:               "lsof",
-		LsofTimeoutSeconds: lsofTimeoutSeconds,
-		Batch:              lsofBatch,
+		Label:  label,
+		Folder: folder,
+		MinAge: minAge,
+		Now:    time.Now,
+		Lsof:   inuse.DefaultLsof(),
+		Batch:  lsofBatch,
 	}
 }
 
@@ -93,58 +87,24 @@ func (s Step) Run(r *report.Report) {
 	if len(walkErrors) > 0 {
 		r.Fail("scan %s: %v", s.Folder, errors.Join(walkErrors...))
 	}
-	paths := set.Paths()
-	slices.Sort(paths)
-	checks := openChecks{step: s, report: r, pending: paths}
-	set.RemoveUnless(r, checks.inUse)
+	open := s.Lsof.Every(s.Batch)
+	failed := false
+	set.RemoveUnless(r, func(path string) bool {
+		if failed {
+			return true
+		}
+		held, err := open.HoldsAny(path)
+		if err != nil {
+			r.Fail("lsof %s: %v", s.Folder, err)
+			failed = true
+			return true
+		}
+		return s.inUse(r, path, held)
+	})
 }
 
-type openChecks struct {
-	step    Step
-	report  *report.Report
-	pending []string
-	open    map[string]bool
-	checked map[string]bool
-	failed  bool
-}
-
-func (c *openChecks) inUse(path string) bool {
-	if c.failed {
-		return true
-	}
-	if !c.checked[path] && !c.checkBatchFrom(path) {
-		return true
-	}
-	return c.step.inUse(c.report, path, c.open)
-}
-
-func (c *openChecks) checkBatchFrom(path string) bool {
-	start := slices.Index(c.pending, path)
-	if start < 0 {
-		c.report.Fail("lsof %s: %s was never queued for the open check", c.step.Folder, path)
-		c.failed = true
-		return false
-	}
-	c.pending = c.pending[start:]
-	batch := c.pending[:min(c.step.Batch, len(c.pending))]
-	c.pending = c.pending[len(batch):]
-	names, err := process.OpenNames(c.step.LsofTimeoutSeconds, c.step.Lsof)
-	if err != nil {
-		c.report.Fail("lsof %s: %v", c.step.Folder, err)
-		c.failed = true
-		return false
-	}
-	c.open = map[string]bool{}
-	c.checked = map[string]bool{}
-	for _, path := range batch {
-		c.checked[path] = true
-		c.open[path] = process.Holds(names, path)
-	}
-	return true
-}
-
-func (s Step) inUse(r *report.Report, path string, open map[string]bool) bool {
-	if open[path] {
+func (s Step) inUse(r *report.Report, path string, held bool) bool {
+	if held {
 		r.Skip("%s: a process still has it open", path)
 		return true
 	}

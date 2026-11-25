@@ -9,12 +9,10 @@ import (
 	"slices"
 	"time"
 
-	"github.com/botforge-pro/diskcleaner/internal/process"
+	"github.com/botforge-pro/diskcleaner/internal/inuse"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/botforge-pro/diskcleaner/internal/settings"
 )
-
-const lsofTimeoutSeconds = 30
 
 var binaries = []string{
 	"*/Contents/MacOS/*",
@@ -22,11 +20,10 @@ var binaries = []string{
 }
 
 type Step struct {
-	Dir                string
-	MinAge             time.Duration
-	Now                func() time.Time
-	Lsof               string
-	LsofTimeoutSeconds int
+	Dir    string
+	MinAge time.Duration
+	Now    func() time.Time
+	Lsof   inuse.Lsof
 }
 
 func Default(minAge time.Duration) (Step, error) {
@@ -39,11 +36,10 @@ func Default(minAge time.Duration) (Step, error) {
 		dir = filepath.Join(filepath.Dir(temp), "X")
 	}
 	return Step{
-		Dir:                dir,
-		MinAge:             minAge,
-		Now:                time.Now,
-		Lsof:               "lsof",
-		LsofTimeoutSeconds: lsofTimeoutSeconds,
+		Dir:    dir,
+		MinAge: minAge,
+		Now:    time.Now,
+		Lsof:   inuse.DefaultLsof(),
 	}, nil
 }
 
@@ -68,12 +64,13 @@ func (s Step) Run(r *report.Report) {
 	defer fmt.Fprintln(r.Out)
 
 	slices.Sort(clones)
+	open := s.Lsof.Every(1)
 	for _, clone := range clones {
-		s.check(r, clone)
+		s.check(r, open, clone)
 	}
 }
 
-func (s Step) check(r *report.Report, clone string) {
+func (s Step) check(r *report.Report, open *inuse.Listing, clone string) {
 	info, err := os.Lstat(clone)
 	if errors.Is(err, fs.ErrNotExist) {
 		return
@@ -98,12 +95,12 @@ func (s Step) check(r *report.Report, clone string) {
 		r.Skip("%s: no app program found in it to ask lsof about", clone)
 		return
 	}
-	names, err := process.OpenNames(s.LsofTimeoutSeconds, s.Lsof)
+	started, err := open.HoldsAny(files...)
 	if err != nil {
 		r.Fail("lsof in %s: %v", clone, err)
 		return
 	}
-	if slices.ContainsFunc(files, func(file string) bool { return process.Holds(names, file) }) {
+	if started {
 		r.Skip("%s: a running app was started from it", clone)
 		return
 	}

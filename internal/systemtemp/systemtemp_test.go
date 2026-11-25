@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/botforge-pro/diskcleaner/internal/inuse"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 )
 
@@ -26,7 +27,7 @@ func newTemp(t *testing.T) string {
 
 func step(temp, lsof string) Step {
 	s := Default()
-	s.Dir, s.Now, s.Lsof, s.LsofTimeoutSeconds = temp, func() time.Time { return later }, lsof, 5
+	s.Dir, s.Now, s.Lsof = temp, func() time.Time { return later }, inuse.Lsof{Command: lsof, TimeoutSeconds: 5}
 	return s
 }
 

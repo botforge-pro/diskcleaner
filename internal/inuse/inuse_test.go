@@ -37,7 +37,44 @@ func listing(t *testing.T, names ...string) string {
 }
 
 func check(lsof string) Check {
-	return Check{MinAge: time.Hour, Now: time.Now, Lsof: lsof, LsofTimeoutSeconds: 5}
+	return Check{MinAge: time.Hour, Now: time.Now, Open: Lsof{Command: lsof, TimeoutSeconds: 5}.Every(1)}
+}
+
+func counting(t *testing.T) (Lsof, func() int) {
+	calls := filepath.Join(t.TempDir(), "calls")
+	path := filepath.Join(t.TempDir(), "lsof")
+	require.NoError(t, os.WriteFile(path, []byte("#!/bin/sh\necho x >>"+calls+"\nprintf 'p1\\nn/held/file\\n'\n"), 0o755))
+	return Lsof{Command: path, TimeoutSeconds: 5}, func() int {
+		recorded, err := os.ReadFile(calls)
+		require.NoError(t, err)
+		return bytes.Count(recorded, []byte("x"))
+	}
+}
+
+func TestAListingIsTakenAgainAfterItsNumberOfAnswers(t *testing.T) {
+	lsof, calls := counting(t)
+	listing := lsof.Every(2)
+
+	for _, path := range []string{"/a", "/held", "/c"} {
+		_, err := listing.HoldsAny(path)
+		require.NoError(t, err)
+	}
+
+	assert.Equal(t, 2, calls())
+}
+
+func TestAListingTakenOnceAnswersEveryPathFromIt(t *testing.T) {
+	lsof, calls := counting(t)
+	listing := lsof.Once()
+
+	held, err := listing.HoldsAny("/a", "/held")
+	require.NoError(t, err)
+	assert.True(t, held)
+	held, err = listing.HoldsAny("/c")
+	require.NoError(t, err)
+	assert.False(t, held)
+
+	assert.Equal(t, 1, calls())
 }
 
 func TestAnOldClosedFolderIsNotInUse(t *testing.T) {

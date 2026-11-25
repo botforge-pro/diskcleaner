@@ -11,14 +11,11 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/botforge-pro/diskcleaner/internal/process"
+	"github.com/botforge-pro/diskcleaner/internal/inuse"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 )
 
-const (
-	macOSAge           = 3 * 24 * time.Hour
-	lsofTimeoutSeconds = 30
-)
+const macOSAge = 3 * 24 * time.Hour
 
 var (
 	keptAtTop   = []string{".*", "claude-*"}
@@ -26,22 +23,20 @@ var (
 )
 
 type Step struct {
-	Dir                string
-	Owner              int
-	Now                func() time.Time
-	Lsof               string
-	LsofTimeoutSeconds int
-	Mounts             func() (map[string]bool, error)
+	Dir    string
+	Owner  int
+	Now    func() time.Time
+	Lsof   inuse.Lsof
+	Mounts func() (map[string]bool, error)
 }
 
 func Default() Step {
 	return Step{
-		Dir:                "/private/tmp",
-		Owner:              os.Getuid(),
-		Now:                time.Now,
-		Lsof:               "lsof",
-		LsofTimeoutSeconds: lsofTimeoutSeconds,
-		Mounts:             mountPoints,
+		Dir:    "/private/tmp",
+		Owner:  os.Getuid(),
+		Now:    time.Now,
+		Lsof:   inuse.DefaultLsof(),
+		Mounts: mountPoints,
 	}
 }
 
@@ -88,8 +83,8 @@ func (s Step) Run(r *report.Report) {
 	if len(removable) == 0 {
 		return
 	}
-	names, err := process.OpenNames(s.LsofTimeoutSeconds, s.Lsof)
-	if err != nil {
+	open := s.Lsof.Once()
+	if err := open.Take(); err != nil {
 		r.Fail("%s: removed nothing, as it cannot tell which files are open: lsof: %v", dir, err)
 		return
 	}
@@ -99,7 +94,12 @@ func (s Step) Run(r *report.Report) {
 		return
 	}
 	for _, path := range removable {
-		if process.Holds(names, path) {
+		held, err := open.HoldsAny(path)
+		if err != nil {
+			r.Fail("%s: lsof: %v", path, err)
+			continue
+		}
+		if held {
 			r.Skip("%s: a process has it open", path)
 			continue
 		}

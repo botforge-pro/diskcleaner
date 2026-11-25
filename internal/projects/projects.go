@@ -52,12 +52,7 @@ func (s Step) Run(r *report.Report) {
 			fmt.Fprintf(r.Out, "PROJECT  %s\n", repo)
 			var builds, garbage candidates.Set
 			s.collectBuilds(r, &builds, repo)
-			inUse := s.InUse
-			if len(builds.Paths()) > 0 {
-				if listed, err := s.InUse.Listed(); err == nil {
-					inUse = listed
-				}
-			}
+			inUse := s.InUse.WithOneListing()
 			builds.RemoveUnless(r, func(path string) bool { return inUse.Keep(r, path) })
 			s.Garbage.Collect(r, &garbage, repo)
 			garbage.Remove(r)

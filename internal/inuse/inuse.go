@@ -7,32 +7,22 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/botforge-pro/diskcleaner/internal/process"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 )
 
-const lsofTimeoutSeconds = 30
-
 type Check struct {
-	MinAge             time.Duration
-	Now                func() time.Time
-	Lsof               string
-	LsofTimeoutSeconds int
-	openNames          []string
-	listed             bool
+	MinAge time.Duration
+	Now    func() time.Time
+	Open   *Listing
 }
 
 func Default(minAge time.Duration) Check {
-	return Check{MinAge: minAge, Now: time.Now, Lsof: "lsof", LsofTimeoutSeconds: lsofTimeoutSeconds}
+	return Check{MinAge: minAge, Now: time.Now, Open: DefaultLsof().Every(1)}
 }
 
-func (c Check) Listed() (Check, error) {
-	names, err := process.OpenNames(c.LsofTimeoutSeconds, c.Lsof)
-	if err != nil {
-		return c, fmt.Errorf("lsof: %w", err)
-	}
-	c.openNames, c.listed = names, true
-	return c, nil
+func (c Check) WithOneListing() Check {
+	c.Open = c.Open.Lsof().Once()
+	return c
 }
 
 func (c Check) Keep(r *report.Report, path string) bool {
@@ -104,15 +94,11 @@ func (c Check) writtenSince(root string) (bool, error) {
 }
 
 func (c Check) open(path string) (string, error) {
-	names := c.openNames
-	if !c.listed {
-		var err error
-		names, err = process.OpenNames(c.LsofTimeoutSeconds, c.Lsof)
-		if err != nil {
-			return "", fmt.Errorf("lsof: %w", err)
-		}
+	held, err := c.Open.HoldsAny(path)
+	if err != nil {
+		return "", fmt.Errorf("lsof: %w", err)
 	}
-	if process.Holds(names, path) {
+	if held {
 		return "a process still has something in it open", nil
 	}
 	return "", nil

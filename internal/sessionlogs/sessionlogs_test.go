@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/botforge-pro/diskcleaner/internal/inuse"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,13 +53,12 @@ func fakeLsof(t *testing.T, body string) string {
 
 func step(folder string) Step {
 	return Step{
-		Label:              "CLAUDE",
-		Folder:             folder,
-		MinAge:             31 * 24 * time.Hour,
-		Now:                func() time.Time { return now },
-		Lsof:               "../process/testdata/lsof-none-open",
-		LsofTimeoutSeconds: 5,
-		Batch:              50,
+		Label:  "CLAUDE",
+		Folder: folder,
+		MinAge: 31 * 24 * time.Hour,
+		Now:    func() time.Time { return now },
+		Lsof:   inuse.Lsof{Command: "../process/testdata/lsof-none-open", TimeoutSeconds: 5},
+		Batch:  50,
 	}
 }
 
@@ -66,7 +66,7 @@ func TestALogOpenInAProcessStays(t *testing.T) {
 	folder := newFolder(t)
 	open := filepath.Join(folder, "-dev-app", "old.jsonl")
 	s := step(folder)
-	s.Lsof = fakeLsof(t, "printf 'p42\\nf3\\nn"+open+"\\n'\nexit 0\n")
+	s.Lsof.Command = fakeLsof(t, "printf 'p42\\nf3\\nn"+open+"\\n'\nexit 0\n")
 
 	r, _, stderr := run(s, false)
 
@@ -85,7 +85,7 @@ func TestAnOpenLogStaysWhenTheFolderIsReachedThroughALink(t *testing.T) {
 	require.NoError(t, err)
 	defer file.Close()
 	s := step(link)
-	s.Lsof = "lsof"
+	s.Lsof.Command = "lsof"
 
 	_, _, stderr := run(s, false)
 
@@ -96,7 +96,7 @@ func TestAnOpenLogStaysWhenTheFolderIsReachedThroughALink(t *testing.T) {
 func TestALogWrittenAgainAfterTheScanStays(t *testing.T) {
 	folder := newFolder(t)
 	s := step(folder)
-	s.Lsof = fakeLsof(t, "find '"+folder+"' -name '*.jsonl' -exec touch {} +\nprintf 'n/\\n'\n")
+	s.Lsof.Command = fakeLsof(t, "find '"+folder+"' -name '*.jsonl' -exec touch {} +\nprintf 'n/\\n'\n")
 
 	r, _, stderr := run(s, false)
 
@@ -115,7 +115,7 @@ func TestLogsAreCheckedForOpenWritersBatchByBatchRightBeforeRemoval(t *testing.T
 	calls := filepath.Join(t.TempDir(), "calls")
 	s := step(folder)
 	s.Batch = 2
-	s.Lsof = fakeLsof(t, "echo listed >>"+calls+"\nprintf 'n/\\n'\n")
+	s.Lsof.Command = fakeLsof(t, "echo listed >>"+calls+"\nprintf 'n/\\n'\n")
 
 	r, _, _ := run(s, false)
 
@@ -125,7 +125,7 @@ func TestLogsAreCheckedForOpenWritersBatchByBatchRightBeforeRemoval(t *testing.T
 	assert.Equal(t, "listed\nlisted\n", string(recorded), "one fresh listing for each batch of two")
 }
 
-func TestABatchStartsAtTheLogBeingRemovedWhenEarlierOnesVanished(t *testing.T) {
+func TestALogOpenInALaterBatchStays(t *testing.T) {
 	folder, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
 	var logs []string
@@ -136,21 +136,19 @@ func TestABatchStartsAtTheLogBeingRemovedWhenEarlierOnesVanished(t *testing.T) {
 	}
 	s := step(folder)
 	s.Batch = 2
-	s.Lsof = fakeLsof(t, "printf 'p42\\nf3\\nn"+logs[2]+"\\n'\n")
-	var stdout, stderr bytes.Buffer
-	r := &report.Report{Out: &stdout, Err: &stderr}
-	checks := openChecks{step: s, report: r, pending: logs}
+	s.Lsof.Command = fakeLsof(t, "printf 'p42\\nf3\\nn"+logs[2]+"\\n'\n")
 
-	kept := checks.inUse(logs[2])
+	r, _, stderr := run(s, false)
 
-	assert.True(t, kept, "the log was judged by a check that never looked at it")
-	assert.Contains(t, stderr.String(), "SKIPPED       "+logs[2]+": a process still has it open\n")
+	assert.Equal(t, 2, r.Count)
+	assert.FileExists(t, logs[2])
+	assert.Contains(t, stderr, "SKIPPED       "+logs[2]+": a process still has it open\n")
 }
 
 func TestAFailedOpenCheckRemovesNothing(t *testing.T) {
 	folder := newFolder(t)
 	s := step(folder)
-	s.Lsof = fakeLsof(t, "echo 'lsof: status error' >&2\nexit 1\n")
+	s.Lsof.Command = fakeLsof(t, "echo 'lsof: status error' >&2\nexit 1\n")
 
 	r, _, _ := run(s, false)
 

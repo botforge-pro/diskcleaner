@@ -6,7 +6,9 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -18,11 +20,45 @@ import (
 )
 
 type KeepWhen struct {
-	Age     AgeWhen  `yaml:"age"`
-	Open    OpenWhen `yaml:"open"`
-	Sockets bool     `yaml:"sockets"`
-	Mounts  bool     `yaml:"mounts"`
-	Tracked bool     `yaml:"tracked"`
+	Age     AgeWhen    `yaml:"age"`
+	Open    OpenWhen   `yaml:"open"`
+	Alive   *AliveWhen `yaml:"alive"`
+	Sockets bool       `yaml:"sockets"`
+	Mounts  bool       `yaml:"mounts"`
+	Tracked bool       `yaml:"tracked"`
+}
+
+type AliveWhen struct {
+	Pid  string `yaml:"pid"`
+	Says string `yaml:"says"`
+	name *regexp.Regexp
+}
+
+func (a *AliveWhen) check() error {
+	re, err := regexp.Compile(a.Pid)
+	switch {
+	case err != nil:
+		return fmt.Errorf("keep: alive: pid %q: %w", a.Pid, err)
+	case re.NumSubexp() != 1:
+		return fmt.Errorf("keep: alive: pid %q: want one group, the process id in the name", a.Pid)
+	case a.Says == "":
+		return errors.New("keep: alive: want says, why the file of a running process stays")
+	}
+	a.name = re
+	return nil
+}
+
+func (a *AliveWhen) writing(path string) bool {
+	match := a.name.FindStringSubmatch(filepath.Base(path))
+	if match == nil {
+		return false
+	}
+	pid, err := strconv.Atoi(match[1])
+	if err != nil {
+		return false
+	}
+	err = syscall.Kill(pid, 0)
+	return err == nil || errors.Is(err, syscall.EPERM)
 }
 
 type AgeWhen struct {
@@ -65,7 +101,7 @@ func (o OpenWhen) given() bool {
 }
 
 func (k KeepWhen) given() bool {
-	return k.Age.given() || k.Open.given() || k.Sockets || k.Mounts || k.Tracked
+	return k.Age.given() || k.Open.given() || k.Alive != nil || k.Sockets || k.Mounts || k.Tracked
 }
 
 var ages = []string{"mtime", "newest-write"}
@@ -97,7 +133,13 @@ func (f File) checkKeep() error {
 		return errors.New("keep: want remove: folders or files; a root or a command has nothing to keep")
 	}
 	if len(f.Remove.Files) > 0 && (k.Sockets || k.Mounts || len(k.Open.Files) > 0 || k.Age.Of.Clock != "mtime" && k.Age.given()) {
-		return errors.New("keep: for files, want age of mtime, open: true and tracked; the rest is for folders")
+		return errors.New("keep: for files, want age of mtime, open: true, alive and tracked; the rest is for folders")
+	}
+	if k.Alive != nil && len(f.Remove.Files) == 0 {
+		return errors.New("keep: alive: want remove: files, whose names hold the process id")
+	}
+	if k.Alive != nil {
+		return k.Alive.check()
 	}
 	return nil
 }

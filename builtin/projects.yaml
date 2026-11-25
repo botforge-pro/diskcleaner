@@ -17,4 +17,51 @@ settings:
     default: 10m
     help: give up on a git lfs prune of one repository that runs longer
 
-run: code
+root: {setting: project-dirs}
+
+parts:
+  - each: {folders: ['*'], has: [.git/]}
+    remove:
+      folders:
+        - {glob: '**/.build', beside: [Package.swift], says: no Package.swift next to it}
+        - {glob: '**/build', beside-any: [build.gradle, build.gradle.kts, settings.gradle, settings.gradle.kts]}
+        - '**/__pycache__'
+      outside: [.git, node_modules, .build]
+    keep: {age: {of: newest-write, within: min-age}, open: true, tracked: true}
+
+  - each: {folders: ['*'], has: [.git/, gradlew]}
+    remove:
+      files: ['**/*.apk', '**/*.aab']
+      outside: [.git, node_modules]
+    keep: {age: {of: mtime, within: min-age}, open: true, tracked: true}
+
+  - each: {folders: ['*'], has: [.git/]}
+    remove:
+      files: [.git/objects/tmp_*, .git/objects/*/tmp_*, .git/objects/pack/.tmp-*]
+    keep:
+      age: {of: mtime, within: git-tmp-min-age}
+      open: true
+      alive: {pid: '^\.tmp-([0-9]+)-', says: the git repack that writes it is still running}
+
+  - each: {folders: ['*'], has: [.git/]}
+    remove:
+      has: [.git/lfs/objects/*/*/*]
+      run: [git, -C, '{path}', lfs, prune, --verify-remote]
+      timeout: lfs-timeout
+      estimate:
+        run: [git, -C, '{path}', lfs, prune, --dry-run, --verify-remote]
+        timeout: lfs-timeout
+        line: would be pruned
+        match: '\(([^)]*)\)'
+        none: '\b0 files? would be pruned'
+      size: {measure: .git/lfs}
+
+  - remove:
+      folders:
+        - glob: '**/node_modules'
+          beside-any: [package-lock.json, npm-shrinkwrap.json, yarn.lock, pnpm-lock.yaml]
+          or-above:
+            - any: [package-lock.json, npm-shrinkwrap.json, yarn.lock, pnpm-lock.yaml]
+            - any: [pnpm-workspace.yaml, {file: package.json, key: workspaces}]
+          says: no lockfile, reinstall would not restore the same versions
+    keep: {age: {of: newest-write, within: min-age}, open: true, tracked: true}

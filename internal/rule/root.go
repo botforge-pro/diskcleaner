@@ -10,6 +10,7 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
+	"github.com/botforge-pro/diskcleaner/internal/config"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 )
 
@@ -23,8 +24,9 @@ type place struct {
 }
 
 type Root struct {
-	places []place
-	given  bool
+	places  []place
+	setting string
+	given   bool
 }
 
 type commandPlace struct {
@@ -49,6 +51,10 @@ func (root *Root) UnmarshalYAML(node *yaml.Node) error {
 		}
 		return nil
 	case yaml.MappingNode:
+		if len(node.Content) == 2 && node.Content[0].Value == "setting" {
+			root.setting = node.Content[1].Value
+			return nil
+		}
 		p, err := decodeCommandPlace(node)
 		root.places = []place{p}
 		return err
@@ -103,6 +109,12 @@ func (root Root) check(required bool) error {
 		}
 		return nil
 	}
+	if root.setting != "" {
+		if global, ok := globals.Find(root.setting); !ok || global.Kind != config.Dirs {
+			return fmt.Errorf("root: setting %q: want a global setting that names folders, like project-dirs", root.setting)
+		}
+		return nil
+	}
 	if last := root.places[len(root.places)-1]; last.variable != "" {
 		return fmt.Errorf("root: $%s: the last choice must not be a variable, so that a root is always found", last.variable)
 	}
@@ -110,6 +122,9 @@ func (root Root) check(required bool) error {
 }
 
 func (root Root) words() string {
+	if root.setting != "" {
+		return "the folders `" + root.setting + "` names"
+	}
 	words := make([]string, len(root.places))
 	for i, p := range root.places {
 		switch {
@@ -136,13 +151,18 @@ func (s Rule) resolveChoice(r *report.Report, root Root) (string, place, bool) {
 	if !ok {
 		return "", place{}, false
 	}
+	clean, ok := s.allowed(r, folder)
+	return clean, chosen, ok
+}
+
+func (s Rule) allowed(r *report.Report, folder string) (string, bool) {
 	clean := filepath.Clean(folder)
 	home := filepath.Clean(s.env.Home)
 	if !filepath.IsAbs(clean) || clean == "/" || clean == home || strings.HasPrefix(home, clean+"/") {
 		r.Fail("root %s: refused, as removing in it would reach %s", folder, "/, the home folder or a folder above it")
-		return "", place{}, false
+		return "", false
 	}
-	return clean, chosen, true
+	return clean, true
 }
 
 func (s Rule) choose(r *report.Report, root Root) (string, place, bool) {

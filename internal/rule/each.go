@@ -39,8 +39,8 @@ func (f File) checkEach() error {
 	switch {
 	case len(e.Folders) == 0:
 		return errors.New("each: want folders, the patterns of the folders handled one by one")
-	case len(f.Remove.Folders) == 0:
-		return errors.New("each: want remove: folders, looked for in each of them")
+	case len(f.Remove.Folders) == 0 && len(f.Remove.Files) == 0 && len(f.Remove.Commands) == 0:
+		return errors.New("each: want remove: folders, files or run, looked for or run in each of them")
 	case e.Value != nil && (len(e.Value.Command) == 0 || e.Value.Says == ""):
 		return errors.New("each: value: want command, whose output is the value, is and says")
 	case (len(e.Busy.Processes) > 0) != (e.Busy.Says != ""):
@@ -59,14 +59,13 @@ func (f File) checkEach() error {
 	return nil
 }
 
-func (s Rule) removeInEach(r *report.Report) {
+func (s Rule) removeInEach(r *report.Report) bool {
 	e := s.file.Each
 	var folders []string
 	for _, pattern := range e.Folders {
-		matches, err := filepath.Glob(filepath.Join(s.root, pattern))
+		matches, err := expandGlob(s.root, pattern)
 		if err != nil {
 			r.Fail("find %s: %v", s.root, err)
-			continue
 		}
 		folders = append(folders, matches...)
 	}
@@ -76,20 +75,41 @@ func (s Rule) removeInEach(r *report.Report) {
 			continue
 		}
 		s.base = folder
-		for _, found := range s.olderThanTheNewest(r, s.folders(r)) {
+		switch {
+		case len(s.remove.Folders) > 0:
+			for _, found := range s.olderThanTheNewest(r, s.folders(r)) {
+				if _, err := os.Lstat(found); errors.Is(err, fs.ErrNotExist) {
+					continue
+				}
+				if !s.eachAllows(r, folder) {
+					break
+				}
+				s.removeFolders(r, []string{found})
+			}
+		case len(s.remove.Files) > 0 && s.eachAllows(r, folder):
+			s.removeFiles(r)
+		}
+		for _, c := range s.remove.Commands {
 			if !s.eachAllows(r, folder) {
 				break
 			}
-			s.removeFolders(r, []string{found})
+			if !s.runCommand(r, c.in(folder), folder) {
+				return false
+			}
 		}
 	}
+	return true
 }
 
 func (s Rule) holds(r *report.Report, folder string, paths []string) bool {
 	for _, p := range paths {
 		full := filepath.Join(folder, strings.TrimSuffix(p, "/"))
 		if strings.HasSuffix(p, "/") {
-			if !r.Directory(full) {
+			info, err := os.Lstat(full)
+			if err != nil && !errors.Is(err, fs.ErrNotExist) {
+				r.Fail("stat %s: %v", full, err)
+			}
+			if err != nil || !info.IsDir() {
 				return false
 			}
 			continue
@@ -128,7 +148,7 @@ func (s Rule) eachAllows(r *report.Report, folder string) bool {
 	return true
 }
 
-func (s Rule) deepFolders(base, pattern string) ([]string, error) {
+func (s Rule) deepFolders(base, pattern string, outside []string) ([]string, error) {
 	root, err := filepath.EvalSymlinks(base)
 	if err != nil {
 		return nil, err
@@ -149,6 +169,9 @@ func (s Rule) deepFolders(base, pattern string) ([]string, error) {
 		}
 		if matchDeep(strings.Split(pattern, "/"), strings.Split(rel, string(filepath.Separator))) {
 			found = append(found, filepath.Join(base, rel))
+			return fs.SkipDir
+		}
+		if slices.Contains(outside, entry.Name()) {
 			return fs.SkipDir
 		}
 		return nil

@@ -45,6 +45,7 @@ type File struct {
 	Apps       *Apps     `yaml:"apps"`
 	Remove     Removal   `yaml:"remove"`
 	Keep       KeepWhen  `yaml:"keep"`
+	Parts      []Part    `yaml:"parts"`
 }
 
 type Readme struct {
@@ -126,16 +127,38 @@ func (f File) usedSettings() map[string]bool {
 			used[key] = true
 		}
 	}
-	add(f.Keep.Age.Within)
 	add(f.Ready.Timeout)
-	if f.Remove.Newest != nil {
-		add(f.Remove.Newest.Keep)
-	}
-	for _, c := range f.Remove.Commands {
-		add(c.Timeout)
-		add(c.Estimate.Timeout)
+	for _, v := range f.views() {
+		add(v.Keep.Age.Within)
+		if v.Remove.Newest != nil {
+			add(v.Remove.Newest.Keep)
+		}
+		for _, c := range v.Remove.Commands {
+			add(c.Timeout)
+			add(c.Estimate.Timeout)
+		}
 	}
 	return used
+}
+
+type Part struct {
+	Each   EachWhen `yaml:"each"`
+	Remove Removal  `yaml:"remove"`
+	Keep   KeepWhen `yaml:"keep"`
+}
+
+func (f File) views() []File {
+	if len(f.Parts) == 0 {
+		return []File{f}
+	}
+	views := make([]File, len(f.Parts))
+	for i, p := range f.Parts {
+		v := f
+		v.Parts = nil
+		v.Each, v.Remove, v.Keep = p.Each, p.Remove, p.Keep
+		views[i] = v
+	}
+	return views
 }
 
 type Setting struct {
@@ -280,15 +303,23 @@ func (f *File) check() error {
 	switch {
 	case f.Run != "" && f.Run != "code":
 		return fmt.Errorf("run %q: want code, for a step whose work is written in Go", f.Run)
-	case f.Run == "code" && (!f.Root.empty() || len(f.Needs) > 0 || len(f.Ready.Run) > 0 || f.Busy.Says != "" || len(f.Busy.Processes) > 0 || len(f.Busy.Groups) > 0 || f.Stop.given() || f.Each.given() || f.Apps.given() || f.Remove.given || f.Keep.given()):
-		return errors.New("run: code: the step is written in Go, so needs, root, ready, busy, stop, each, remove and keep belong to it there")
+	case f.Run == "code" && (!f.Root.empty() || len(f.Needs) > 0 || len(f.Ready.Run) > 0 || f.Busy.Says != "" || len(f.Busy.Processes) > 0 || len(f.Busy.Groups) > 0 || f.Stop.given() || f.Each.given() || f.Apps.given() || f.Remove.given || f.Keep.given() || len(f.Parts) > 0):
+		return errors.New("run: code: the step is written in Go, so needs, root, ready, busy, stop, each, remove, keep and parts belong to it there")
 	case f.Run == "code":
 		return nil
+	case len(f.Parts) > 0 && (f.Each.given() || f.Remove.given || f.Keep.given()):
+		return errors.New("parts: want each, remove and keep inside the parts, not beside them")
+	case len(f.Parts) == 1:
+		return errors.New("parts: want two or more; one part is written as each, remove and keep of the file")
+	case len(f.Parts) > 0 && slices.ContainsFunc(f.Root.places, func(p place) bool { return p.remove != nil }):
+		return errors.New("parts: a choice of root with its own remove belongs to a file of one part")
+	case f.Apps.given() && !slices.ContainsFunc(f.views(), func(v File) bool { return len(v.Remove.Superseded) > 0 }):
+		return errors.New("apps: want remove: superseded, which reads them")
 	}
-	if err := f.checkSuperseded(); err != nil {
-		return err
-	}
-	if err := f.Root.check(len(f.Remove.Commands) == 0 && len(f.Remove.Superseded) == 0); err != nil {
+	needsRoot := slices.ContainsFunc(f.views(), func(v File) bool {
+		return v.Each.given() || len(v.Remove.Commands) == 0 && len(v.Remove.Superseded) == 0
+	})
+	if err := f.Root.check(needsRoot); err != nil {
 		return err
 	}
 	if err := f.checkReady(); err != nil {
@@ -311,18 +342,34 @@ func (f *File) check() error {
 	if err := f.Stop.check(); err != nil {
 		return err
 	}
-	if err := f.checkRemoval(f.Remove); err != nil {
-		return err
-	}
-	if err := f.checkEach(); err != nil {
-		return err
-	}
 	for i := range f.Root.places {
 		if choice := f.Root.places[i].remove; choice != nil {
 			if err := f.checkRemoval(*choice); err != nil {
 				return fmt.Errorf("root: %w", err)
 			}
 		}
+	}
+	for i, v := range f.views() {
+		err := v.checkPart()
+		if err != nil && len(f.Parts) > 0 {
+			err = fmt.Errorf("parts: %d: %w", i+1, err)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (f File) checkPart() error {
+	if err := f.checkSuperseded(); err != nil {
+		return err
+	}
+	if err := f.checkRemoval(f.Remove); err != nil {
+		return err
+	}
+	if err := f.checkEach(); err != nil {
+		return err
 	}
 	return f.checkKeep()
 }

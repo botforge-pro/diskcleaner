@@ -132,15 +132,19 @@ func (c stepCase) run(t *testing.T, f rule.File) {
 		require.NoError(t, os.WriteFile(full, []byte(text), 0o644))
 		require.NoError(t, os.Chtimes(full, written, written))
 	}
-	ageFolders(t, home, folders)
 	for link, target := range c.Links {
 		full := filepath.Join(home, link)
 		require.NoError(t, os.MkdirAll(filepath.Dir(full), 0o755))
 		require.NoError(t, os.Symlink(filepath.Join(home, target), full))
 	}
-	if len(c.Tracked) > 0 {
-		track(t, home, c.Tracked)
+	repos := c.repositories()
+	for _, repo := range repos {
+		gitIn(t, filepath.Join(home, repo), "init", "-q")
 	}
+	if len(c.Tracked) > 0 {
+		track(t, home, repos, c.Tracked)
+	}
+	ageFolders(t, home, folders)
 
 	var stdout, stderr bytes.Buffer
 	r := &report.Report{Out: &stdout, Err: &stderr, DryRun: c.DryRun}
@@ -152,6 +156,7 @@ func (c stepCase) run(t *testing.T, f rule.File) {
 		Commands:  c.commands(t, home),
 		Duration:  func(key string) time.Duration { return c.setting(t, key).(time.Duration) },
 		Count:     func(key string) int { return c.setting(t, key).(int) },
+		Dirs:      func(key string) []string { return c.folders(t, key, home) },
 		Now:       func() time.Time { return now },
 		Lsof:      inuse.Lsof{Command: c.lsof(t, home), TimeoutSeconds: 5},
 		Mounts:    rule.MountPoints,
@@ -276,6 +281,18 @@ func (c stepCase) setting(t *testing.T, key string) any {
 	value, err := config.Parse(s, text, "/")
 	require.NoError(t, err, "%s: settings: %s", c.Case, key)
 	return value
+}
+
+func (c stepCase) folders(t *testing.T, key, home string) []string {
+	s, found := settingsTable.Find(key)
+	require.True(t, found, "%s: settings: %s is no setting", c.Case, key)
+	text := c.Settings[key]
+	if text == "" {
+		text = s.Default
+	}
+	value, err := config.Parse(s, text, home)
+	require.NoError(t, err, "%s: settings: %s", c.Case, key)
+	return value.([]string)
 }
 
 var ago = regexp.MustCompile(`\{ago ([^}]+)\}`)
@@ -434,13 +451,41 @@ func (c stepCase) lsof(t *testing.T, home string) string {
 	return script
 }
 
-func track(t *testing.T, home string, paths []string) {
-	for _, args := range [][]string{
-		{"init", "-q"},
-		append([]string{"add", "--"}, paths...),
-		{"-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "fixture"},
-	} {
-		output, err := exec.Command("git", append([]string{"-C", home}, args...)...).CombinedOutput()
-		require.NoError(t, err, string(output))
+func (c stepCase) repositories() []string {
+	var repos []string
+	for path := range c.Files {
+		if repo, ok := strings.CutSuffix(path, ".git/"); ok {
+			repos = append(repos, strings.TrimSuffix(repo, "/"))
+		}
 	}
+	slices.Sort(repos)
+	return repos
+}
+
+func track(t *testing.T, home string, repos, paths []string) {
+	byRepo := map[string][]string{}
+	for _, path := range paths {
+		holder := ""
+		for _, repo := range repos {
+			if strings.HasPrefix(path, repo+"/") && len(repo) > len(holder) {
+				holder = repo
+			}
+		}
+		if holder == "" {
+			gitIn(t, home, "init", "-q")
+		}
+		rel, err := filepath.Rel(filepath.Join(home, holder), filepath.Join(home, path))
+		require.NoError(t, err)
+		byRepo[holder] = append(byRepo[holder], rel)
+	}
+	for repo, rels := range byRepo {
+		dir := filepath.Join(home, repo)
+		gitIn(t, dir, append([]string{"add", "-f", "--"}, rels...)...)
+		gitIn(t, dir, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "fixture")
+	}
+}
+
+func gitIn(t *testing.T, dir string, args ...string) {
+	output, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput()
+	require.NoError(t, err, string(output))
 }

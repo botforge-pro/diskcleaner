@@ -3,12 +3,14 @@ package rule
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
+	"syscall"
 	"time"
 
 	"go.yaml.in/yaml/v3"
@@ -24,6 +26,7 @@ type Removal struct {
 	Newest     *Newest
 	Untouched  *Untouched
 	Superseded []Superseded
+	Outside    []string
 	Commands   []Command
 	given      bool
 }
@@ -35,12 +38,14 @@ type Newest struct {
 }
 
 type FolderPattern struct {
-	Glob   string   `yaml:"glob"`
-	Match  string   `yaml:"match"`
-	Has    []string `yaml:"has"`
-	Beside []string `yaml:"beside"`
-	Says   string   `yaml:"says"`
-	name   *regexp.Regexp
+	Glob      string   `yaml:"glob"`
+	Match     string   `yaml:"match"`
+	Has       []string `yaml:"has"`
+	Beside    []string `yaml:"beside"`
+	BesideAny []string `yaml:"beside-any"`
+	OrAbove   []Group  `yaml:"or-above"`
+	Says      string   `yaml:"says"`
+	name      *regexp.Regexp
 }
 
 func (p *FolderPattern) UnmarshalYAML(node *yaml.Node) error {
@@ -57,6 +62,7 @@ type patterns struct {
 	Files   []string        `yaml:"files"`
 	Others  string          `yaml:"others"`
 	Newest  *Newest         `yaml:"newest"`
+	Outside []string        `yaml:"outside"`
 }
 
 type alone struct {
@@ -101,7 +107,7 @@ func (m *Removal) UnmarshalYAML(node *yaml.Node) error {
 	if err := strict(node, &p); err != nil || (p.Folders == nil) == (p.Files == nil) {
 		return want
 	}
-	m.Folders, m.Files, m.Others, m.Newest = p.Folders, p.Files, p.Others, p.Newest
+	m.Folders, m.Files, m.Others, m.Newest, m.Outside = p.Folders, p.Files, p.Others, p.Newest, p.Outside
 	return nil
 }
 
@@ -119,6 +125,8 @@ func (f File) checkRemoval(m Removal) error {
 		return errors.New("remove: others: want folders, whose others it speaks of")
 	case m.Newest != nil && len(m.Folders) == 0:
 		return errors.New("remove: newest: want folders, the newest of which it keeps")
+	case slices.ContainsFunc(m.Outside, func(name string) bool { return name == "" || strings.ContainsAny(name, "/*?[") }):
+		return errors.New("remove: outside: want names of folders that a search for ** does not enter, like node_modules")
 	}
 	if n := m.Newest; n != nil {
 		if !hasSetting(f.Settings, n.Keep, "count") {
@@ -156,12 +164,25 @@ func (f File) checkRemoval(m Removal) error {
 			}
 			p.name = re
 		}
-		for _, path := range append(slices.Clone(p.Has), p.Beside...) {
+		for _, path := range slices.Concat(p.Has, p.Beside, p.BesideAny) {
 			if !inside(strings.TrimSuffix(path, "/")) {
 				return fmt.Errorf("remove: folders: has or beside %q: want a path inside the folder or its parent", path)
 			}
 		}
-		if p.Says != "" && len(p.Has) == 0 && len(p.Beside) == 0 {
+		if len(p.OrAbove) > 0 && len(p.BesideAny) == 0 {
+			return fmt.Errorf("remove: folders: %q: or-above: want beside-any, which it widens to the folders above", p.Glob)
+		}
+		for _, g := range p.OrAbove {
+			if len(g.Any) == 0 {
+				return fmt.Errorf("remove: folders: %q: or-above: want any: [marks] in each group", p.Glob)
+			}
+			for _, m := range g.Any {
+				if err := m.check(); err != nil {
+					return fmt.Errorf("remove: folders: %q: or-above: %w", p.Glob, err)
+				}
+			}
+		}
+		if p.Says != "" && len(p.Has) == 0 && len(p.Beside) == 0 && len(p.BesideAny) == 0 {
 			return fmt.Errorf("remove: folders: %q: says: want has or beside, whose absence it explains", p.Glob)
 		}
 	}
@@ -250,13 +271,9 @@ func (s Rule) matchFolders(r *report.Report, p FolderPattern) ([]string, error) 
 	var walkErr error
 	switch {
 	case strings.Contains(p.Glob, "**"):
-		found, walkErr = s.deepFolders(s.base, p.Glob)
+		found, walkErr = s.deepFolders(s.base, p.Glob, s.remove.Outside)
 	case p.Glob != "":
-		matches, err := filepath.Glob(filepath.Join(s.base, p.Glob))
-		if err != nil {
-			return nil, err
-		}
-		found = matches
+		found, walkErr = expandGlob(s.base, p.Glob)
 	default:
 		entries, err := os.ReadDir(s.base)
 		if err != nil {
@@ -269,8 +286,7 @@ func (s Rule) matchFolders(r *report.Report, p FolderPattern) ([]string, error) 
 		}
 	}
 	return slices.DeleteFunc(found, func(folder string) bool {
-		missing := slices.ContainsFunc(p.Has, func(path string) bool { return !present(folder, path) }) ||
-			slices.ContainsFunc(p.Beside, func(path string) bool { return !present(filepath.Dir(folder), path) })
+		missing := !s.qualifies(p, folder)
 		if missing && p.Says != "" {
 			r.Skip("%s: %s", folder, p.Says)
 		}
@@ -278,13 +294,115 @@ func (s Rule) matchFolders(r *report.Report, p FolderPattern) ([]string, error) 
 	}), walkErr
 }
 
+func (s Rule) qualifies(p FolderPattern, folder string) bool {
+	parent := filepath.Dir(folder)
+	if slices.ContainsFunc(p.Has, func(path string) bool { return !present(folder, path) }) ||
+		slices.ContainsFunc(p.Beside, func(path string) bool { return !present(parent, path) }) {
+		return false
+	}
+	if len(p.BesideAny) == 0 || slices.ContainsFunc(p.BesideAny, func(path string) bool { return present(parent, path) }) {
+		return true
+	}
+	for above := parent; len(p.OrAbove) > 0; above = filepath.Dir(above) {
+		if !slices.ContainsFunc(p.OrAbove, func(g Group) bool { return !g.in(above) }) {
+			return true
+		}
+		if above == s.base || above == filepath.Dir(above) {
+			return false
+		}
+	}
+	return false
+}
+
+type Group struct {
+	Any []Mark `yaml:"any"`
+}
+
+func (g Group) in(folder string) bool {
+	return slices.ContainsFunc(g.Any, func(m Mark) bool { return m.in(folder) })
+}
+
+type Mark struct {
+	Path string
+	File string `yaml:"file"`
+	Key  string `yaml:"key"`
+}
+
+func (m *Mark) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind == yaml.ScalarNode {
+		m.Path = node.Value
+		return nil
+	}
+	type plain Mark
+	return strict(node, (*plain)(m))
+}
+
+func (m Mark) check() error {
+	switch {
+	case m.Path != "" && inside(strings.TrimSuffix(m.Path, "/")):
+		return nil
+	case m.Path == "" && inside(m.File) && filepath.Ext(m.File) == ".json" && m.Key != "":
+		return nil
+	}
+	return fmt.Errorf("%q: want a path inside the folder, or {file: a .json inside it, key: one it has}", m.Path+m.File)
+}
+
+func (m Mark) in(folder string) bool {
+	if m.Path != "" {
+		return present(folder, m.Path)
+	}
+	values, found, err := readValues(filepath.Join(folder, m.File))
+	if err != nil || !found {
+		return false
+	}
+	_, has := values[m.Key]
+	return has
+}
+
+func expandGlob(base, pattern string) ([]string, error) {
+	paths := []string{base}
+	var failures []error
+	unreadable := func(err error) {
+		if !errors.Is(err, fs.ErrNotExist) && !errors.Is(err, syscall.ENOTDIR) {
+			failures = append(failures, err)
+		}
+	}
+	for _, part := range strings.Split(pattern, "/") {
+		var next []string
+		for _, dir := range paths {
+			if !strings.ContainsAny(part, `*?[\`) {
+				candidate := filepath.Join(dir, part)
+				if _, err := os.Lstat(candidate); err != nil {
+					unreadable(err)
+				} else {
+					next = append(next, candidate)
+				}
+				continue
+			}
+			entries, err := os.ReadDir(dir)
+			if err != nil {
+				unreadable(err)
+				continue
+			}
+			for _, entry := range entries {
+				if matched, _ := filepath.Match(part, entry.Name()); matched {
+					next = append(next, filepath.Join(dir, entry.Name()))
+				}
+			}
+		}
+		paths = next
+	}
+	return paths, errors.Join(failures...)
+}
+
 func present(folder, path string) bool {
-	info, err := os.Stat(filepath.Join(folder, strings.TrimSuffix(path, "/")))
+	wantFolder := strings.HasSuffix(path, "/")
+	matches, err := filepath.Glob(filepath.Join(folder, strings.TrimSuffix(path, "/")))
 	if err != nil {
 		return false
 	}
-	if strings.HasSuffix(path, "/") {
-		return info.IsDir()
-	}
-	return info.Mode().IsRegular()
+	return slices.ContainsFunc(matches, func(match string) bool {
+		info, err := os.Stat(match)
+		return err == nil && (wantFolder && info.IsDir() || !wantFolder && info.Mode().IsRegular())
+	})
 }

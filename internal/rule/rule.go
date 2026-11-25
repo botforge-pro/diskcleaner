@@ -32,6 +32,7 @@ type Environment struct {
 	Commands  Commands
 	Duration  func(key string) time.Duration
 	Count     func(key string) int
+	Dirs      func(key string) []string
 	Now       func() time.Time
 	Lsof      inuse.Lsof
 	Mounts    func() (map[string]bool, error)
@@ -82,42 +83,52 @@ func (h headed) Write(p []byte) (int, error) {
 	return h.w.Write(p)
 }
 
-func (s Rule) Run(r *report.Report) {
-	out, errs := r.Out, r.Err
-	started := false
-	where := s.file.Describes
-	start := func() {
-		if !started {
-			started = true
-			fmt.Fprintf(out, "%-8s %s\n", s.file.Label(), where)
-		}
+type header struct {
+	out, errs io.Writer
+	label     string
+	where     string
+	started   bool
+}
+
+func (h *header) start() {
+	if !h.started {
+		h.started = true
+		fmt.Fprintf(h.out, "%-8s %s\n", h.label, h.where)
 	}
-	r.Out, r.Err = headed{out, start}, headed{errs, start}
+}
+
+func (h *header) at(where string) {
+	if h.started && where != h.where {
+		fmt.Fprintln(h.out)
+		h.started = false
+	}
+	h.where = where
+}
+
+type target struct {
+	root   string
+	remove *Removal
+}
+
+func (s Rule) Run(r *report.Report) {
+	h := &header{out: r.Out, errs: r.Err, label: s.file.Label(), where: s.file.Describes}
+	r.Out, r.Err = headed{h.out, h.start}, headed{h.errs, h.start}
 	defer func() {
-		r.Out, r.Err = out, errs
-		if started {
-			fmt.Fprintln(out)
+		r.Out, r.Err = h.out, h.errs
+		if h.started {
+			fmt.Fprintln(h.out)
 		}
 	}()
 
 	if !s.needed(r) {
 		return
 	}
-	s.remove = s.file.Remove
-	if !s.file.Root.empty() {
-		root, chosen, ok := s.resolveChoice(r, s.file.Root)
-		if !ok || !r.Directory(root) {
-			return
-		}
-		if chosen.remove != nil {
-			s.remove = *chosen.remove
-		}
-		s.root, s.base = root, root
-		if resolved, err := filepath.EvalSymlinks(root); err == nil {
-			where = resolved
-		} else {
-			where = root
-		}
+	targets, ok := s.targets(r)
+	if !ok {
+		return
+	}
+	if len(targets) == 1 {
+		s.root = targets[0].root
 	}
 	if !s.ready(r) || s.busy(r) {
 		return
@@ -125,11 +136,69 @@ func (s Rule) Run(r *report.Report) {
 	if s.file.Stop.given() && !s.stopIdle(r) {
 		return
 	}
+	for _, t := range targets {
+		if t.root != "" {
+			h.at(shown(t.root))
+		}
+		for _, v := range s.file.views() {
+			part := s
+			part.file, part.root, part.base, part.remove = v, t.root, t.root, v.Remove
+			if t.remove != nil {
+				part.remove = *t.remove
+			}
+			if !part.runPart(r) {
+				return
+			}
+		}
+	}
+}
+
+func shown(root string) string {
+	if resolved, err := filepath.EvalSymlinks(root); err == nil {
+		return resolved
+	}
+	return root
+}
+
+func (s Rule) targets(r *report.Report) ([]target, bool) {
+	switch {
+	case s.file.Root.empty():
+		return []target{{}}, true
+	case s.file.Root.setting != "":
+		return s.settingTargets(r)
+	}
+	root, chosen, ok := s.resolveChoice(r, s.file.Root)
+	if !ok || !r.Directory(root) {
+		return nil, false
+	}
+	return []target{{root: root, remove: chosen.remove}}, true
+}
+
+func (s Rule) settingTargets(r *report.Report) ([]target, bool) {
+	key := s.file.Root.setting
+	var targets []target
+	for _, folder := range s.env.Dirs(key) {
+		root, ok := s.allowed(r, folder)
+		if !ok {
+			continue
+		}
+		if info, err := os.Stat(root); err != nil || !info.IsDir() {
+			r.Fail("%s: not a folder; it is named by %s", folder, key)
+			continue
+		}
+		if !slices.ContainsFunc(targets, func(t target) bool { return shown(t.root) == shown(root) }) {
+			targets = append(targets, target{root: root})
+		}
+	}
+	return targets, len(targets) > 0
+}
+
+func (s Rule) runPart(r *report.Report) bool {
 	switch remove := s.remove; {
 	case remove.Root:
 		r.Remove(s.root)
-	case len(remove.Folders) > 0 && s.file.Each.given():
-		s.removeInEach(r)
+	case s.file.Each.given():
+		return s.removeInEach(r)
 	case len(remove.Folders) > 0:
 		s.removeFolders(r, s.olderThanTheNewest(r, s.folders(r)))
 	case len(remove.Files) > 0:
@@ -139,11 +208,15 @@ func (s Rule) Run(r *report.Report) {
 	case len(remove.Superseded) > 0:
 		s.removeSuperseded(r)
 	}
+	if s.file.Each.given() {
+		return true
+	}
 	for _, c := range s.remove.Commands {
 		if !s.runCommand(r, c, s.root) {
-			return
+			return false
 		}
 	}
+	return true
 }
 
 func (s Rule) busy(r *report.Report) bool {
@@ -219,39 +292,63 @@ func (s Rule) cpuTimes(r *report.Report) (string, bool) {
 }
 
 func (s Rule) removeFiles(r *report.Report) {
-	root, err := settings.Canonical(s.root)
+	root, err := settings.Canonical(s.base)
 	if err != nil {
-		r.Fail("resolve %s: %v", s.root, err)
+		r.Fail("resolve %s: %v", s.base, err)
 		return
 	}
 	limit := s.ageLimit()
 	var found []string
 	var scanErrors []error
-	err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			scanErrors = append(scanErrors, err)
-			return nil
-		}
-		if !entry.Type().IsRegular() || !s.wanted(root, path) {
-			return nil
+	consider := func(path string, entry fs.DirEntry) {
+		if !entry.Type().IsRegular() {
+			return
 		}
 		info, err := entry.Info()
 		if err != nil {
 			scanErrors = append(scanErrors, err)
-			return nil
+			return
 		}
 		if !limit.Recent(info.ModTime()) {
 			found = append(found, path)
 		}
-		return nil
-	})
-	if err != nil {
-		scanErrors = append(scanErrors, err)
+	}
+	if slices.ContainsFunc(s.remove.Files, func(pattern string) bool { return strings.HasPrefix(pattern, "**/") }) {
+		err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+			switch {
+			case err != nil:
+				scanErrors = append(scanErrors, err)
+			case entry.IsDir() && path != root && slices.Contains(s.remove.Outside, entry.Name()):
+				return fs.SkipDir
+			case s.wanted(root, path):
+				consider(path, entry)
+			}
+			return nil
+		})
+		if err != nil {
+			scanErrors = append(scanErrors, err)
+		}
+	} else {
+		for _, pattern := range s.remove.Files {
+			matches, err := expandGlob(root, pattern)
+			if err != nil {
+				scanErrors = append(scanErrors, err)
+			}
+			for _, path := range matches {
+				info, err := os.Lstat(path)
+				if err != nil {
+					scanErrors = append(scanErrors, err)
+					continue
+				}
+				consider(path, fs.FileInfoToDirEntry(info))
+			}
+		}
 	}
 	if len(scanErrors) > 0 {
-		r.Fail("scan %s: %v", s.root, errors.Join(scanErrors...))
+		r.Fail("scan %s: %v", s.base, errors.Join(scanErrors...))
 	}
-	s.removeAll(r, found, s.keeper(r, limit))
+	slices.Sort(found)
+	s.removeAll(r, slices.Compact(found), s.keeper(r, limit))
 }
 
 func (s Rule) removeAll(r *report.Report, paths []string, keep func(path string) bool) {
@@ -290,6 +387,10 @@ func (s Rule) keeper(r *report.Report, limit age.Limit) func(path string) bool {
 	failed := false
 	return func(path string) bool {
 		if failed {
+			return true
+		}
+		if alive := s.file.Keep.Alive; alive != nil && alive.writing(path) {
+			r.Skip("%s: %s", path, alive.Says)
 			return true
 		}
 		if s.file.Keep.Open.Anything {

@@ -30,6 +30,27 @@ func TestAnUnreadableFolderInADeepSearchFailsAndTheRestGoes(t *testing.T) {
 	assert.Contains(t, r.Failures[0], "find "+root)
 }
 
+func TestAPatternSearchNamesAnUnreadableFolderAndFindsTheRest(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	for _, path := range []string{"a/.git/objects/tmp_obj", "b/.git/objects/pack/tmp_pack"} {
+		require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(root, path)), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(root, path), []byte("x"), 0o644))
+	}
+	locked := filepath.Join(root, "b", ".git", "objects", "pack")
+	require.NoError(t, os.Chmod(locked, 0))
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
+
+	found, err := expandGlob(root, "*/.git/objects/*/tmp_*")
+	foundTop, errTop := expandGlob(root, "*/.git/objects/tmp_*")
+
+	assert.Empty(t, found)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), locked)
+	assert.Equal(t, []string{filepath.Join(root, "a/.git/objects/tmp_obj")}, foundTop)
+	assert.NoError(t, errTop)
+}
+
 func TestADeepPatternMatchesAnyDepthAndNoMore(t *testing.T) {
 	pattern := []string{"data", "**", "Library", "Caches", "**", "cache"}
 

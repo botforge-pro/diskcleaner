@@ -39,10 +39,8 @@ type Superseded struct {
 
 func (f File) checkSuperseded() error {
 	switch {
-	case len(f.Remove.Superseded) == 0 && !f.Apps.given():
-		return nil
 	case len(f.Remove.Superseded) == 0:
-		return errors.New("apps: want remove: superseded, which reads them")
+		return nil
 	case !f.Apps.given():
 		return errors.New("remove: superseded: want apps: the run that lists installed apps or the patterns in which they lie")
 	case (len(f.Apps.Run) > 0) != (f.Apps.Says != ""):
@@ -165,7 +163,7 @@ func (s Rule) matchApps(pattern string) ([]string, error) {
 	if !isDeep {
 		return filepath.Glob(pattern)
 	}
-	matches, err := s.deepFolders(base, "**/"+deep)
+	matches, err := s.deepFolders(base, "**/"+deep, nil)
 	if errors.Is(err, fs.ErrNotExist) && len(matches) == 0 {
 		return nil, nil
 	}

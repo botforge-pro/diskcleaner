@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -39,6 +40,7 @@ func runCommand(timeout time.Duration, name string, args ...string) process.Resu
 
 type Command struct {
 	Root     Root     `yaml:"root"`
+	Has      []string `yaml:"has"`
 	Run      []string `yaml:"run"`
 	DryRun   []string `yaml:"dry-run"`
 	Timeout  string   `yaml:"timeout"`
@@ -71,6 +73,21 @@ func (c Command) words() string {
 	return strings.Join(c.Run, " ")
 }
 
+func (c Command) in(folder string) Command {
+	at := func(words []string) []string {
+		if words == nil {
+			return nil
+		}
+		out := make([]string, len(words))
+		for i, word := range words {
+			out[i] = strings.ReplaceAll(word, "{path}", folder)
+		}
+		return out
+	}
+	c.Run, c.DryRun, c.Estimate.Run = at(c.Run), at(c.DryRun), at(c.Estimate.Run)
+	return c
+}
+
 func (f File) checkCommand(c Command) error {
 	switch {
 	case len(c.Run) == 0:
@@ -91,6 +108,14 @@ func (f File) checkCommand(c Command) error {
 		if err := f.checkTimeout(timeout); err != nil {
 			return fmt.Errorf("remove: %s: %w", c.words(), err)
 		}
+	}
+	for _, path := range c.Has {
+		if !inside(strings.TrimSuffix(path, "/")) {
+			return fmt.Errorf("remove: %s: has %q: want a path inside the folder it runs for", c.words(), path)
+		}
+	}
+	if strings.Contains(strings.Join(slices.Concat(c.Run, c.DryRun, c.Estimate.Run), " "), "{path}") && !f.Each.given() {
+		return fmt.Errorf("remove: %s: {path} names the folder of each, so want each", c.words())
 	}
 	if !c.Root.empty() {
 		return c.Root.check(true)
@@ -172,6 +197,9 @@ func (s Rule) runCommand(r *report.Report, c Command, dir string) bool {
 			return true
 		}
 		dir = root
+	}
+	if slices.ContainsFunc(c.Has, func(path string) bool { return !present(dir, path) }) {
+		return true
 	}
 	measured := s.measured(c, dir)
 	estimate, kb, known := "", int64(0), false

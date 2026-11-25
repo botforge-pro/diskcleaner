@@ -18,9 +18,10 @@ to use it.
   line: a step's own settings in its `builtin/<step>.yaml`, the settings of all
   steps in `internal/config`. The config file and the flags set the same keys.
 - Each step runs from `builtin/<step>.yaml`: the names, paths, patterns and
-  commands are in the file, and Go holds only the ways of applying them. Its
-  cases are in `builtin/<step>_test.yaml`, and the README's table of steps is
-  made from these files by `make readme`.
+  commands are in the file, and Go holds only the ways of applying them. The
+  language of these files is `docs/step-language.md`. Its cases are in
+  `builtin/<step>_test.yaml`, and the README's table of steps is made from
+  these files by `make readme`.
 - The config selects which steps run, where projects are and the thresholds.
 - Every step runs unless turned off, a step that deletes what cannot come back
   included; such a step is marked as one in `--help` and in the README.

@@ -9,7 +9,7 @@ is 0.x, commands and output may still change.
 
 The steps, their settings and their flags keep their names; the changes below
 are to what `clean` prints, when it fails, and what it keeps. If a script reads
-the output of `clean`, check it against the first three.
+the output of `clean`, check it against the first three items under Changed.
 
 ### Changed
 
@@ -59,7 +59,8 @@ the output of `clean`, check it against the first three.
   Chrome makes such a copy, `code_sign_clone`, when it starts. Its program
   file is the same file as the one in `/Applications`, so `diskcleaner` could
   not tell which copy a running Chrome used. A copy is now kept while any
-  running Chrome uses that file, and goes after Chrome quits or updates.
+  running Chrome uses that file; once Chrome quits or updates, the next `clean`
+  removes it.
 
 ## [0.24.0] - 2026-11-23
 

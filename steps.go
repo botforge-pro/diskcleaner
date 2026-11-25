@@ -5,7 +5,6 @@ import (
 	"github.com/botforge-pro/diskcleaner/internal/config"
 	"github.com/botforge-pro/diskcleaner/internal/docker"
 	"github.com/botforge-pro/diskcleaner/internal/gocache"
-	"github.com/botforge-pro/diskcleaner/internal/gradle"
 	"github.com/botforge-pro/diskcleaner/internal/homebrew"
 	"github.com/botforge-pro/diskcleaner/internal/ide"
 	"github.com/botforge-pro/diskcleaner/internal/leftovers"
@@ -22,9 +21,6 @@ var written = map[string]construct{
 	"projects": func(_ string, c *config.Config) (step, error) {
 		s, err := projects.Default(c.Dirs("project-dirs"), c.Duration("min-age"), c.Duration("projects.git-tmp-min-age"), c.Duration("projects.lfs-timeout"))
 		return s, err
-	},
-	"gradle-caches": func(home string, _ *config.Config) (step, error) {
-		return gradle.Default(home), nil
 	},
 	"docker-images": func(home string, c *config.Config) (step, error) {
 		return docker.Default(home, c.Duration("docker-images.timeout"), c.Duration("docker-images.prune-timeout")), nil

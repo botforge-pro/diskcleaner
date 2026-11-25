@@ -13,7 +13,6 @@ import (
 
 	"github.com/botforge-pro/diskcleaner/internal/config"
 	"github.com/botforge-pro/diskcleaner/internal/inuse"
-	"github.com/botforge-pro/diskcleaner/internal/process"
 	"github.com/botforge-pro/diskcleaner/internal/rule"
 )
 
@@ -81,12 +80,12 @@ func constructor(f rule.File) construct {
 	}
 	return func(home string, c *config.Config) (step, error) {
 		return f.Rule(rule.Environment{
-			Home:     home,
-			Getenv:   os.Getenv,
-			Running:  process.Running,
-			Duration: func(key string) time.Duration { return c.Duration(f.Name + "." + key) },
-			Now:      time.Now,
-			Lsof:     inuse.DefaultLsof(),
+			Home:      home,
+			Getenv:    os.Getenv,
+			Processes: rule.SystemProcesses(),
+			Duration:  func(key string) time.Duration { return c.Duration(f.Name + "." + key) },
+			Now:       time.Now,
+			Lsof:      inuse.DefaultLsof(),
 		}), nil
 	}
 }

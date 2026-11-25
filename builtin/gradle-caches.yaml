@@ -6,4 +6,17 @@ readme:
   removes: "`$GRADLE_USER_HOME/caches`"
   keeps: all while Gradle, Android Studio or IntelliJ run
 
-run: code
+root: $GRADLE_USER_HOME/caches or ~/.gradle/caches
+
+busy:
+  processes: ['org\.gradle\.wrapper\.GradleWrapperMain', 'org\.gradle\.launcher\.GradleMain', /Contents/MacOS/studio, /Contents/MacOS/idea]
+  says: a Gradle build or Android Studio / IntelliJ IDEA is running
+
+stop:
+  processes: ['org\.gradle\.launcher\.daemon\.bootstrap\.GradleDaemon', 'org\.jetbrains\.kotlin\.daemon\.KotlinCompileDaemon']
+  names: idle Gradle and Kotlin daemons
+  unless-busy-for: 2s
+  timeout: 10s
+  says: a Gradle or Kotlin daemon is using the CPU
+
+remove: root

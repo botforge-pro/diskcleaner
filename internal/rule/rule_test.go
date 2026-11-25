@@ -45,12 +45,12 @@ func idle(string) (bool, error) { return false, nil }
 
 func environment(running func(string) (bool, error)) Environment {
 	return Environment{
-		Home:     "/nowhere",
-		Getenv:   func(string) string { return "" },
-		Running:  running,
-		Duration: func(string) time.Duration { return 0 },
-		Now:      time.Now,
-		Lsof:     inuse.Lsof{Command: "../process/testdata/lsof-none-open", TimeoutSeconds: 5},
+		Home:      "/nowhere",
+		Getenv:    func(string) string { return "" },
+		Processes: Processes{Running: running},
+		Duration:  func(string) time.Duration { return 0 },
+		Now:       time.Now,
+		Lsof:      inuse.Lsof{Command: "../process/testdata/lsof-none-open", TimeoutSeconds: 5},
 	}
 }
 

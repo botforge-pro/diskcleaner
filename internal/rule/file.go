@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"go.yaml.in/yaml/v3"
 
@@ -37,6 +38,7 @@ type File struct {
 	Run        string    `yaml:"run"`
 	Root       string    `yaml:"root"`
 	Busy       BusyWhen  `yaml:"busy"`
+	Stop       StopWhen  `yaml:"stop"`
 	Remove     Removal   `yaml:"remove"`
 	Keep       KeepWhen  `yaml:"keep"`
 	places     []place
@@ -140,6 +142,54 @@ type BusyWhen struct {
 	Processes []string `yaml:"processes"`
 	Groups    []string `yaml:"groups"`
 	Says      string   `yaml:"says"`
+}
+
+type StopWhen struct {
+	Processes     []string `yaml:"processes"`
+	Names         string   `yaml:"names"`
+	UnlessBusyFor string   `yaml:"unless-busy-for"`
+	Timeout       string   `yaml:"timeout"`
+	Says          string   `yaml:"says"`
+	quiet         time.Duration
+	limit         time.Duration
+}
+
+func (s StopWhen) given() bool {
+	return len(s.Processes) > 0 || s.Names != "" || s.UnlessBusyFor != "" || s.Timeout != "" || s.Says != ""
+}
+
+func (s StopWhen) pattern() string {
+	return strings.Join(s.Processes, "|")
+}
+
+func (s *StopWhen) check() error {
+	if !s.given() {
+		return nil
+	}
+	if len(s.Processes) == 0 || s.Names == "" || s.UnlessBusyFor == "" || s.Timeout == "" || s.Says == "" {
+		return errors.New("stop: want processes, names, unless-busy-for, timeout and says together")
+	}
+	for _, pattern := range s.Processes {
+		if _, err := regexp.Compile(pattern); err != nil {
+			return fmt.Errorf("stop: processes %q: %w", pattern, err)
+		}
+	}
+	var err error
+	if s.quiet, err = literalDuration(s.UnlessBusyFor); err != nil {
+		return fmt.Errorf("stop: unless-busy-for: %w", err)
+	}
+	if s.limit, err = literalDuration(s.Timeout); err != nil {
+		return fmt.Errorf("stop: timeout: %w", err)
+	}
+	return nil
+}
+
+func literalDuration(text string) (time.Duration, error) {
+	value, err := config.Parse(config.Setting{Key: "duration", Kind: config.Duration}, text, "/")
+	if err != nil {
+		return 0, err
+	}
+	return value.(time.Duration), nil
 }
 
 type KeepWhen struct {
@@ -253,8 +303,8 @@ func (f *File) check() error {
 	switch {
 	case f.Run != "" && f.Run != "code":
 		return fmt.Errorf("run %q: want code, for a step whose work is written in Go", f.Run)
-	case f.Run == "code" && (f.Root != "" || f.Busy.Says != "" || len(f.Busy.Processes) > 0 || len(f.Busy.Groups) > 0 || f.Remove.given || f.Keep != (KeepWhen{})):
-		return errors.New("run: code: the step is written in Go, so root, busy, remove and keep belong to it there")
+	case f.Run == "code" && (f.Root != "" || f.Busy.Says != "" || len(f.Busy.Processes) > 0 || len(f.Busy.Groups) > 0 || f.Stop.given() || f.Remove.given || f.Keep != (KeepWhen{})):
+		return errors.New("run: code: the step is written in Go, so root, busy, stop, remove and keep belong to it there")
 	case f.Run == "code":
 		return nil
 	}
@@ -276,6 +326,9 @@ func (f *File) check() error {
 		if _, ok := groups[group]; !ok {
 			return fmt.Errorf("busy: groups %q: want one of %s", group, strings.Join(slices.Sorted(maps.Keys(groups)), ", "))
 		}
+	}
+	if err := f.Stop.check(); err != nil {
+		return err
 	}
 	switch {
 	case !f.Remove.given:

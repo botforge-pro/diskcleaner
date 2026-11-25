@@ -13,19 +13,41 @@ import (
 	"github.com/botforge-pro/diskcleaner/internal/age"
 	"github.com/botforge-pro/diskcleaner/internal/candidates"
 	"github.com/botforge-pro/diskcleaner/internal/inuse"
+	"github.com/botforge-pro/diskcleaner/internal/process"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/botforge-pro/diskcleaner/internal/settings"
 )
 
-const openAnswersPerListing = 50
+const (
+	openAnswersPerListing = 50
+	stopPoll              = time.Second
+)
 
 type Environment struct {
-	Home     string
-	Getenv   func(string) string
-	Running  func(pattern string) (bool, error)
-	Duration func(key string) time.Duration
-	Now      func() time.Time
-	Lsof     inuse.Lsof
+	Home      string
+	Getenv    func(string) string
+	Processes Processes
+	Duration  func(key string) time.Duration
+	Now       func() time.Time
+	Lsof      inuse.Lsof
+}
+
+type Processes struct {
+	Running   func(pattern string) (bool, error)
+	Pids      func(pattern string) ([]string, error)
+	CPUTimes  func(pids []string) (string, error)
+	Terminate func(pattern string) error
+	Sleep     func(time.Duration)
+}
+
+func SystemProcesses() Processes {
+	return Processes{
+		Running:   process.Running,
+		Pids:      process.Pids,
+		CPUTimes:  process.CPUTimes,
+		Terminate: process.Terminate,
+		Sleep:     time.Sleep,
+	}
 }
 
 type Rule struct {
@@ -49,8 +71,11 @@ func (s Rule) Run(r *report.Report) {
 	fmt.Fprintf(r.Out, "%-8s %s\n", s.file.Label(), s.root)
 	defer fmt.Fprintln(r.Out)
 
-	if pattern := s.file.BusyPattern(); pattern != "" && r.Busy(s.env.Running, pattern) {
+	if pattern := s.file.BusyPattern(); pattern != "" && r.Busy(s.env.Processes.Running, pattern) {
 		r.Skip("%s: %s", s.root, s.file.Busy.Says)
+		return
+	}
+	if s.file.Stop.given() && !s.stopIdle(r) {
 		return
 	}
 	switch remove := s.file.Remove; {
@@ -63,6 +88,65 @@ func (s Rule) Run(r *report.Report) {
 	case len(remove.Files) > 0:
 		s.removeFiles(r)
 	}
+}
+
+func (s Rule) stopIdle(r *report.Report) bool {
+	stop := s.file.Stop
+	times, ok := s.cpuTimes(r)
+	if !ok {
+		return false
+	}
+	if times == "" {
+		return true
+	}
+	s.env.Processes.Sleep(stop.quiet)
+	again, ok := s.cpuTimes(r)
+	if !ok {
+		return false
+	}
+	if again != times {
+		r.Skip("%s: %s", s.root, stop.Says)
+		return false
+	}
+	if r.DryRun {
+		fmt.Fprintf(r.Out, "WOULD STOP    %s\n", stop.Names)
+		return true
+	}
+	fmt.Fprintf(r.Out, "STOP          %s\n", stop.Names)
+	if err := s.env.Processes.Terminate(stop.pattern()); err != nil {
+		r.Fail("pkill -TERM -f '%s': %v", stop.pattern(), err)
+		return false
+	}
+	for waited := time.Duration(0); ; waited += stopPoll {
+		pids, err := s.env.Processes.Pids(stop.pattern())
+		if err != nil {
+			r.Fail("pgrep -f '%s': %v", stop.pattern(), err)
+			return false
+		}
+		if len(pids) == 0 {
+			return true
+		}
+		if waited >= stop.limit {
+			r.Fail("%s: %s did not stop within %s", s.root, stop.Names, stop.limit)
+			return false
+		}
+		s.env.Processes.Sleep(stopPoll)
+	}
+}
+
+func (s Rule) cpuTimes(r *report.Report) (string, bool) {
+	pattern := s.file.Stop.pattern()
+	pids, err := s.env.Processes.Pids(pattern)
+	if err != nil {
+		r.Fail("pgrep -f '%s': %v", pattern, err)
+		return "", false
+	}
+	times, err := s.env.Processes.CPUTimes(pids)
+	if err != nil {
+		r.Fail("ps of %s: %v", s.file.Stop.Names, err)
+		return "", false
+	}
+	return times, true
 }
 
 func (s Rule) age() age.Limit {

@@ -26,12 +26,14 @@ import (
 type stepCase struct {
 	Case    string            `yaml:"case"`
 	Env     map[string]string `yaml:"env"`
-	Running []string          `yaml:"running"`
+	Running []fakeProcess     `yaml:"running"`
 	Files   map[string]string `yaml:"files"`
 	Open    []string          `yaml:"open"`
 	Tracked []string          `yaml:"tracked"`
 	Removes *[]string         `yaml:"removes"`
 	Says    []string          `yaml:"says"`
+	Shows   []string          `yaml:"shows"`
+	Fails   []string          `yaml:"fails"`
 }
 
 func TestEveryDeclaredStepHasATestFile(t *testing.T) {
@@ -98,15 +100,23 @@ func (c stepCase) run(t *testing.T, f rule.File) {
 	var stdout, stderr bytes.Buffer
 	r := &report.Report{Out: &stdout, Err: &stderr}
 	f.Rule(rule.Environment{
-		Home:     home,
-		Getenv:   func(key string) string { return c.variable(home, key) },
-		Running:  c.running,
-		Duration: func(key string) time.Duration { return settingsDefault(t, f.Name+"."+key) },
-		Now:      time.Now,
-		Lsof:     inuse.Lsof{Command: c.lsof(t, home), TimeoutSeconds: 5},
+		Home:      home,
+		Getenv:    func(key string) string { return c.variable(home, key) },
+		Processes: newProcessTable(home, c.Running).processes(),
+		Duration:  func(key string) time.Duration { return settingsDefault(t, f.Name+"."+key) },
+		Now:       time.Now,
+		Lsof:      inuse.Lsof{Command: c.lsof(t, home), TimeoutSeconds: 5},
 	}).Run(r)
 
-	assert.Empty(t, r.Failures, "%s", stderr.String())
+	if len(c.Fails) == 0 {
+		assert.Empty(t, r.Failures, "%s", stderr.String())
+	}
+	for _, failed := range c.Fails {
+		assert.True(t, slices.ContainsFunc(r.Failures, func(f string) bool { return strings.Contains(f, failed) }), "fails: %q not among %q", failed, r.Failures)
+	}
+	for _, shown := range c.Shows {
+		assert.Contains(t, stdout.String(), shown)
+	}
 	for path := range c.Files {
 		full := filepath.Join(home, path)
 		if c.removed(path) {
@@ -141,12 +151,90 @@ func (c stepCase) variable(home, key string) string {
 	return value
 }
 
-func (c stepCase) running(pattern string) (bool, error) {
+type fakeProcess struct {
+	Command string `yaml:"command"`
+	Busy    bool   `yaml:"busy"`
+	Stays   bool   `yaml:"stays"`
+}
+
+func (p *fakeProcess) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind == yaml.ScalarNode {
+		p.Command = node.Value
+		return nil
+	}
+	type plain fakeProcess
+	return node.Decode((*plain)(p))
+}
+
+type processTable struct {
+	running []fakeProcess
+	cpu     int
+}
+
+func newProcessTable(home string, running []fakeProcess) *processTable {
+	table := &processTable{}
+	for _, p := range running {
+		p.Command = strings.ReplaceAll(p.Command, "~/", home+"/")
+		table.running = append(table.running, p)
+	}
+	return table
+}
+
+func (t *processTable) matching(pattern string) ([]int, error) {
 	re, err := regexp.Compile(pattern)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	return slices.ContainsFunc(c.Running, re.MatchString), nil
+	var found []int
+	for i, p := range t.running {
+		if re.MatchString(p.Command) {
+			found = append(found, i)
+		}
+	}
+	return found, nil
+}
+
+func (t *processTable) processes() rule.Processes {
+	return rule.Processes{
+		Running: func(pattern string) (bool, error) {
+			found, err := t.matching(pattern)
+			return len(found) > 0, err
+		},
+		Pids: func(pattern string) ([]string, error) {
+			found, err := t.matching(pattern)
+			var pids []string
+			for _, i := range found {
+				pids = append(pids, fmt.Sprint(i+1))
+			}
+			return pids, err
+		},
+		CPUTimes: func(pids []string) (string, error) {
+			t.cpu++
+			var lines []string
+			for _, pid := range pids {
+				var i int
+				fmt.Sscan(pid, &i)
+				used := 0
+				if t.running[i-1].Busy {
+					used = t.cpu
+				}
+				lines = append(lines, fmt.Sprintf("%s 0:%02d.00", pid, used))
+			}
+			return strings.Join(lines, "\n"), nil
+		},
+		Terminate: func(pattern string) error {
+			found, err := t.matching(pattern)
+			var left []fakeProcess
+			for i, p := range t.running {
+				if p.Stays || !slices.Contains(found, i) {
+					left = append(left, p)
+				}
+			}
+			t.running = left
+			return err
+		},
+		Sleep: func(time.Duration) {},
+	}
 }
 
 func (c stepCase) removed(path string) bool {

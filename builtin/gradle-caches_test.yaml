@@ -1,0 +1,49 @@
+- case: the caches go while nothing of Gradle runs
+  files:
+    .gradle/caches/modules-2/lib.jar:
+  removes: [.gradle/caches]
+
+- case: GRADLE_USER_HOME moves the caches
+  env: {GRADLE_USER_HOME: ~/gradle}
+  files:
+    gradle/caches/modules-2/lib.jar:
+    .gradle/caches/modules-2/lib.jar:
+  removes: [gradle/caches]
+
+- case: idle daemons are stopped first
+  running:
+    - java org.gradle.launcher.daemon.bootstrap.GradleDaemon 8.10
+    - java org.jetbrains.kotlin.daemon.KotlinCompileDaemon
+  files:
+    .gradle/caches/modules-2/lib.jar:
+  removes: [.gradle/caches]
+  shows: [STOP          idle Gradle and Kotlin daemons]
+
+- case: a daemon using the CPU keeps the caches
+  running:
+    - {command: java org.gradle.launcher.daemon.bootstrap.GradleDaemon 8.10, busy: true}
+  files:
+    .gradle/caches/modules-2/lib.jar:
+  removes: []
+  says: [a Gradle or Kotlin daemon is using the CPU]
+
+- case: a daemon that does not stop keeps the caches
+  running:
+    - {command: java org.gradle.launcher.daemon.bootstrap.GradleDaemon 8.10, stays: true}
+  files:
+    .gradle/caches/modules-2/lib.jar:
+  removes: []
+  fails: [idle Gradle and Kotlin daemons did not stop within 10s]
+
+- case: a Gradle build keeps the caches
+  running: [java org.gradle.wrapper.GradleWrapperMain build]
+  files:
+    .gradle/caches/modules-2/lib.jar:
+  removes: []
+  says: [a Gradle build or Android Studio / IntelliJ IDEA is running]
+
+- case: Android Studio keeps the caches
+  running: [/Applications/Android Studio.app/Contents/MacOS/studio]
+  files:
+    .gradle/caches/modules-2/lib.jar:
+  removes: []

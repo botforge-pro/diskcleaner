@@ -124,7 +124,7 @@ func (f File) usedSettings() map[string]bool {
 			used[key] = true
 		}
 	}
-	add(f.Keep.WrittenWithin)
+	add(f.Keep.Age.Within)
 	add(f.Ready.Timeout)
 	for _, c := range f.Remove.Commands {
 		add(c.Timeout)
@@ -206,10 +206,6 @@ func literalDuration(text string) (time.Duration, error) {
 		return 0, err
 	}
 	return value.(time.Duration), nil
-}
-
-type KeepWhen struct {
-	WrittenWithin string `yaml:"written-within"`
 }
 
 type Removal struct {
@@ -333,7 +329,7 @@ func (f *File) check() error {
 	switch {
 	case f.Run != "" && f.Run != "code":
 		return fmt.Errorf("run %q: want code, for a step whose work is written in Go", f.Run)
-	case f.Run == "code" && (!f.Root.empty() || len(f.Needs) > 0 || len(f.Ready.Run) > 0 || f.Busy.Says != "" || len(f.Busy.Processes) > 0 || len(f.Busy.Groups) > 0 || f.Stop.given() || f.Remove.given || f.Keep != (KeepWhen{})):
+	case f.Run == "code" && (!f.Root.empty() || len(f.Needs) > 0 || len(f.Ready.Run) > 0 || f.Busy.Says != "" || len(f.Busy.Processes) > 0 || len(f.Busy.Groups) > 0 || f.Stop.given() || f.Remove.given || f.Keep.given()):
 		return errors.New("run: code: the step is written in Go, so needs, root, ready, busy, stop, remove and keep belong to it there")
 	case f.Run == "code":
 		return nil
@@ -389,20 +385,6 @@ func (f *File) check() error {
 func inside(pattern string) bool {
 	_, err := filepath.Match(pattern, "")
 	return err == nil && pattern != "" && !filepath.IsAbs(pattern) && !slices.Contains(strings.Split(pattern, "/"), "..")
-}
-
-func (f File) checkKeep() error {
-	k := f.Keep
-	if k == (KeepWhen{}) {
-		return nil
-	}
-	if len(f.Remove.Files) == 0 {
-		return errors.New("keep: want remove: files; only files have keep yet")
-	}
-	if k.WrittenWithin != "" && !slices.ContainsFunc(f.Settings, func(s Setting) bool { return s.Key == k.WrittenWithin && s.Kind == "duration" }) {
-		return fmt.Errorf("keep: written-within %q: want the key of one of this step's duration settings", k.WrittenWithin)
-	}
-	return nil
 }
 
 func (s Setting) check() error {

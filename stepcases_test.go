@@ -105,13 +105,20 @@ func (c stepCase) run(t *testing.T, f rule.File) {
 	home, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
 	now := time.Now()
+	folders := map[string]time.Time{}
 	for path, age := range c.Files {
 		written := now.Add(-c.age(t, age))
 		full := filepath.Join(home, path)
+		if strings.HasSuffix(path, "/") {
+			require.NoError(t, os.MkdirAll(full, 0o755))
+			folders[filepath.Clean(full)] = written
+			continue
+		}
 		require.NoError(t, os.MkdirAll(filepath.Dir(full), 0o755))
 		require.NoError(t, os.WriteFile(full, []byte("x"), 0o644))
 		require.NoError(t, os.Chtimes(full, written, written))
 	}
+	ageFolders(t, home, folders)
 	if len(c.Tracked) > 0 {
 		track(t, home, c.Tracked)
 	}
@@ -123,7 +130,7 @@ func (c stepCase) run(t *testing.T, f rule.File) {
 		Getenv:    func(key string) string { return c.variable(home, key) },
 		Processes: newProcessTable(home, c.Running).processes(),
 		Commands:  c.commands(t, home),
-		Duration:  func(key string) time.Duration { return settingsDefault(t, f.Name+"."+key) },
+		Duration:  func(key string) time.Duration { return settingsDefault(t, key) },
 		Now:       time.Now,
 		Lsof:      inuse.Lsof{Command: c.lsof(t, home), TimeoutSeconds: 5},
 	}).Run(r)
@@ -145,9 +152,15 @@ func (c stepCase) run(t *testing.T, f rule.File) {
 	}
 	for path := range c.Files {
 		full := filepath.Join(home, path)
-		if c.removed(path) {
+		folder := strings.HasSuffix(path, "/")
+		switch removed := c.removed(strings.TrimSuffix(path, "/")); {
+		case removed && folder:
+			assert.NoDirExists(t, full)
+		case removed:
 			assert.NoFileExists(t, full)
-		} else {
+		case folder:
+			assert.DirExists(t, full, "only removes: may go")
+		default:
 			assert.FileExists(t, full, "only removes: may go")
 		}
 	}
@@ -157,6 +170,35 @@ func (c stepCase) run(t *testing.T, f rule.File) {
 	}
 	for _, said := range c.Says {
 		assert.Contains(t, stderr.String(), said)
+	}
+}
+
+func ageFolders(t *testing.T, home string, explicit map[string]time.Time) {
+	var dirs []string
+	require.NoError(t, filepath.WalkDir(home, func(path string, entry fs.DirEntry, err error) error {
+		require.NoError(t, err)
+		if entry.IsDir() && path != home {
+			dirs = append(dirs, path)
+		}
+		return nil
+	}))
+	slices.SortFunc(dirs, func(a, b string) int { return strings.Count(b, "/") - strings.Count(a, "/") })
+	for _, dir := range dirs {
+		written, ok := explicit[dir]
+		if !ok {
+			entries, err := os.ReadDir(dir)
+			require.NoError(t, err)
+			for _, entry := range entries {
+				info, err := entry.Info()
+				require.NoError(t, err)
+				if info.ModTime().After(written) {
+					written = info.ModTime()
+				}
+			}
+		}
+		if !written.IsZero() {
+			require.NoError(t, os.Chtimes(dir, written, written))
+		}
 	}
 }
 

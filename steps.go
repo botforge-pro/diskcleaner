@@ -1,10 +1,8 @@
 package main
 
 import (
-	"github.com/botforge-pro/diskcleaner/internal/clones"
 	"github.com/botforge-pro/diskcleaner/internal/config"
 	"github.com/botforge-pro/diskcleaner/internal/ide"
-	"github.com/botforge-pro/diskcleaner/internal/leftovers"
 	"github.com/botforge-pro/diskcleaner/internal/projects"
 	"github.com/botforge-pro/diskcleaner/internal/scratchpads"
 	"github.com/botforge-pro/diskcleaner/internal/simulator"
@@ -25,16 +23,8 @@ var written = map[string]construct{
 	"xcode-archives": func(home string, c *config.Config) (step, error) {
 		return xcode.DefaultArchives(home, c.Duration("xcode-archives.min-age"), c.Count("xcode-archives.keep")), nil
 	},
-	"temp-leftovers": func(_ string, c *config.Config) (step, error) {
-		s, err := leftovers.Default(c.Duration("min-age"))
-		return s, err
-	},
 	"system-temp": func(string, *config.Config) (step, error) {
 		return systemtemp.Default(), nil
-	},
-	"code-sign-clones": func(_ string, c *config.Config) (step, error) {
-		s, err := clones.Default(c.Duration("min-age"))
-		return s, err
 	},
 	"ide-old-versions": func(home string, _ *config.Config) (step, error) {
 		return ide.Default(home), nil

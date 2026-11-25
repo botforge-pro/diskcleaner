@@ -19,4 +19,6 @@ remove:
   files: ['**/*.jsonl']
 
 keep:
-  written-within: min-age
+  age: {of: mtime, within: min-age}
+  open: true
+  tracked: true

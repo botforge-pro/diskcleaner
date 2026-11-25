@@ -120,9 +120,7 @@ func (s Rule) Run(r *report.Report) {
 	case remove.Root:
 		r.Remove(s.root)
 	case len(remove.Folders) > 0:
-		for _, folder := range s.folders(r) {
-			r.Remove(folder)
-		}
+		s.removeFolders(r, s.folders(r))
 	case len(remove.Files) > 0:
 		s.removeFiles(r)
 	}
@@ -205,14 +203,6 @@ func (s Rule) cpuTimes(r *report.Report) (string, bool) {
 	return times, true
 }
 
-func (s Rule) age() age.Limit {
-	limit := age.Limit{Now: s.env.Now}
-	if key := s.file.Keep.WrittenWithin; key != "" {
-		limit.Min = s.env.Duration(key)
-	}
-	return limit
-}
-
 func (s Rule) folders(r *report.Report) []string {
 	var matches []string
 	for _, pattern := range s.file.Remove.Folders {
@@ -244,8 +234,8 @@ func (s Rule) removeFiles(r *report.Report) {
 		r.Fail("resolve %s: %v", s.root, err)
 		return
 	}
-	limit := s.age()
-	var set candidates.Set
+	limit := s.ageLimit()
+	var found []string
 	var scanErrors []error
 	err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -261,7 +251,7 @@ func (s Rule) removeFiles(r *report.Report) {
 			return nil
 		}
 		if !limit.Recent(info.ModTime()) {
-			set.Add(r, path)
+			found = append(found, path)
 		}
 		return nil
 	})
@@ -271,7 +261,23 @@ func (s Rule) removeFiles(r *report.Report) {
 	if len(scanErrors) > 0 {
 		r.Fail("scan %s: %v", s.root, errors.Join(scanErrors...))
 	}
-	set.RemoveUnless(r, s.keeper(r, limit))
+	s.removeAll(r, found, s.keeper(r, limit))
+}
+
+func (s Rule) removeAll(r *report.Report, paths []string, keep func(path string) bool) {
+	if s.file.Keep.Tracked {
+		var set candidates.Set
+		for _, path := range paths {
+			set.Add(r, path)
+		}
+		set.RemoveUnless(r, keep)
+		return
+	}
+	for _, path := range paths {
+		if !keep(path) {
+			r.Remove(path)
+		}
+	}
 }
 
 func (s Rule) wanted(root, path string) bool {
@@ -296,15 +302,17 @@ func (s Rule) keeper(r *report.Report, limit age.Limit) func(path string) bool {
 		if failed {
 			return true
 		}
-		held, err := open.HoldsAny(path)
-		if err != nil {
-			r.Fail("lsof %s: %v", s.root, err)
-			failed = true
-			return true
-		}
-		if held {
-			r.Skip("%s: a process still has it open", path)
-			return true
+		if s.file.Keep.Open.Anything {
+			held, err := open.HoldsAny(path)
+			if err != nil {
+				r.Fail("lsof %s: %v", s.root, err)
+				failed = true
+				return true
+			}
+			if held {
+				r.Skip("%s: a process still has it open", path)
+				return true
+			}
 		}
 		info, err := os.Lstat(path)
 		if err != nil {

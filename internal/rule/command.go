@@ -122,7 +122,7 @@ func (s Rule) timeout(text string) time.Duration {
 		return 0
 	}
 	if hasSetting(s.file.Settings, text, "timeout") {
-		return s.env.Duration(text)
+		return s.duration(text)
 	}
 	value, _ := literalDuration(text)
 	return value

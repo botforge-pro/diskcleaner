@@ -63,7 +63,7 @@ describes: logs older than {min-age}
 settings: [{key: min-age, kind: duration, default: 31d, help: x}]
 root: %s
 remove: {files: %s}
-keep: {written-within: min-age}
+keep: {age: {of: mtime, within: min-age}, open: true, tracked: true}
 `, s.root, s.files)
 	return parse(t, "claude-logs.yaml", body).Rule(s.env)
 }

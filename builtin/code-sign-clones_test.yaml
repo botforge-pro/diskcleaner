@@ -1,0 +1,56 @@
+- case: a copy no running app was started from goes
+  commands:
+    getconf DARWIN_USER_TEMP_DIR: {stdout: ~/folders/T}
+  files:
+    folders/X/com.google.Chrome.code_sign_clone/code_sign_clone.abc/: 2h
+    folders/X/com.google.Chrome.code_sign_clone/code_sign_clone.abc/Google Chrome.app.bundle/Contents/MacOS/Google Chrome: 2h
+    folders/X/com.google.Chrome.code_sign_clone/code_sign_clone.abc/Google Chrome.app.bundle/Contents/Resources/app.icns: 2h
+  removes: [folders/X/com.google.Chrome.code_sign_clone/code_sign_clone.abc]
+
+- case: the copy a running app was started from stays
+  commands:
+    getconf DARWIN_USER_TEMP_DIR: {stdout: ~/folders/T}
+  files:
+    folders/X/com.google.Chrome.code_sign_clone/code_sign_clone.abc/: 2h
+    folders/X/com.google.Chrome.code_sign_clone/code_sign_clone.abc/Google Chrome.app.bundle/Contents/MacOS/Google Chrome: 2h
+  open: [folders/X/com.google.Chrome.code_sign_clone/code_sign_clone.abc/Google Chrome.app.bundle/Contents/MacOS/Google Chrome]
+  removes: []
+  says: [a running program was started from it]
+
+- case: a framework a running app loaded keeps its copy
+  commands:
+    getconf DARWIN_USER_TEMP_DIR: {stdout: ~/folders/T}
+  files:
+    folders/X/com.google.Chrome.code_sign_clone/code_sign_clone.abc/: 2h
+    folders/X/com.google.Chrome.code_sign_clone/code_sign_clone.abc/Google Chrome.app.bundle/Contents/MacOS/Google Chrome: 2h
+    folders/X/com.google.Chrome.code_sign_clone/code_sign_clone.abc/Google Chrome.app.bundle/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.93/Google Chrome Framework: 2h
+  open: [folders/X/com.google.Chrome.code_sign_clone/code_sign_clone.abc/Google Chrome.app.bundle/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.93/Google Chrome Framework]
+  removes: []
+  says: [a running program was started from it]
+
+- case: a copy made within the age stays
+  commands:
+    getconf DARWIN_USER_TEMP_DIR: {stdout: ~/folders/T}
+  files:
+    folders/X/com.google.Chrome.code_sign_clone/code_sign_clone.abc/: 30m
+    folders/X/com.google.Chrome.code_sign_clone/code_sign_clone.abc/Google Chrome.app.bundle/Contents/MacOS/Google Chrome: 2h
+  removes: []
+  says: ['made within 1h']
+
+- case: a copy with no program in it to ask about stays
+  commands:
+    getconf DARWIN_USER_TEMP_DIR: {stdout: ~/folders/T}
+  files:
+    folders/X/com.google.Chrome.code_sign_clone/code_sign_clone.abc/: 2h
+    folders/X/com.google.Chrome.code_sign_clone/code_sign_clone.abc/Google Chrome.app.bundle/Contents/Resources/app.icns: 2h
+  removes: []
+  says: [to ask lsof about]
+
+- case: other folders next to the copies stay
+  commands:
+    getconf DARWIN_USER_TEMP_DIR: {stdout: ~/folders/T}
+  files:
+    folders/X/com.apple.other/thing: 30d
+    folders/X/com.google.Chrome.code_sign_clone/readme.txt: 30d
+  removes: []
+  counts: 0

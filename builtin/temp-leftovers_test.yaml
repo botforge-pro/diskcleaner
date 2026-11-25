@@ -1,0 +1,60 @@
+- case: old work folders of every kind go, other folders stay
+  commands:
+    getconf DARWIN_USER_TEMP_DIR: {stdout: ~/T}
+  files:
+    T/go-build2557847130/b001/a.out: 2h
+    T/go-link-962278169/b001/a.out: 3d
+    T/XcodeDistPipeline.~~~NmSxWB/Export/App.ipa: 2h
+    T/TemporaryDirectory.abc/b001/a.out: 30d
+  removes: [T/go-build2557847130, T/go-link-962278169, T/XcodeDistPipeline.~~~NmSxWB]
+
+- case: a dry run removes nothing
+  dry-run: true
+  commands:
+    getconf DARWIN_USER_TEMP_DIR: {stdout: ~/T}
+  files:
+    T/go-build1/b001/a.out: 2h
+  removes: []
+  counts: 1
+  shows: [WOULD REMOVE]
+
+- case: a folder written within the age stays
+  commands:
+    getconf DARWIN_USER_TEMP_DIR: {stdout: ~/T}
+  files:
+    T/go-build1/b001/a.out: 59m
+  removes: []
+  says: ['written within 1h']
+
+- case: a fresh file deep inside keeps an old folder
+  commands:
+    getconf DARWIN_USER_TEMP_DIR: {stdout: ~/T}
+  files:
+    T/go-build1/b001/a.out: 3h
+    T/go-build1/b002/deep/importcfg: 5m
+  removes: []
+  says: ['written within 1h']
+
+- case: a folder a process has a file open in stays
+  commands:
+    getconf DARWIN_USER_TEMP_DIR: {stdout: ~/T}
+  files:
+    T/go-build1/b001/a.out: 2h
+    T/XcodeDistPipeline.~~~abc/Export/App.ipa: 2h
+  open: [T/go-build1/b001/a.out]
+  removes: [T/XcodeDistPipeline.~~~abc]
+  says: [a process still has something in it open]
+
+- case: files and links with matching names stay
+  commands:
+    getconf DARWIN_USER_TEMP_DIR: {stdout: ~/T}
+  files:
+    T/go-build.log: 2d
+  removes: []
+  counts: 0
+
+- case: a failing getconf fails the step only
+  commands:
+    getconf DARWIN_USER_TEMP_DIR: {stderr: 'getconf: no such configuration', exit: 1}
+  removes: []
+  fails: ['getconf DARWIN_USER_TEMP_DIR: exit status 1']

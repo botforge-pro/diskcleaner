@@ -3,4 +3,8 @@ order: 40
 describes: the Go module and build caches
 reversible: true
 
+readme:
+  removes: the Go module and build caches
+  keeps: each cache when a Go command is detected before deletion
+
 run: go-cache

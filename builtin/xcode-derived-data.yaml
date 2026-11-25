@@ -3,4 +3,8 @@ order: 70
 describes: Xcode DerivedData
 reversible: true
 
+readme:
+  removes: Xcode DerivedData
+  keeps: all while Xcode builds; in a folder you picked in Xcode, what Xcode did not make
+
 run: xcode-derived-data

@@ -3,4 +3,7 @@ order: 110
 describes: copies of Chrome and other apps no running app uses
 reversible: true
 
+readme:
+  removes: copies of Chrome and other apps no running app was started from
+
 run: code-sign-clones

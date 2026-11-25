@@ -3,6 +3,11 @@ order: 30
 describes: Docker images not used by any container
 reversible: true
 
+readme:
+  removes: images no container uses, giving up on a Docker that does not answer after {timeout} and on a prune after {prune-timeout}
+  keeps: volumes
+  can-lose: an image neither a registry nor a Dockerfile still has
+
 settings:
   - key: timeout
     kind: timeout

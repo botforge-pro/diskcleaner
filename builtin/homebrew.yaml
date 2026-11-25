@@ -3,6 +3,11 @@ order: 50
 describes: old Homebrew versions and downloads
 reversible: false
 
+readme:
+  removes: old versions of formulae and casks; every download, whatever its age, giving up after {timeout}
+  keeps: installed versions
+  can-lose: the old versions
+
 settings:
   - key: timeout
     kind: timeout

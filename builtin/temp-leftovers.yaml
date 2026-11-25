@@ -3,4 +3,7 @@ order: 90
 describes: temporary folders of killed Go builds and of Xcode exports
 reversible: true
 
+readme:
+  removes: work folders of killed Go builds, Xcode export leftovers
+
 run: temp-leftovers

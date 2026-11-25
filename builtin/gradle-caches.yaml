@@ -3,4 +3,8 @@ order: 20
 describes: the Gradle caches
 reversible: true
 
+readme:
+  removes: "`$GRADLE_USER_HOME/caches`"
+  keeps: all while Gradle, Android Studio or IntelliJ run
+
 run: gradle-caches

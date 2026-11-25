@@ -3,6 +3,11 @@ order: 150
 describes: old Claude Code session logs
 reversible: false
 
+readme:
+  removes: Claude Code session logs older than {min-age}
+  keeps: open logs
+  can-lose: resuming those sessions
+
 settings:
   - key: min-age
     kind: duration

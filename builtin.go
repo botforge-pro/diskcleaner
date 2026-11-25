@@ -22,6 +22,7 @@ type stepInfo struct {
 	config.Step
 	describes string
 	construct construct
+	file      rule.File
 }
 
 var catalog = mustCatalog()
@@ -43,7 +44,7 @@ func mustCatalog() []stepInfo {
 	slices.SortFunc(files, func(a, b rule.File) int { return cmp.Compare(a.Order, b.Order) })
 	steps := make([]stepInfo, len(files))
 	for i, f := range files {
-		steps[i] = stepInfo{f.Step(), f.Describes, constructor(f)}
+		steps[i] = stepInfo{f.Step(), f.Describes, constructor(f), f}
 	}
 	return steps
 }

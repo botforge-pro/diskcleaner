@@ -4,6 +4,10 @@ label: SWIFTPM
 describes: the Swift Package Manager cache
 reversible: true
 
+readme:
+  removes: the SwiftPM package cache
+  keeps: all while Swift or Xcode build
+
 root: ~/Library/Caches/org.swift.swiftpm
 
 busy:

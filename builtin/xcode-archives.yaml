@@ -3,6 +3,11 @@ order: 80
 describes: old Xcode archives, the newest of each app kept
 reversible: false
 
+readme:
+  removes: archives older than {min-age}
+  keeps: the newest {keep} of each app; any archive in a folder not named by a date
+  can-lose: the signed builds and their debug symbols
+
 settings:
   - key: min-age
     kind: duration

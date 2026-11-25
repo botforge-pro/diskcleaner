@@ -3,6 +3,11 @@ order: 10
 describes: build output, Python caches, node_modules and Git leftovers in your projects
 reversible: true
 
+readme:
+  removes: "in each project: `.build` of Swift packages, Gradle `build`, `.apk`/`.aab`, Python's `__pycache__` anywhere outside `node_modules` and `.build`, `node_modules` with a lockfile, temporary files of a dead `git fetch` or `git repack` older than {git-tmp-min-age}, Git LFS objects the remote has, giving up on a repository after {lfs-timeout}"
+  keeps: "`node_modules` without a lockfile"
+  can-lose: "packages installed with `--no-save`, unpublished, or from a registry you no longer reach"
+
 settings:
   - key: git-tmp-min-age
     kind: duration

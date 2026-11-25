@@ -3,7 +3,7 @@ STATICCHECK := go run honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION)
 
 VERSION = $(shell sed -n 's/^\#\# \[\([0-9.]*\)\].*/\1/p' CHANGELOG.md | head -1)
 
-.PHONY: tools format lint test-build test build install install-release release
+.PHONY: tools format lint test-build test build install install-release release readme
 
 tools:
 	pip install --upgrade git+https://github.com/botforge-pro/commentcensor.git
@@ -26,6 +26,9 @@ test:
 
 build:
 	go build -o diskcleaner .
+
+readme:
+	UPDATE_README=1 go test -count=1 -run '^TestTheREADMEListsTheStepsAsTheirFilesSay$$' .
 
 install:
 	go install .

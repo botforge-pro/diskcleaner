@@ -3,4 +3,8 @@ order: 170
 describes: build output in Claude Code scratchpads
 reversible: true
 
+readme:
+  removes: build output in Claude Code scratchpads
+  keeps: the scratchpads
+
 run: claude-scratchpads

@@ -3,4 +3,9 @@ order: 100
 describes: your files and empty folders in /private/tmp untouched for 3 days, as macOS removes them
 reversible: false
 
+readme:
+  removes: "what macOS itself removes from `/private/tmp` after 3 days, if it is yours: files not read, written or changed for 3 days, at any depth, and folders empty and unchanged for 3 days"
+  keeps: "files touched in the last 3 days, sockets, symbolic links, mounted volumes (never looked into), the dot entries and `claude-*` folders at the top, the X11, quota and resource-stream entries macOS keeps, what a process holds open"
+  can-lose: whatever was kept there
+
 run: system-temp

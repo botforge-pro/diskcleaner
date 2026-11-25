@@ -33,12 +33,49 @@ type File struct {
 	Label      string    `yaml:"label"`
 	Describes  string    `yaml:"describes"`
 	Reversible bool      `yaml:"reversible"`
+	Readme     Readme    `yaml:"readme"`
 	Settings   []Setting `yaml:"settings"`
 	Run        string    `yaml:"run"`
 	Root       string    `yaml:"root"`
 	Busy       BusyWhen  `yaml:"busy"`
 	Remove     Removal   `yaml:"remove"`
 	places     []place
+}
+
+type Readme struct {
+	Removes string `yaml:"removes"`
+	Keeps   string `yaml:"keeps"`
+	CanLose string `yaml:"can-lose"`
+}
+
+var mention = regexp.MustCompile(`\{([^{}]*)\}`)
+
+func (f File) Explain(text string) string {
+	return mention.ReplaceAllStringFunc(text, func(found string) string {
+		key := found[1 : len(found)-1]
+		if key == "root" {
+			return "`" + f.Root + "`"
+		}
+		i := slices.IndexFunc(f.Settings, func(s Setting) bool { return s.Key == key })
+		return fmt.Sprintf("`%s` (`%s`)", key, f.Settings[i].Default)
+	})
+}
+
+func (f File) checkReadme() error {
+	if f.Readme.Removes == "" {
+		return errors.New("readme: removes: want what the step removes, for the README")
+	}
+	for _, text := range []string{f.Readme.Removes, f.Readme.Keeps, f.Readme.CanLose} {
+		for _, found := range mention.FindAllStringSubmatch(text, -1) {
+			if found[1] == "root" && f.Root != "" {
+				continue
+			}
+			if !slices.ContainsFunc(f.Settings, func(s Setting) bool { return s.Key == found[1] }) {
+				return fmt.Errorf("readme: {%s}: want {root} of a declared step or the key of one of this step's settings", found[1])
+			}
+		}
+	}
+	return nil
 }
 
 type Setting struct {
@@ -152,6 +189,9 @@ func (f *File) check(base string) error {
 		if err := s.check(); err != nil {
 			return err
 		}
+	}
+	if err := f.checkReadme(); err != nil {
+		return err
 	}
 	if f.Run != "" {
 		if f.Label != "" || f.Root != "" || f.Busy.Says != "" || len(f.Busy.Processes) > 0 || len(f.Busy.Groups) > 0 || f.Remove.given {

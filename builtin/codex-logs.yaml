@@ -3,6 +3,11 @@ order: 160
 describes: old Codex session logs
 reversible: false
 
+readme:
+  removes: Codex session logs older than {min-age}
+  keeps: open logs
+  can-lose: resuming those sessions
+
 settings:
   - key: min-age
     kind: duration

@@ -35,7 +35,6 @@ type File struct {
 	Reversible bool      `yaml:"reversible"`
 	Readme     Readme    `yaml:"readme"`
 	Settings   []Setting `yaml:"settings"`
-	Run        string    `yaml:"run"`
 	Needs      []string  `yaml:"needs"`
 	Root       Root      `yaml:"root"`
 	Ready      Ready     `yaml:"ready"`
@@ -102,9 +101,6 @@ func (f File) checkReadme() error {
 		if !mentioned[s.Key] {
 			return fmt.Errorf("readme: want {%s} in its text, so that the README names every setting of the step", s.Key)
 		}
-	}
-	if f.Run == "code" {
-		return nil
 	}
 	used := f.usedSettings()
 	for _, s := range f.Settings {
@@ -301,12 +297,6 @@ func (f *File) check() error {
 		return err
 	}
 	switch {
-	case f.Run != "" && f.Run != "code":
-		return fmt.Errorf("run %q: want code, for a step whose work is written in Go", f.Run)
-	case f.Run == "code" && (!f.Root.empty() || len(f.Needs) > 0 || len(f.Ready.Run) > 0 || f.Busy.Says != "" || len(f.Busy.Processes) > 0 || len(f.Busy.Groups) > 0 || f.Stop.given() || f.Each.given() || f.Apps.given() || f.Remove.given || f.Keep.given() || len(f.Parts) > 0):
-		return errors.New("run: code: the step is written in Go, so needs, root, ready, busy, stop, each, remove, keep and parts belong to it there")
-	case f.Run == "code":
-		return nil
 	case len(f.Parts) > 0 && (f.Each.given() || f.Remove.given || f.Keep.given()):
 		return errors.New("parts: want each, remove and keep inside the parts, not beside them")
 	case len(f.Parts) == 1:

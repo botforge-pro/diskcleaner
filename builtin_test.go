@@ -33,17 +33,11 @@ func TestEveryBuiltinFileLoadsAndIsInTheCatalog(t *testing.T) {
 	}
 }
 
-func TestACatalogThatCannotRunAsWrittenIsRefused(t *testing.T) {
-	code := map[string]construct{"a": nil, "unused": nil}
-	files := []rule.File{
-		{Name: "a", Order: 10, Run: "code"},
-		{Name: "b", Order: 10, Run: "code"},
-	}
+func TestTwoStepsOfOneOrderAreRefused(t *testing.T) {
+	files := []rule.File{{Name: "a", Order: 10}, {Name: "b", Order: 10}}
 
-	err := checkCatalog(files, code)
+	err := checkCatalog(files)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "b.yaml: order 10: a.yaml has it too")
-	assert.Contains(t, err.Error(), "b.yaml: run: code, but no step of this name is written in Go")
-	assert.Contains(t, err.Error(), "the step unused is written in code, but no file runs it")
 }

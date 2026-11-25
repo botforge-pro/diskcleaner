@@ -68,38 +68,35 @@ func TestAnAbsoluteRootIsTakenAsWritten(t *testing.T) {
 	assert.True(t, f.Remove.Root)
 }
 
-func TestAStepWrittenInCodeDeclaresItsSettings(t *testing.T) {
+func TestAStepDeclaresItsSettings(t *testing.T) {
 	f := parse(t, "xcode-archives.yaml", `order: 80
-describes: old Xcode archives, the newest of each app kept
+describes: old Xcode archives
 readme:
   removes: archives older than {min-age}
-  keeps: the newest {keep} of each app
 settings:
   - key: min-age
     kind: duration
     default: 15d
     help: remove archives older than this
-  - key: keep
-    kind: count
-    default: "1"
-    help: keep this many newest archives of each app
-run: code
+root: ~/Library/Developer/Xcode/Archives
+remove:
+  folders: ['*/*.xcarchive']
+keep:
+  age: {of: mtime, within: min-age}
 `)
 
 	step := f.Step()
 
-	assert.Equal(t, "code", f.Run)
 	assert.Equal(t, "xcode-archives", step.Name)
 	assert.False(t, step.Reversible)
-	require.Len(t, step.Settings, 2)
+	require.Len(t, step.Settings, 1)
 	assert.Equal(t, config.Setting{Key: "min-age", Kind: config.Duration, Default: "15d", Help: "remove archives older than this"}, step.Settings[0])
-	assert.Equal(t, config.Count, step.Settings[1].Kind)
 	assert.Equal(t, "archives older than `xcode-archives.min-age` (`15d`)", f.Explain(f.Readme.Removes))
 }
 
 func TestAStepsOwnSettingWinsOverTheGlobalOfTheSameKey(t *testing.T) {
-	own := parse(t, "some-logs.yaml", "order: 1\ndescribes: logs older than {min-age}\nsettings: [{key: min-age, kind: duration, default: 20d, help: x}]\nrun: code\n")
-	global := parse(t, "some-builds.yaml", "order: 1\ndescribes: builds\nreadme: {keeps: 'anything written within {min-age}'}\nrun: code\n")
+	own := parse(t, "some-logs.yaml", "order: 1\ndescribes: logs older than {min-age}\nsettings: [{key: min-age, kind: duration, default: 20d, help: x}]\nroot: ~/a\nremove: {files: ['**/*.log']}\nkeep: {age: {of: mtime, within: min-age}}\n")
+	global := parse(t, "some-builds.yaml", "order: 1\ndescribes: builds\nreadme: {keeps: 'anything written within {min-age}'}\nroot: ~/a\nremove: {folders: ['*/build']}\nkeep: {age: {of: newest-write, within: min-age}}\n")
 
 	assert.Equal(t, "logs older than `some-logs.min-age` (`20d`)", own.Removes())
 	assert.Equal(t, "anything written within `min-age` (`1h`)", global.Explain(global.Readme.Keeps))
@@ -113,8 +110,7 @@ func TestTheRootMentionedInTheREADMEReadsAsItsChoicesInOrder(t *testing.T) {
 
 func TestAMistakeInAFileIsNamed(t *testing.T) {
 	head := "order: 1\ndescribes: x\n"
-	code := "order: 1\ndescribes: x\nrun: code\n"
-	bare := "order: 1\ndescribes: x\nrun: code\n"
+	code := "order: 1\ndescribes: x\nroot: ~/a\nremove: root\n"
 	cases := []struct {
 		name, file, body, want string
 	}{
@@ -124,18 +120,16 @@ func TestAMistakeInAFileIsNamed(t *testing.T) {
 		{"file name not in words", "A_b.yaml", head + "root: ~/a\nremove: root\n", "the name of the file: want lowercase words"},
 		{"no describes", "a.yaml", "order: 1\nroot: ~/a\nremove: root\n", "describes: want"},
 		{"no order", "a.yaml", "describes: x\nroot: ~/a\nremove: root\n", "order: want a whole number above 0"},
-		{"run something else", "a.yaml", "order: 1\ndescribes: x\nrun: a\n", `run "a": want code`},
-		{"code with a root", "a.yaml", code + "root: ~/a\n", "belong to it there"},
-		{"code with keep", "a.yaml", bare + "readme: {removes: 'older than {min-age}'}\nsettings: [{key: min-age, kind: duration, default: 1h, help: x}]\nkeep: {age: {of: mtime, within: min-age}}\n", "belong to it there"},
+		{"run is no key of a file", "a.yaml", code + "run: code\n", "field run not found"},
 		{"a setting the readme does not name", "a.yaml", code + "settings: [{key: min-age, kind: duration, default: 1h, help: x}]\n", "want {min-age} in its text"},
 		{"setting of an unknown kind", "a.yaml", code + "settings: [{key: wait, kind: minutes, default: '1', help: x}]\n", "want one of count, duration, timeout"},
 		{"setting with a bad default", "a.yaml", code + "settings: [{key: wait, kind: duration, default: soon, help: x}]\n", "settings: wait: default: want a duration"},
 		{"setting named enabled", "a.yaml", code + "settings: [{key: enabled, kind: count, default: '1', help: x}]\n", "other than enabled"},
 		{"setting without help", "a.yaml", code + "settings: [{key: wait, kind: duration, default: 1h}]\n", "settings: wait: help: want"},
-		{"readme names a global that is not an age", "a.yaml", bare + "readme: {keeps: 'in {project-dirs}'}\n", "readme: {project-dirs}: want"},
-		{"readme says what describes says", "a.yaml", bare + "readme: {removes: x}\n", "leave it out and the README takes describes"},
-		{"readme mentions a setting it lacks", "a.yaml", bare + "readme: {removes: 'older than {max-age}'}\n", "readme: {max-age}: want"},
-		{"readme mentions the root of code", "a.yaml", bare + "readme: {removes: 'in {root}'}\n", "readme: {root}: want"},
+		{"readme names a global that is not an age", "a.yaml", code + "readme: {keeps: 'in {project-dirs}'}\n", "readme: {project-dirs}: want"},
+		{"readme says what describes says", "a.yaml", code + "readme: {removes: x}\n", "leave it out and the README takes describes"},
+		{"readme mentions a setting it lacks", "a.yaml", code + "readme: {removes: 'older than {max-age}'}\n", "readme: {max-age}: want"},
+		{"readme mentions the root of a step without one", "a.yaml", head + "remove: {run: [tool, clean], dry-run: [-n]}\nreadme: {removes: 'in {root}'}\n", "readme: {root}: want"},
 		{"no root", "a.yaml", head + "remove: root\n", "root: want a folder"},
 		{"variable last", "a.yaml", head + "root: ~/a or $A_HOME\nremove: root\n", "the last choice must not be a variable"},
 		{"relative path", "a.yaml", head + "root: Library/a\nremove: root\n", "want $VARIABLE"},

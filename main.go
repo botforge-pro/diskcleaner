@@ -116,7 +116,7 @@ func steps(name string, c *config.Config) (step, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%s: no home directory: %w", name, err)
 		}
-		return info.construct(home, c)
+		return info.step(home, c), nil
 	}
 	return nil, unknownStepError{name: name}
 }

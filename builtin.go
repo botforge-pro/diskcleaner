@@ -88,6 +88,7 @@ func constructor(f rule.File) construct {
 			Count:     c.Count,
 			Now:       time.Now,
 			Lsof:      inuse.DefaultLsof(),
+			Mounts:    rule.MountPoints,
 		}), nil
 	}
 }

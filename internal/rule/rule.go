@@ -34,6 +34,7 @@ type Environment struct {
 	Count     func(key string) int
 	Now       func() time.Time
 	Lsof      inuse.Lsof
+	Mounts    func() (map[string]bool, error)
 }
 
 type Processes struct {
@@ -133,6 +134,8 @@ func (s Rule) Run(r *report.Report) {
 		s.removeFolders(r, s.olderThanTheNewest(r, s.folders(r)))
 	case len(remove.Files) > 0:
 		s.removeFiles(r)
+	case remove.Untouched != nil:
+		s.sweeper().run(r)
 	}
 	for _, c := range s.remove.Commands {
 		if !s.runCommand(r, c, s.root) {

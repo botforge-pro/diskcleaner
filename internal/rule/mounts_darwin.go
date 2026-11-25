@@ -1,4 +1,4 @@
-package systemtemp
+package rule
 
 import "syscall"
 

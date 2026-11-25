@@ -17,13 +17,14 @@ import (
 )
 
 type Removal struct {
-	Root     bool
-	Folders  []FolderPattern
-	Files    []string
-	Others   string
-	Newest   *Newest
-	Commands []Command
-	given    bool
+	Root      bool
+	Folders   []FolderPattern
+	Files     []string
+	Others    string
+	Newest    *Newest
+	Untouched *Untouched
+	Commands  []Command
+	given     bool
 }
 
 type Newest struct {
@@ -57,9 +58,13 @@ type patterns struct {
 	Newest  *Newest         `yaml:"newest"`
 }
 
+type untouchedOnly struct {
+	Untouched *Untouched `yaml:"untouched"`
+}
+
 func (m *Removal) UnmarshalYAML(node *yaml.Node) error {
 	m.given = true
-	want := fmt.Errorf("line %d: remove: want root, one of folders: [patterns] and files: [patterns], or run: [command] or a list of these", node.Line)
+	want := fmt.Errorf("line %d: remove: want root, one of folders: [patterns] and files: [patterns], untouched: {for, except}, or run: [command] or a list of these", node.Line)
 	switch {
 	case node.Kind == yaml.ScalarNode && node.Value == "root":
 		m.Root = true
@@ -82,6 +87,13 @@ func (m *Removal) UnmarshalYAML(node *yaml.Node) error {
 		}
 		m.Commands = []Command{c}
 		return nil
+	case slices.ContainsFunc(node.Content, func(key *yaml.Node) bool { return key.Value == "untouched" }):
+		var u untouchedOnly
+		if err := strict(node, &u); err != nil || u.Untouched == nil {
+			return want
+		}
+		m.Untouched = u.Untouched
+		return nil
 	}
 	var p patterns
 	if err := strict(node, &p); err != nil || (p.Folders == nil) == (p.Files == nil) {
@@ -95,8 +107,12 @@ func (f File) checkRemoval(m Removal) error {
 	switch {
 	case !m.given:
 		return errors.New("remove: want root, or one of folders: [patterns] and files: [patterns] inside the root")
-	case !m.Root && len(m.Folders) == 0 && len(m.Files) == 0 && len(m.Commands) == 0:
+	case !m.Root && len(m.Folders) == 0 && len(m.Files) == 0 && len(m.Commands) == 0 && m.Untouched == nil:
 		return errors.New("remove: want at least one pattern")
+	case m.Untouched != nil && (f.Keep.given() || f.Each.given()):
+		return errors.New("remove: untouched keeps what is open, a socket or on another volume by itself, so want no keep or each beside it")
+	case m.Untouched != nil:
+		return m.Untouched.check()
 	case m.Others != "" && len(m.Folders) == 0:
 		return errors.New("remove: others: want folders, whose others it speaks of")
 	case m.Newest != nil && len(m.Folders) == 0:

@@ -1,0 +1,59 @@
+- case: files untouched for 3 days go at any depth, and the folder that held them stays
+  later: 4d
+  files:
+    fs/private/tmp/lexling-inventory.json: 4d
+    fs/private/tmp/fm-check/logs/build.log: 4d
+  removes:
+    - fs/private/tmp/lexling-inventory.json
+    - fs/private/tmp/fm-check/logs/build.log
+  counts: 2
+
+- case: files written within 3 days stay and are counted
+  later: 4d
+  files:
+    fs/private/tmp/read.json: 1d
+    fs/private/tmp/written.json: 2d
+  removes: []
+  says: [2 files younger than 3 days by access, change or write time]
+
+- case: a file whose status changed within 3 days stays, however old its writes
+  files:
+    fs/private/tmp/renamed.json: 4d
+  removes: []
+  says: [1 file younger than 3 days]
+
+- case: an empty folder untouched for 3 days goes
+  later: 4d
+  files:
+    fs/private/tmp/fm-favorites/empty/: 4d
+  removes: [fs/private/tmp/fm-favorites/empty]
+  counts: 1
+
+- case: dot entries and claude folders at the top, and what macOS keeps anywhere, stay
+  later: 4d
+  files:
+    fs/private/tmp/.s.PGSQL.5432.lock: 4d
+    fs/private/tmp/.X11-unix/X0: 4d
+    fs/private/tmp/claude-501/tasks/out: 4d
+    fs/private/tmp/share/quota.user: 4d
+    fs/private/tmp/share/.X0-lock: 4d
+    fs/private/tmp/normal/.vfs_rsrc_streams_123/: 4d
+  removes: []
+  counts: 0
+
+- case: a file a process holds open stays
+  later: 4d
+  files:
+    fs/private/tmp/held.db: 4d
+    fs/private/tmp/done.db: 4d
+  open: [fs/private/tmp/held.db]
+  removes: [fs/private/tmp/done.db]
+  says: ['held.db: a process has it open']
+
+- case: a dry run removes nothing
+  later: 4d
+  dry-run: true
+  files:
+    fs/private/tmp/old.json: 4d
+  removes: []
+  counts: 1

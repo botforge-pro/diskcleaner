@@ -7,4 +7,10 @@ readme:
   keeps: "files touched in the last 3 days, sockets, symbolic links, mounted volumes (never looked into), the dot entries and `claude-*` folders at the top, the X11, quota and resource-stream entries macOS keeps, what a process holds open"
   can-lose: whatever was kept there
 
-run: code
+root: /private/tmp
+
+remove:
+  untouched:
+    for: 3d
+    except: [.X*-lock, .X11-unix, .ICE-unix, .font-unix, .XIM-unix, quota.user, quota.group, .vfs_rsrc_streams_*]
+    except-at-top: [.*, claude-*]

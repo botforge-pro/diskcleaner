@@ -36,6 +36,7 @@ type stepCase struct {
 	Settings map[string]string      `yaml:"settings"`
 	Open     []string               `yaml:"open"`
 	Tracked  []string               `yaml:"tracked"`
+	Later    string                 `yaml:"later"`
 	Removes  *[]string              `yaml:"removes"`
 	Says     []string               `yaml:"says"`
 	Shows    []string               `yaml:"shows"`
@@ -109,6 +110,9 @@ func (c stepCase) run(t *testing.T, f rule.File) {
 	home, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
 	now := time.Now()
+	if c.Later != "" {
+		now = now.Add(c.age(t, c.Later))
+	}
 	folders := map[string]time.Time{}
 	for path, file := range c.Files {
 		written := now.Add(-c.age(t, file.Age))
@@ -148,8 +152,9 @@ func (c stepCase) run(t *testing.T, f rule.File) {
 		Commands:  c.commands(t, home),
 		Duration:  func(key string) time.Duration { return c.setting(t, key).(time.Duration) },
 		Count:     func(key string) int { return c.setting(t, key).(int) },
-		Now:       time.Now,
+		Now:       func() time.Time { return now },
 		Lsof:      inuse.Lsof{Command: c.lsof(t, home), TimeoutSeconds: 5},
+		Mounts:    rule.MountPoints,
 	}).Run(r)
 
 	if len(c.Fails) == 0 {

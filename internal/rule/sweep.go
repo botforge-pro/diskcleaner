@@ -1,4 +1,4 @@
-package systemtemp
+package rule
 
 import (
 	"errors"
@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -16,28 +17,53 @@ import (
 	"github.com/botforge-pro/diskcleaner/internal/settings"
 )
 
-const macOSAge = 3 * 24 * time.Hour
-
-var (
-	keptAtTop   = []string{".*", "claude-*"}
-	keptByMacOS = []string{".X*-lock", ".X11-unix", ".ICE-unix", ".font-unix", ".XIM-unix", "quota.user", "quota.group", ".vfs_rsrc_streams_*"}
-)
-
-type Step struct {
-	Dir    string
-	Owner  int
-	Now    func() time.Time
-	Lsof   inuse.Lsof
-	Mounts func() (map[string]bool, error)
+type Untouched struct {
+	For         string   `yaml:"for"`
+	Except      []string `yaml:"except"`
+	ExceptAtTop []string `yaml:"except-at-top"`
+	age         time.Duration
 }
 
-func Default() Step {
-	return Step{
-		Dir:    "/private/tmp",
-		Owner:  os.Getuid(),
-		Now:    time.Now,
-		Lsof:   inuse.DefaultLsof(),
-		Mounts: mountPoints,
+func (u *Untouched) check() error {
+	age, err := literalDuration(u.For)
+	if err != nil {
+		return fmt.Errorf("remove: untouched: for: %w", err)
+	}
+	u.age = age
+	for _, pattern := range append(slices.Clone(u.Except), u.ExceptAtTop...) {
+		if _, err := filepath.Match(pattern, ""); err != nil || pattern == "" || strings.Contains(pattern, "/") {
+			return fmt.Errorf("remove: untouched: except %q: want a name pattern", pattern)
+		}
+	}
+	return nil
+}
+
+func MountPoints() (map[string]bool, error) {
+	return mountPoints()
+}
+
+type sweeper struct {
+	Dir       string
+	Owner     int
+	Now       func() time.Time
+	Lsof      inuse.Lsof
+	Mounts    func() (map[string]bool, error)
+	age       time.Duration
+	keep      []string
+	keepAtTop []string
+}
+
+func (s Rule) sweeper() sweeper {
+	u := s.remove.Untouched
+	return sweeper{
+		Dir:       s.root,
+		Owner:     os.Getuid(),
+		Now:       s.env.Now,
+		Lsof:      s.env.Lsof,
+		Mounts:    s.env.Mounts,
+		age:       u.age,
+		keep:      u.Except,
+		keepAtTop: u.ExceptAtTop,
 	}
 }
 
@@ -54,16 +80,13 @@ func (f found) nothing() bool {
 	return len(f.files) == 0 && len(f.empty) == 0 && f.young == 0 && len(f.mounted) == 0
 }
 
-func (s Step) Run(r *report.Report) {
-	if s.Dir == "" || !r.Directory(s.Dir) {
-		return
-	}
+func (s sweeper) run(r *report.Report) {
 	dir, err := settings.Canonical(s.Dir)
 	if err != nil {
 		r.Fail("resolve %s: %v", s.Dir, err)
 		return
 	}
-	cutoff := s.Now().Add(-macOSAge)
+	cutoff := s.Now().Add(-s.age)
 	f, err := s.find(r, dir, cutoff)
 	if err != nil {
 		r.Fail("look into %s: %v", dir, err)
@@ -72,13 +95,11 @@ func (s Step) Run(r *report.Report) {
 	if f.nothing() {
 		return
 	}
-	fmt.Fprintf(r.Out, "TEMP     %s\n", dir)
-	defer fmt.Fprintln(r.Out)
 	for _, path := range f.mounted {
 		r.Skip("%s: a mounted volume, not space on this disk", path)
 	}
 	if f.young > 0 {
-		r.Skip("%s: %s younger than %d days by access, change or write time", dir, files(f.young), macOSAge/(24*time.Hour))
+		r.Skip("%s: %s younger than %s by access, change or write time", dir, files(f.young), s.untouched())
 	}
 	removable := append(f.files, f.empty...)
 	if len(removable) == 0 {
@@ -103,7 +124,14 @@ func (s Step) Run(r *report.Report) {
 	}
 }
 
-func (s Step) removeIfStillOld(r *report.Report, dir, path string, volume int64, mounts map[string]bool, cutoff time.Time) {
+func (s sweeper) untouched() string {
+	if s.age%(24*time.Hour) == 0 {
+		return fmt.Sprintf("%d days", s.age/(24*time.Hour))
+	}
+	return s.age.String()
+}
+
+func (s sweeper) removeIfStillOld(r *report.Report, dir, path string, volume int64, mounts map[string]bool, cutoff time.Time) {
 	entry, err := openEntry(dir, path, volume, mounts)
 	if errors.Is(err, fs.ErrNotExist) {
 		return
@@ -118,7 +146,7 @@ func (s Step) removeIfStillOld(r *report.Report, dir, path string, volume int64,
 	switch {
 	case int(stat.Uid) != s.Owner:
 		r.Skip("%s: changed owner since it was found", path)
-	case isDir && at(stat.Mtim).Before(cutoff), stat.Mode&unix.S_IFMT == unix.S_IFREG && old(&stat, cutoff):
+	case isDir && moment(stat.Mtim).Before(cutoff), stat.Mode&unix.S_IFMT == unix.S_IFREG && old(&stat, cutoff):
 		r.RemoveEntry(path, stat.Blocks*512, func() error { return entry.remove(isDir) })
 	default:
 		r.Skip("%s: used since it was found", path)
@@ -127,11 +155,11 @@ func (s Step) removeIfStillOld(r *report.Report, dir, path string, volume int64,
 
 func old(stat *unix.Stat_t, cutoff time.Time) bool {
 	return !slices.ContainsFunc([]unix.Timespec{stat.Atim, stat.Mtim, stat.Ctim}, func(t unix.Timespec) bool {
-		return !at(t).Before(cutoff)
+		return !moment(t).Before(cutoff)
 	})
 }
 
-func at(t unix.Timespec) time.Time {
+func moment(t unix.Timespec) time.Time {
 	return time.Unix(t.Unix())
 }
 
@@ -142,7 +170,7 @@ func files(n int) string {
 	return fmt.Sprintf("%d files", n)
 }
 
-func (s Step) find(r *report.Report, dir string, cutoff time.Time) (found, error) {
+func (s sweeper) find(r *report.Report, dir string, cutoff time.Time) (found, error) {
 	var root unix.Stat_t
 	if err := unix.Stat(dir, &root); err != nil {
 		return found{}, err
@@ -180,7 +208,7 @@ func (s Step) find(r *report.Report, dir string, cutoff time.Time) (found, error
 	return f, nil
 }
 
-func (s Step) visit(r *report.Report, f *found, path string, entry fs.DirEntry, cutoff time.Time) error {
+func (s sweeper) visit(r *report.Report, f *found, path string, entry fs.DirEntry, cutoff time.Time) error {
 	var stat unix.Stat_t
 	err := unix.Lstat(path, &stat)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -199,7 +227,7 @@ func (s Step) visit(r *report.Report, f *found, path string, entry fs.DirEntry, 
 	}
 	switch stat.Mode & unix.S_IFMT {
 	case unix.S_IFDIR:
-		if at(stat.Mtim).Before(cutoff) {
+		if moment(stat.Mtim).Before(cutoff) {
 			f.folders = append(f.folders, path)
 		}
 	case unix.S_IFREG:
@@ -227,14 +255,14 @@ func emptyOf(r *report.Report, folders []string) []string {
 	return empty
 }
 
-func (s Step) kept(dir, path string) bool {
+func (s sweeper) kept(dir, path string) bool {
 	name := filepath.Base(path)
 	matches := func(pattern string) bool {
 		matched, _ := filepath.Match(pattern, name)
 		return matched
 	}
-	return slices.ContainsFunc(keptByMacOS, matches) ||
-		filepath.Dir(path) == dir && slices.ContainsFunc(keptAtTop, matches)
+	return slices.ContainsFunc(s.keep, matches) ||
+		filepath.Dir(path) == dir && slices.ContainsFunc(s.keepAtTop, matches)
 }
 
 func skip(entry fs.DirEntry) error {

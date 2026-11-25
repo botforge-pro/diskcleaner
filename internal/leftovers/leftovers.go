@@ -35,7 +35,7 @@ func (s Step) Run(r *report.Report) {
 	if s.Dir == "" || !r.Directory(s.Dir) {
 		return
 	}
-	dir, err := filepath.EvalSymlinks(s.Dir)
+	dir, err := settings.Canonical(s.Dir)
 	if err != nil {
 		r.Fail("resolve %s: %v", s.Dir, err)
 		return

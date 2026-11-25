@@ -54,7 +54,7 @@ func (s Step) Run(r *report.Report) {
 	}
 	fmt.Fprintf(r.Out, "%-8s %s\n", s.Label, s.Folder)
 	defer fmt.Fprintln(r.Out)
-	folder, err := filepath.EvalSymlinks(s.Folder)
+	folder, err := settings.Canonical(s.Folder)
 	if err != nil {
 		r.Fail("resolve %s: %v", s.Folder, err)
 		return

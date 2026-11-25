@@ -19,6 +19,12 @@ import (
 func (c *ctx) removeIn(n *Node) {
 	var all []found
 	if n.Remove.Itself {
+		if info, err := os.Lstat(c.written); err == nil && info.Mode()&fs.ModeSymlink != 0 {
+			if c.allowed() {
+				c.removeLink(c.written)
+			}
+			return
+		}
 		all = []found{{path: c.folder, kind: Folders}}
 	} else {
 		var ok bool
@@ -246,6 +252,26 @@ func (c *ctx) remove(k *Keep, f found) {
 		}
 		return removeTree(e.parent, e.name, volumeID)
 	})
+}
+
+func (c *ctx) removeLink(link string) {
+	parent := filepath.Dir(link)
+	volume, err := os.Stat(parent)
+	if err != nil {
+		c.r.Fail("stat %s: %v", parent, err)
+		return
+	}
+	e, err := openEntry(parent, link, device(volume))
+	if err != nil {
+		c.r.Skip("%s: changed since it was found: %v", link, err)
+		return
+	}
+	defer e.close()
+	if e.stat.Mode&unix.S_IFMT != unix.S_IFLNK {
+		c.r.Skip("%s: no longer a link since it was found", link)
+		return
+	}
+	c.r.RemoveEntry(link, 0, func() error { return unix.Unlinkat(e.parent, e.name, 0) })
 }
 
 func matchingFiles(dir string, patterns []string) ([]string, error) {

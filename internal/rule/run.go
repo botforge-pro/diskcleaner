@@ -140,6 +140,7 @@ type ctx struct {
 	*shared
 	vars     map[string][]string
 	folder   string
+	written  string
 	fallback bool
 	guards   []*guard
 }
@@ -224,7 +225,7 @@ func (c *ctx) node(n *Node, heads bool, roots []string) {
 				continue
 			}
 			seen[folder] = true
-			inner.folder = folder
+			inner.folder, inner.written = folder, root
 			if heads {
 				c.h.at(folder)
 			}

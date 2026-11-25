@@ -67,6 +67,7 @@ func (v *Value) UnmarshalYAML(node *yaml.Node) error {
 		v.Text = node.Value
 		return nil
 	case yaml.SequenceNode:
+		v.List = []Value{}
 		for _, item := range node.Content {
 			var each Value
 			if err := each.UnmarshalYAML(item); err != nil {

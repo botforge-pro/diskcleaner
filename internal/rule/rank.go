@@ -27,7 +27,7 @@ func (c *ctx) rank(r *Rank, all []found) ([]found, bool) {
 		}
 		spared = map[string]bool{}
 		for _, name := range names {
-			spared[name] = true
+			spared[filepath.Base(name)] = true
 		}
 	}
 	groups := map[string][]member{}

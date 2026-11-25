@@ -1,6 +1,4 @@
-name: codex-logs
 order: 160
-label: CODEX
 describes: old Codex session logs
 reversible: false
 

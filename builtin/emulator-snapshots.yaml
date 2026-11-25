@@ -1,6 +1,4 @@
-name: emulator-snapshots
 order: 140
-label: EMULATOR
 describes: saved quick-boot states of Android emulators that are not running
 reversible: true
 

@@ -1,4 +1,3 @@
-name: xcode-archives
 order: 80
 describes: old Xcode archives, the newest of each app kept
 reversible: false
@@ -18,4 +17,4 @@ settings:
     default: "1"
     help: keep this many newest archives of each app
 
-run: xcode-archives
+run: code

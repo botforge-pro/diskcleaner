@@ -1,4 +1,3 @@
-name: simulator-caches
 order: 130
 describes: Core ML caches and lock-screen wallpaper snapshots of shut-down iOS simulators
 reversible: true
@@ -7,4 +6,4 @@ readme:
   removes: Core ML caches and lock-screen wallpaper snapshots of shut-down simulators
   keeps: app data
 
-run: simulator-caches
+run: code

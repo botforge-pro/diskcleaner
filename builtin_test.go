@@ -58,15 +58,15 @@ func TestTheStepsRunInTheirOrder(t *testing.T) {
 func TestACatalogThatCannotRunAsWrittenIsRefused(t *testing.T) {
 	code := map[string]construct{"a": nil, "unused": nil}
 	files := []rule.File{
-		{Name: "a", Order: 10, Run: "a"},
-		{Name: "b", Order: 10, Run: "missing"},
+		{Name: "a", Order: 10, Run: "code"},
+		{Name: "b", Order: 10, Run: "code"},
 	}
 
 	err := checkCatalog(files, code)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "b.yaml: order 10: a.yaml has it too")
-	assert.Contains(t, err.Error(), `b.yaml: run "missing": no step written in code has this name`)
+	assert.Contains(t, err.Error(), "b.yaml: run: code, but no step of this name is written in Go")
 	assert.Contains(t, err.Error(), "the step unused is written in code, but no file runs it")
 }
 

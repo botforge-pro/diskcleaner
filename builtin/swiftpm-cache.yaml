@@ -1,6 +1,4 @@
-name: swiftpm-cache
 order: 60
-label: SWIFTPM
 describes: the Swift Package Manager cache
 reversible: true
 

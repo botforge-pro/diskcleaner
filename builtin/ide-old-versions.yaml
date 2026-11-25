@@ -1,4 +1,3 @@
-name: ide-old-versions
 order: 120
 describes: settings, caches and logs of IDE versions older than the installed one
 reversible: false
@@ -8,4 +7,4 @@ readme:
   keeps: data of every installed version
   can-lose: settings the new version did not copy
 
-run: ide-old-versions
+run: code

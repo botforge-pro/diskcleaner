@@ -33,9 +33,8 @@ var (
 )
 
 type File struct {
-	Name       string    `yaml:"name"`
+	Name       string    `yaml:"-"`
 	Order      int       `yaml:"order"`
-	Label      string    `yaml:"label"`
 	Describes  string    `yaml:"describes"`
 	Reversible bool      `yaml:"reversible"`
 	Readme     Readme    `yaml:"readme"`
@@ -92,12 +91,9 @@ type Setting struct {
 }
 
 var kinds = map[string]config.Kind{
-	"bool":     config.Bool,
 	"duration": config.Duration,
 	"timeout":  config.Timeout,
-	"size":     config.Size,
 	"count":    config.Count,
-	"folders":  config.Dirs,
 }
 
 func (f File) Step() config.Step {
@@ -190,18 +186,22 @@ func Parse(name string, data []byte) (File, error) {
 	if err := decoder.Decode(&f); err != nil {
 		return File{}, fmt.Errorf("%s: %w", name, err)
 	}
-	if err := f.check(strings.TrimSuffix(path.Base(name), ".yaml")); err != nil {
+	f.Name = strings.TrimSuffix(path.Base(name), ".yaml")
+	if err := f.check(); err != nil {
 		return File{}, fmt.Errorf("%s: %w", name, err)
 	}
 	return f, nil
 }
 
-func (f *File) check(base string) error {
+func (f File) Label() string {
+	first, _, _ := strings.Cut(f.Name, "-")
+	return strings.ToUpper(first)
+}
+
+func (f *File) check() error {
 	switch {
 	case !stepName.MatchString(f.Name):
-		return fmt.Errorf("name %q: want lowercase words joined by -, like xcode-derived-data", f.Name)
-	case f.Name != base:
-		return fmt.Errorf("name %q: want the name of the file, %q", f.Name, base)
+		return fmt.Errorf("the name of the file: want lowercase words joined by -, like xcode-derived-data.yaml")
 	case f.Order <= 0:
 		return errors.New("order: want a whole number above 0; steps run from the lowest")
 	case f.Describes == "":
@@ -215,14 +215,13 @@ func (f *File) check(base string) error {
 	if err := f.checkReadme(); err != nil {
 		return err
 	}
-	if f.Run != "" {
-		if f.Label != "" || f.Root != "" || f.Busy.Says != "" || len(f.Busy.Processes) > 0 || len(f.Busy.Groups) > 0 || f.Remove.given || f.Keep != (KeepWhen{}) {
-			return fmt.Errorf("run %q: the step is written in code, so label, root, busy, remove and keep belong to it there", f.Run)
-		}
+	switch {
+	case f.Run != "" && f.Run != "code":
+		return fmt.Errorf("run %q: want code, for a step whose work is written in Go", f.Run)
+	case f.Run == "code" && (f.Root != "" || f.Busy.Says != "" || len(f.Busy.Processes) > 0 || len(f.Busy.Groups) > 0 || f.Remove.given || f.Keep != (KeepWhen{})):
+		return errors.New("run: code: the step is written in Go, so root, busy, remove and keep belong to it there")
+	case f.Run == "code":
 		return nil
-	}
-	if f.Label == "" || len(f.Label) > 8 || strings.ToUpper(f.Label) != f.Label {
-		return fmt.Errorf("label %q: want up to 8 capital letters", f.Label)
 	}
 	places, err := parseRoot(f.Root)
 	if err != nil {
@@ -339,7 +338,7 @@ func (f File) Rule(env Environment) Rule {
 		keep.Age = age.Of(env.Duration(f.Keep.WrittenWithin))
 	}
 	return Rule{
-		Label:   f.Label,
+		Label:   f.Label(),
 		Root:    f.root(env.Home, env.Getenv),
 		Busy:    Busy{Processes: strings.Join(patterns, "|"), Running: env.Running, Says: f.Busy.Says},
 		Folders: f.Remove.Folders,

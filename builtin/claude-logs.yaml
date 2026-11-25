@@ -1,6 +1,4 @@
-name: claude-logs
 order: 150
-label: CLAUDE
 describes: old Claude Code session logs
 reversible: false
 

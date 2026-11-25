@@ -1,4 +1,3 @@
-name: projects
 order: 10
 describes: build output, Python caches, node_modules and Git leftovers in your projects
 reversible: true
@@ -18,4 +17,4 @@ settings:
     default: 10m
     help: give up on a git lfs prune of one repository that runs longer
 
-run: projects
+run: code

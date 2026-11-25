@@ -61,10 +61,10 @@ func checkCatalog(files []rule.File, code map[string]construct) error {
 		if f.Run == "" {
 			continue
 		}
-		if _, ok := code[f.Run]; !ok {
-			errs = append(errs, fmt.Errorf("%s.yaml: run %q: no step written in code has this name", f.Name, f.Run))
+		if _, ok := code[f.Name]; !ok {
+			errs = append(errs, fmt.Errorf("%s.yaml: run: code, but no step of this name is written in Go", f.Name))
 		}
-		used[f.Run] = true
+		used[f.Name] = true
 	}
 	for _, name := range slices.Sorted(maps.Keys(code)) {
 		if !used[name] {
@@ -76,7 +76,7 @@ func checkCatalog(files []rule.File, code map[string]construct) error {
 
 func constructor(f rule.File) construct {
 	if f.Run != "" {
-		return written[f.Run]
+		return written[f.Name]
 	}
 	return func(home string, c *config.Config) (step, error) {
 		return f.Rule(rule.Environment{

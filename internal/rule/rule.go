@@ -156,7 +156,7 @@ func (s Rule) Run(r *report.Report) {
 }
 
 func shown(root string) string {
-	if resolved, err := filepath.EvalSymlinks(root); err == nil {
+	if resolved, err := settings.Canonical(root); err == nil {
 		return resolved
 	}
 	return root

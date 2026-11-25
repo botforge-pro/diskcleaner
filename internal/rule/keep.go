@@ -24,7 +24,6 @@ type KeepWhen struct {
 	Open    OpenWhen   `yaml:"open"`
 	Alive   *AliveWhen `yaml:"alive"`
 	Sockets bool       `yaml:"sockets"`
-	Mounts  bool       `yaml:"mounts"`
 	Tracked bool       `yaml:"tracked"`
 }
 
@@ -101,7 +100,7 @@ func (o OpenWhen) given() bool {
 }
 
 func (k KeepWhen) given() bool {
-	return k.Age.given() || k.Open.given() || k.Alive != nil || k.Sockets || k.Mounts || k.Tracked
+	return k.Age.given() || k.Open.given() || k.Alive != nil || k.Sockets || k.Tracked
 }
 
 var ages = []string{"mtime", "newest-write"}
@@ -132,7 +131,7 @@ func (f File) checkKeep() error {
 	if f.Remove.Root || len(f.Remove.Commands) > 0 {
 		return errors.New("keep: want remove: folders or files; a root or a command has nothing to keep")
 	}
-	if len(f.Remove.Files) > 0 && (k.Sockets || k.Mounts || len(k.Open.Files) > 0 || k.Age.Of.Clock != "mtime" && k.Age.given()) {
+	if len(f.Remove.Files) > 0 && (k.Sockets || len(k.Open.Files) > 0 || k.Age.Of.Clock != "mtime" && k.Age.given()) {
 		return errors.New("keep: for files, want age of mtime, open: true, alive and tracked; the rest is for folders")
 	}
 	if k.Alive != nil && len(f.Remove.Files) == 0 {
@@ -180,33 +179,31 @@ func (s Rule) removeFolders(r *report.Report, folders []string) {
 func (s Rule) keepFolder(r *report.Report, path string, open *inuse.Listing) (bool, error) {
 	k := s.file.Keep
 	limit := s.ageLimit()
-	if k.Mounts || k.Sockets || k.Age.Of.Clock == "newest-write" {
-		volume, err := os.Stat(s.root)
-		if err != nil {
-			r.Fail("stat %s: %v", s.root, err)
-			return true, nil
-		}
-		found, err := inspect(path, device(volume))
-		if errors.Is(err, fs.ErrNotExist) {
-			return true, nil
-		}
-		if err != nil {
-			r.Fail("look into %s: %v", path, err)
-			return true, nil
-		}
-		switch {
-		case k.Mounts && found.mounted == path:
-			r.Skip("%s: a mounted volume, not space on this disk", path)
-			return true, nil
-		case k.Mounts && found.mounted != "":
-			r.Skip("%s: %s in it is a mounted volume, not space on this disk", path, found.mounted)
-			return true, nil
-		case k.Sockets && found.socket != "":
-			r.Skip("%s: holds the socket %s, which a process may be listening on", path, found.socket)
-			return true, nil
-		case k.Age.Of.Clock == "newest-write" && limit.Recent(found.latest):
-			return true, nil
-		}
+	volume, err := os.Stat(s.base)
+	if err != nil {
+		r.Fail("stat %s: %v", s.base, err)
+		return true, nil
+	}
+	found, err := inspect(path, device(volume))
+	if errors.Is(err, fs.ErrNotExist) {
+		return true, nil
+	}
+	if err != nil {
+		r.Fail("look into %s: %v", path, err)
+		return true, nil
+	}
+	switch {
+	case found.mounted == path:
+		r.Skip("%s: a mounted volume, not space on this disk", path)
+		return true, nil
+	case found.mounted != "":
+		r.Skip("%s: %s in it is a mounted volume, not space on this disk", path, found.mounted)
+		return true, nil
+	case k.Sockets && found.socket != "":
+		r.Skip("%s: holds the socket %s, which a process may be listening on", path, found.socket)
+		return true, nil
+	case k.Age.Of.Clock == "newest-write" && limit.Recent(found.latest):
+		return true, nil
 	}
 	if k.Age.Of.Clock == "mtime" {
 		info, err := os.Lstat(path)

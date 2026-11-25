@@ -27,6 +27,9 @@ is 0.x, commands and output may still change.
   refuses to work in `/`, in your home folder or above it.
 - A copy of Chrome or another app is kept while any running program shares a
   file with it, not only while a program was started from that very copy.
+- Every step keeps a folder that holds a mounted volume, and no step follows a
+  link inside the folder it cleans: what a link leads to stays, such as an
+  Android virtual device kept elsewhere and linked into `~/.android/avd`.
 - Every age setting means the same in every step: what is not older than it
   stays, and `0` keeps nothing for its age. Before, a session log or an Xcode
   archive exactly as old as its `min-age` was removed, and with an age of `0`

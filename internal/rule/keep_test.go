@@ -66,7 +66,7 @@ func leftovers(t *testing.T, temp, lsof string) Rule {
 describes: x
 root: %s
 remove: {folders: ['go-build*']}
-keep: {mounts: true, sockets: true, age: {of: newest-write, within: min-age}, open: true}
+keep: {sockets: true, age: {of: newest-write, within: min-age}, open: true}
 `, temp)
 	return parse(t, "temp-leftovers.yaml", body).Rule(env)
 }

@@ -12,7 +12,6 @@ remove:
   folders: ['go-build*', 'go-link-*', 'XcodeDistPipeline.*']
 
 keep:
-  mounts: true
   sockets: true
   age: {of: newest-write, within: min-age}
   open: true

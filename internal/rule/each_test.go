@@ -51,6 +51,25 @@ func TestAPatternSearchNamesAnUnreadableFolderAndFindsTheRest(t *testing.T) {
 	assert.NoError(t, errTop)
 }
 
+func TestAPatternSearchDoesNotPassThroughALink(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	elsewhere, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(elsewhere, "tmp_obj_victim"), []byte("x"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "repo", ".git", "objects"), 0o755))
+	require.NoError(t, os.Symlink(elsewhere, filepath.Join(root, "repo", ".git", "objects", "ab")))
+	require.NoError(t, os.Symlink(elsewhere, filepath.Join(root, "repo", ".git", "objects", "tmp_link")))
+
+	found, err := expandGlob(root, "*/.git/objects/*/tmp_*")
+	foundLast, errLast := expandGlob(root, "*/.git/objects/tmp_*")
+
+	require.NoError(t, err)
+	assert.Empty(t, found, "what lies behind a link is outside the root")
+	require.NoError(t, errLast)
+	assert.Equal(t, []string{filepath.Join(root, "repo", ".git", "objects", "tmp_link")}, foundLast, "the link itself is found, not followed")
+}
+
 func TestADeepPatternMatchesAnyDepthAndNoMore(t *testing.T) {
 	pattern := []string{"data", "**", "Library", "Caches", "**", "cache"}
 

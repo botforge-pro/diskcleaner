@@ -367,14 +367,18 @@ func expandGlob(base, pattern string) ([]string, error) {
 			failures = append(failures, err)
 		}
 	}
-	for _, part := range strings.Split(pattern, "/") {
+	parts := strings.Split(pattern, "/")
+	for i, part := range parts {
+		last := i == len(parts)-1
 		var next []string
 		for _, dir := range paths {
 			if !strings.ContainsAny(part, `*?[\`) {
 				candidate := filepath.Join(dir, part)
-				if _, err := os.Lstat(candidate); err != nil {
+				info, err := os.Lstat(candidate)
+				switch {
+				case err != nil:
 					unreadable(err)
-				} else {
+				case last || info.IsDir():
 					next = append(next, candidate)
 				}
 				continue
@@ -385,7 +389,7 @@ func expandGlob(base, pattern string) ([]string, error) {
 				continue
 			}
 			for _, entry := range entries {
-				if matched, _ := filepath.Match(part, entry.Name()); matched {
+				if matched, _ := filepath.Match(part, entry.Name()); matched && (last || entry.IsDir()) {
 					next = append(next, filepath.Join(dir, entry.Name()))
 				}
 			}

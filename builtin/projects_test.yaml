@@ -90,6 +90,20 @@
   removes: [Developer/swiftapp/Packages/Core/.build]
   says: ['Linking/.build: a process still has something in it open']
 
+- case: what is open stays when project-dirs names the folder in another case than the disk has
+  settings: {project-dirs: ~/developer}
+  files:
+    Developer/app/.git/:
+    Developer/app/Package.swift: 2h
+    Developer/app/.build/debug/x.o: 2h
+    Developer/web/package-lock.json: 2h
+    Developer/web/node_modules/a/index.js: 2h
+    Developer/old/package-lock.json: 2h
+    Developer/old/node_modules/a/index.js: 2h
+  open: [Developer/app/.build/debug/x.o, Developer/web/node_modules/a/index.js]
+  removes: [Developer/old/node_modules]
+  says: ['app/.build: a process still has something in it open', 'web/node_modules: a process still has something in it open']
+
 - case: a linked repository, or one whose .git is a link, is not entered
   settings: {project-dirs: ~/Developer}
   files:

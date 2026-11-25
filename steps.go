@@ -4,7 +4,6 @@ import (
 	"github.com/botforge-pro/diskcleaner/internal/clones"
 	"github.com/botforge-pro/diskcleaner/internal/config"
 	"github.com/botforge-pro/diskcleaner/internal/docker"
-	"github.com/botforge-pro/diskcleaner/internal/emulator"
 	"github.com/botforge-pro/diskcleaner/internal/gocache"
 	"github.com/botforge-pro/diskcleaner/internal/gradle"
 	"github.com/botforge-pro/diskcleaner/internal/homebrew"
@@ -14,7 +13,6 @@ import (
 	"github.com/botforge-pro/diskcleaner/internal/scratchpads"
 	"github.com/botforge-pro/diskcleaner/internal/sessionlogs"
 	"github.com/botforge-pro/diskcleaner/internal/simulator"
-	"github.com/botforge-pro/diskcleaner/internal/swiftpm"
 	"github.com/botforge-pro/diskcleaner/internal/systemtemp"
 	"github.com/botforge-pro/diskcleaner/internal/xcode"
 )
@@ -50,9 +48,7 @@ var catalog = []stepInfo{
 	}}, "old Homebrew versions and downloads", func(_ string, c *config.Config) (step, error) {
 		return homebrew.Default(c.Duration("homebrew.timeout")), nil
 	}},
-	{config.Step{Name: "swiftpm-cache", Reversible: true}, "the Swift Package Manager cache", func(home string, _ *config.Config) (step, error) {
-		return swiftpm.Default(home), nil
-	}},
+	declared("swiftpm-cache"),
 	{config.Step{Name: "xcode-derived-data", Reversible: true}, "Xcode DerivedData", func(home string, _ *config.Config) (step, error) {
 		return xcode.Default(home), nil
 	}},
@@ -79,9 +75,7 @@ var catalog = []stepInfo{
 	{config.Step{Name: "simulator-caches", Reversible: true}, "Core ML caches and lock-screen wallpaper snapshots of shut-down iOS simulators", func(home string, _ *config.Config) (step, error) {
 		return simulator.Default(home), nil
 	}},
-	{config.Step{Name: "emulator-snapshots", Reversible: true}, "saved quick-boot states of Android emulators that are not running", func(home string, _ *config.Config) (step, error) {
-		return emulator.Default(home), nil
-	}},
+	declared("emulator-snapshots"),
 	{config.Step{Name: "claude-logs", Settings: []config.Setting{
 		{Key: "min-age", Kind: config.Duration, Default: "20d", Help: "remove session logs older than this"},
 	}}, "old Claude Code session logs", func(home string, c *config.Config) (step, error) {

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/botforge-pro/diskcleaner/internal/age"
 	"github.com/botforge-pro/diskcleaner/internal/candidates"
 	"github.com/botforge-pro/diskcleaner/internal/inuse"
 	"github.com/botforge-pro/diskcleaner/internal/report"
@@ -20,8 +21,7 @@ const lsofBatch = 50
 type Step struct {
 	Label  string
 	Folder string
-	MinAge time.Duration
-	Now    func() time.Time
+	Age    age.Limit
 	Lsof   inuse.Lsof
 	Batch  int
 }
@@ -38,15 +38,14 @@ func logs(label, folder string, minAge time.Duration) Step {
 	return Step{
 		Label:  label,
 		Folder: folder,
-		MinAge: minAge,
-		Now:    time.Now,
+		Age:    age.Of(minAge),
 		Lsof:   inuse.DefaultLsof(),
 		Batch:  lsofBatch,
 	}
 }
 
 func (s Step) old(modified time.Time) bool {
-	return s.Now().Sub(modified) >= s.MinAge
+	return !s.Age.Recent(modified)
 }
 
 func (s Step) Run(r *report.Report) {

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/botforge-pro/diskcleaner/internal/age"
 	"github.com/botforge-pro/diskcleaner/internal/process"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 )
@@ -19,9 +20,8 @@ const archiveSuffix = ".xcarchive"
 
 type Archives struct {
 	Folder    string
-	MinAge    time.Duration
+	Age       age.Limit
 	Kept      int
-	Now       func() time.Time
 	Processes string
 	Running   func(pattern string) (bool, error)
 }
@@ -29,9 +29,8 @@ type Archives struct {
 func DefaultArchives(home string, minAge time.Duration, kept int) Archives {
 	return Archives{
 		Folder:    filepath.Join(home, "Library/Developer/Xcode/Archives"),
-		MinAge:    minAge,
+		Age:       age.Of(minAge),
 		Kept:      kept,
-		Now:       time.Now,
 		Processes: process.Xcode,
 		Running:   process.Running,
 	}
@@ -78,15 +77,11 @@ func (s Archives) Run(r *report.Report) {
 		made := byApp[app]
 		slices.SortFunc(made, func(a, b archive) int { return b.created.Compare(a.created) })
 		for _, old := range made[min(s.Kept, len(made)):] {
-			if s.old(old.created) {
+			if !s.Age.Recent(old.created) {
 				r.Remove(old.path)
 			}
 		}
 	}
-}
-
-func (s Archives) old(created time.Time) bool {
-	return s.Now().Sub(created) >= s.MinAge
 }
 
 func (s Archives) find(r *report.Report, folder string) []string {

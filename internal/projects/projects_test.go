@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/botforge-pro/diskcleaner/internal/age"
 	"github.com/botforge-pro/diskcleaner/internal/inuse"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/stretchr/testify/assert"
@@ -28,7 +29,7 @@ func touch(t *testing.T, root string, paths ...string) {
 	}
 }
 
-func age(t *testing.T, root string, paths ...string) {
+func makeOld(t *testing.T, root string, paths ...string) {
 	for _, path := range paths {
 		require.NoError(t, os.Chtimes(filepath.Join(root, path), old, old))
 	}
@@ -62,7 +63,7 @@ func newRepos(t *testing.T) string {
 		".git/objects/pack/.tmp-99999999-pack-died.pack",
 		fmt.Sprintf(".git/objects/pack/.tmp-%d-pack-repacking.pack", os.Getpid()),
 	)
-	age(t, swift,
+	makeOld(t, swift,
 		".git/objects/pack/tmp_pack_died",
 		".git/objects/tmp_obj_died",
 		".git/objects/pack/pack-kept.pack",
@@ -97,10 +98,10 @@ func step(t *testing.T, repos string) Step {
 	return Step{
 		Dirs: []string{repos},
 		InUse: inuse.Check{
-			MinAge: time.Hour, Now: func() time.Time { return time.Now().Add(2 * time.Hour) },
+			Age:  age.Limit{Min: time.Hour, Now: func() time.Time { return time.Now().Add(2 * time.Hour) }},
 			Open: lsofScript(script(t, "lsof", "printf 'p1\\nfcwd\\nn/\\n'\n")),
 		},
-		Garbage: GitGarbage{MinAge: time.Hour, Now: time.Now, Lsof: inuse.Lsof{Command: "../process/testdata/lsof-none-open", TimeoutSeconds: 5}},
+		Garbage: GitGarbage{Age: age.Of(time.Hour), Lsof: inuse.Lsof{Command: "../process/testdata/lsof-none-open", TimeoutSeconds: 5}},
 		LFS:     LFS{Git: "git", GitLFS: "diskcleaner-test-absent-git-lfs"},
 	}
 }
@@ -210,7 +211,7 @@ func TestKeepsBuildOutputThatABuildStillUses(t *testing.T) {
 	touch(t, swift, "Packages/Running/Package.swift", "Packages/Running/.build/debug/Running.o",
 		"Packages/Linking/Package.swift", "Packages/Linking/.build/debug/Linking.o",
 		"Packages/Testing/Package.swift", "Packages/Testing/.build/debug/Testing.o")
-	age(t, swift, "Packages/Core/.build/debug/Core.o", "Packages/Core/.build/debug", "Packages/Core/.build",
+	makeOld(t, swift, "Packages/Core/.build/debug/Core.o", "Packages/Core/.build/debug", "Packages/Core/.build",
 		"Packages/Linking/.build/debug/Linking.o", "Packages/Linking/.build/debug", "Packages/Linking/.build",
 		"Packages/Testing/.build/debug/Testing.o", "Packages/Testing/.build/debug", "Packages/Testing/.build")
 	linking := filepath.Join(swift, "Packages/Linking/.build")
@@ -226,7 +227,7 @@ func TestKeepsBuildOutputThatABuildStillUses(t *testing.T) {
 		_ = sleeper.Wait()
 	})
 	s := step(t, repos)
-	s.InUse.Now, s.InUse.Open = time.Now, lsofScript("lsof")
+	s.InUse.Age.Now, s.InUse.Open = time.Now, lsofScript("lsof")
 
 	r, _, stderr := run(s, false)
 
@@ -262,7 +263,7 @@ func TestLinkedRepositoriesAreNotEntered(t *testing.T) {
 	require.NoError(t, os.MkdirAll(external, 0o755))
 	git(t, external, "init", "-q")
 	touch(t, external, ".git/objects/pack/tmp_pack_died", ".build/x.o", "Package.swift")
-	age(t, external, ".git/objects/pack/tmp_pack_died")
+	makeOld(t, external, ".git/objects/pack/tmp_pack_died")
 	require.NoError(t, os.Symlink(external, filepath.Join(repos, "alias")))
 	linkedGit := filepath.Join(repos, "linked-git")
 	touch(t, linkedGit, ".build/x.o", "Package.swift")
@@ -459,7 +460,7 @@ func TestLFSWithoutGitLFSFails(t *testing.T) {
 func TestNoMinAgeRemovesAFreshDeadTemporaryFileAndKeepsALiveRepack(t *testing.T) {
 	repos := newRepos(t)
 	s := step(t, repos)
-	s.Garbage.MinAge = 0
+	s.Garbage.Age.Min = 0
 
 	r, _, stderr := run(s, false)
 

@@ -5,6 +5,16 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [Unreleased]
+
+### Changed
+
+- Every age setting means the same in every step: what is not older than it
+  stays, and `0` keeps nothing for its age. Before, a session log or an Xcode
+  archive exactly as old as its `min-age` was removed, and `min-age = 0` still
+  kept files stamped with a time in the future in projects, temporary folders
+  and app copies.
+
 ## [0.24.0] - 2026-11-23
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.24.0`.

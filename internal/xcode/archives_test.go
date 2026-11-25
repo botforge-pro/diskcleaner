@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/botforge-pro/diskcleaner/internal/age"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -51,8 +52,8 @@ const (
 	loneArchive   = "2026-08-06/Other 06.08.2026.xcarchive"
 )
 
-func writeArchive(t *testing.T, path, bundle string, age time.Duration) {
-	writeArchivePlist(t, path, fmt.Sprintf(archivePlist, bundle, now.Add(-age).Format(time.RFC3339)))
+func writeArchive(t *testing.T, path, bundle string, old time.Duration) {
+	writeArchivePlist(t, path, fmt.Sprintf(archivePlist, bundle, now.Add(-old).Format(time.RFC3339)))
 }
 
 func writeArchivePlist(t *testing.T, path, plist string) {
@@ -74,7 +75,7 @@ func newArchives(t *testing.T) string {
 
 func archives(folder string) Archives {
 	return Archives{
-		Folder: folder, MinAge: 15 * day, Kept: 1, Now: func() time.Time { return now },
+		Folder: folder, Age: age.Limit{Min: 15 * day, Now: func() time.Time { return now }}, Kept: 1,
 		Processes: "xcode", Running: idle,
 	}
 }
@@ -117,7 +118,7 @@ func TestKeepsAsManyNewestArchivesAsSet(t *testing.T) {
 func TestKeepsArchivesYoungerThanTheSetAge(t *testing.T) {
 	folder := newArchives(t)
 	s := archives(folder)
-	s.MinAge = 46 * day
+	s.Age.Min = 46 * day
 
 	r, _, _ := runArchives(s, false)
 
@@ -210,7 +211,7 @@ func TestMissingArchivesFolderIsQuiet(t *testing.T) {
 func TestArchiveSettingsAreTheGivenOnes(t *testing.T) {
 	s := DefaultArchives("/home", 30*day, 2)
 
-	assert.Equal(t, 30*day, s.MinAge)
+	assert.Equal(t, 30*day, s.Age.Min)
 	assert.Equal(t, 2, s.Kept)
 	assert.Equal(t, "/home/Library/Developer/Xcode/Archives", s.Folder)
 }

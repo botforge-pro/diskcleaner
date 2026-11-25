@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/botforge-pro/diskcleaner/internal/age"
 	"github.com/botforge-pro/diskcleaner/internal/inuse"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/stretchr/testify/assert"
@@ -32,8 +33,8 @@ func newFolder(t *testing.T) string {
 	writeLog(t, filepath.Join(folder, "-dev-app", "session", "subagents", "agent-old.jsonl"), 40*day)
 	writeLog(t, filepath.Join(folder, "-dev-app", "recent.jsonl"), 2*day)
 	writeLog(t, filepath.Join(folder, "-dev-app", "thirty.jsonl"), 30*day)
-	writeLog(t, filepath.Join(folder, "-dev-app", "edge.jsonl"), 31*day-time.Second)
-	writeLog(t, filepath.Join(folder, "-dev-app", "thirty-one.jsonl"), 31*day)
+	writeLog(t, filepath.Join(folder, "-dev-app", "edge.jsonl"), 31*day)
+	writeLog(t, filepath.Join(folder, "-dev-app", "thirty-one.jsonl"), 31*day+time.Second)
 	writeLog(t, filepath.Join(folder, "-dev-app", "old.txt"), 40*day)
 	return folder
 }
@@ -55,8 +56,7 @@ func step(folder string) Step {
 	return Step{
 		Label:  "CLAUDE",
 		Folder: folder,
-		MinAge: 31 * 24 * time.Hour,
-		Now:    func() time.Time { return now },
+		Age:    age.Limit{Min: 31 * 24 * time.Hour, Now: func() time.Time { return now }},
 		Lsof:   inuse.Lsof{Command: "../process/testdata/lsof-none-open", TimeoutSeconds: 5},
 		Batch:  50,
 	}
@@ -158,7 +158,7 @@ func TestAFailedOpenCheckRemovesNothing(t *testing.T) {
 	assert.Contains(t, r.Failures[0], "lsof "+folder+": exit 1: lsof: status error")
 }
 
-func TestRemovesLogsAtLeastMinAgeOld(t *testing.T) {
+func TestRemovesLogsOlderThanMinAge(t *testing.T) {
 	folder := newFolder(t)
 
 	r, stdout, stderr := run(step(folder), false)
@@ -246,7 +246,7 @@ func TestClaudeLooksInItsProjectsFolder(t *testing.T) {
 
 	assert.Equal(t, "CLAUDE", s.Label)
 	assert.Equal(t, filepath.Join(home, ".claude", "projects"), s.Folder)
-	assert.Equal(t, 20*24*time.Hour, s.MinAge)
+	assert.Equal(t, 20*24*time.Hour, s.Age.Min)
 }
 
 func TestCodexLooksInItsSessionsFolder(t *testing.T) {
@@ -256,5 +256,5 @@ func TestCodexLooksInItsSessionsFolder(t *testing.T) {
 
 	assert.Equal(t, "CODEX", s.Label)
 	assert.Equal(t, filepath.Join(home, ".codex", "sessions"), s.Folder)
-	assert.Equal(t, 7*24*time.Hour, s.MinAge)
+	assert.Equal(t, 7*24*time.Hour, s.Age.Min)
 }

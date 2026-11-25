@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/botforge-pro/diskcleaner/internal/age"
 	"github.com/botforge-pro/diskcleaner/internal/inuse"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/stretchr/testify/assert"
@@ -43,7 +44,7 @@ func step(temp, lsof string) Step {
 	return Step{
 		Dir:      temp,
 		Patterns: patterns,
-		InUse:    inuse.Check{MinAge: time.Hour, Now: func() time.Time { return now }, Open: inuse.Lsof{Command: lsof, TimeoutSeconds: 5}.Every(1)},
+		InUse:    inuse.Check{Age: age.Limit{Min: time.Hour, Now: func() time.Time { return now }}, Open: inuse.Lsof{Command: lsof, TimeoutSeconds: 5}.Every(1)},
 	}
 }
 

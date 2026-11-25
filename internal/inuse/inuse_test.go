@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/botforge-pro/diskcleaner/internal/age"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,7 +38,7 @@ func listing(t *testing.T, names ...string) string {
 }
 
 func check(lsof string) Check {
-	return Check{MinAge: time.Hour, Now: time.Now, Open: Lsof{Command: lsof, TimeoutSeconds: 5}.Every(1)}
+	return Check{Age: age.Of(time.Hour), Open: Lsof{Command: lsof, TimeoutSeconds: 5}.Every(1)}
 }
 
 func counting(t *testing.T) (Lsof, func() int) {

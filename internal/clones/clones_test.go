@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/botforge-pro/diskcleaner/internal/age"
 	"github.com/botforge-pro/diskcleaner/internal/inuse"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/stretchr/testify/assert"
@@ -47,7 +48,7 @@ func fakeLsof(t *testing.T, body string) string {
 const noneOpen = "../process/testdata/lsof-none-open"
 
 func step(dir, lsof string) Step {
-	return Step{Dir: dir, MinAge: time.Hour, Now: func() time.Time { return now }, Lsof: inuse.Lsof{Command: lsof, TimeoutSeconds: 5}}
+	return Step{Dir: dir, Age: age.Limit{Min: time.Hour, Now: func() time.Time { return now }}, Lsof: inuse.Lsof{Command: lsof, TimeoutSeconds: 5}}
 }
 
 func run(s Step, dryRun bool) (*report.Report, string, string) {

@@ -7,17 +7,17 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/botforge-pro/diskcleaner/internal/age"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 )
 
 type Check struct {
-	MinAge time.Duration
-	Now    func() time.Time
-	Open   *Listing
+	Age  age.Limit
+	Open *Listing
 }
 
 func Default(minAge time.Duration) Check {
-	return Check{MinAge: minAge, Now: time.Now, Open: DefaultLsof().Every(1)}
+	return Check{Age: age.Of(minAge), Open: DefaultLsof().Every(1)}
 }
 
 func (c Check) WithOneListing() Check {
@@ -50,22 +50,20 @@ func (c Check) Reason(path string) (string, error) {
 }
 
 func (c Check) ReasonAfter(path string, latest time.Time) (string, error) {
-	if !latest.Before(c.cutoff()) {
+	if c.Age.Recent(latest) {
 		return c.written(), nil
 	}
 	return c.open(path)
 }
 
-func (c Check) cutoff() time.Time {
-	return c.Now().Add(-c.MinAge)
-}
-
 func (c Check) written() string {
-	return fmt.Sprintf("written within %s", report.FormatDuration(c.MinAge))
+	return fmt.Sprintf("written within %s", c.Age)
 }
 
 func (c Check) writtenSince(root string) (bool, error) {
-	cutoff := c.cutoff()
+	if c.Age.Min == 0 {
+		return false, nil
+	}
 	fresh := false
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if errors.Is(err, fs.ErrNotExist) && path != root {
@@ -81,7 +79,7 @@ func (c Check) writtenSince(root string) (bool, error) {
 		if err != nil {
 			return err
 		}
-		if !info.ModTime().Before(cutoff) {
+		if c.Age.Recent(info.ModTime()) {
 			fresh = true
 			return fs.SkipAll
 		}

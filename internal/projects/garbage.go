@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/botforge-pro/diskcleaner/internal/age"
 	"github.com/botforge-pro/diskcleaner/internal/candidates"
 	"github.com/botforge-pro/diskcleaner/internal/inuse"
 	"github.com/botforge-pro/diskcleaner/internal/report"
@@ -20,13 +21,12 @@ import (
 var repackPid = regexp.MustCompile(`^\.tmp-([0-9]+)-`)
 
 type GitGarbage struct {
-	MinAge time.Duration
-	Now    func() time.Time
-	Lsof   inuse.Lsof
+	Age  age.Limit
+	Lsof inuse.Lsof
 }
 
 func DefaultGitGarbage(minAge time.Duration) GitGarbage {
-	return GitGarbage{MinAge: minAge, Now: time.Now, Lsof: inuse.DefaultLsof()}
+	return GitGarbage{Age: age.Of(minAge), Lsof: inuse.DefaultLsof()}
 }
 
 func (g GitGarbage) Collect(r *report.Report, set *candidates.Set, repo string) {
@@ -79,8 +79,8 @@ func (g GitGarbage) check(r *report.Report, set *candidates.Set, open *inuse.Lis
 	if !info.Mode().IsRegular() {
 		return
 	}
-	if g.MinAge > 0 && g.Now().Sub(info.ModTime()) <= g.MinAge {
-		r.Skip("%s: written within %s", file, report.FormatDuration(g.MinAge))
+	if g.Age.Recent(info.ModTime()) {
+		r.Skip("%s: written within %s", file, g.Age)
 		return
 	}
 	if match := repackPid.FindStringSubmatch(filepath.Base(file)); match != nil {

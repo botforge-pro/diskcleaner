@@ -9,6 +9,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/botforge-pro/diskcleaner/internal/age"
 	"github.com/botforge-pro/diskcleaner/internal/inuse"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/botforge-pro/diskcleaner/internal/settings"
@@ -20,10 +21,9 @@ var binaries = []string{
 }
 
 type Step struct {
-	Dir    string
-	MinAge time.Duration
-	Now    func() time.Time
-	Lsof   inuse.Lsof
+	Dir  string
+	Age  age.Limit
+	Lsof inuse.Lsof
 }
 
 func Default(minAge time.Duration) (Step, error) {
@@ -36,10 +36,9 @@ func Default(minAge time.Duration) (Step, error) {
 		dir = filepath.Join(filepath.Dir(temp), "X")
 	}
 	return Step{
-		Dir:    dir,
-		MinAge: minAge,
-		Now:    time.Now,
-		Lsof:   inuse.DefaultLsof(),
+		Dir:  dir,
+		Age:  age.Of(minAge),
+		Lsof: inuse.DefaultLsof(),
 	}, nil
 }
 
@@ -82,8 +81,8 @@ func (s Step) check(r *report.Report, open *inuse.Listing, clone string) {
 	if !info.IsDir() {
 		return
 	}
-	if s.Now().Sub(info.ModTime()) <= s.MinAge {
-		r.Skip("%s: made within %s", clone, report.FormatDuration(s.MinAge))
+	if s.Age.Recent(info.ModTime()) {
+		r.Skip("%s: made within %s", clone, s.Age)
 		return
 	}
 	files, err := executables(clone)

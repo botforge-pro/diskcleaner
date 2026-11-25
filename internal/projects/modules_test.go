@@ -53,8 +53,8 @@ func TestPnpmWorkspaceCountsAsAWorkspaceRoot(t *testing.T) {
 func TestKeepsNodeModulesAnInstallIsWriting(t *testing.T) {
 	root := newNodeProjects(t)
 	s := step(t, root)
-	s.InUse.Now = time.Now
-	age(t, root, "workspace/packages/web/node_modules/left-pad/index.js",
+	s.InUse.Age.Now = time.Now
+	makeOld(t, root, "workspace/packages/web/node_modules/left-pad/index.js",
 		"workspace/packages/web/node_modules/left-pad", "workspace/packages/web/node_modules")
 
 	r, _, stderr := run(s, false)

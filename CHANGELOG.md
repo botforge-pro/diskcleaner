@@ -5,7 +5,7 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
-## [Unreleased]
+## [0.25.0] - 2026-11-26
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.25.0`.
 
@@ -17,39 +17,47 @@ upgrade shows the difference on your machine.
 
 ### Changed
 
-- A step prints its heading only when it removes, keeps or fails something.
-  A step that works in a folder names that folder, with symbolic links in its
-  path resolved; a step that only runs a command, such as `homebrew`, names
-  what it removes. The label before it is now the first word of the step's
-  name in capitals, so five labels change: `projects` prints `PROJECTS`
-  (was `PROJECT`), `xcode-archives` `XCODE` (was `ARCHIVES`), `system-temp`
+- A step prints its heading only when it prints a line below it: something it
+  removes or would remove, a `SKIPPED` line, or a failure. The heading is a
+  label followed by the folder the step works in, with symbolic links in its
+  path resolved, or, for a step that only runs a command, such as `homebrew`,
+  by what it removes. The label is now the first word of the step's name in
+  capitals, so five labels change: `projects` prints `PROJECTS` (was
+  `PROJECT`), `xcode-archives` `XCODE` (was `ARCHIVES`), `system-temp`
   `SYSTEM` (was `TEMP`), `code-sign-clones` `CODE` (was `CLONES`) and
-  `claude-scratchpads` `CLAUDE` (was `SCRATCH`). Steps sharing a label are
-  told apart by the folder after it. `projects` prints one heading for each
-  folder in `project-dirs`, where it printed one for each repository.
+  `claude-scratchpads` `CLAUDE` (was `SCRATCH`). Two pairs now share a label,
+  `XCODE` for `xcode-derived-data` and `xcode-archives`, `CLAUDE` for
+  `claude-logs` and `claude-scratchpads`; the folder after it tells them
+  apart. `projects` prints one heading for each folder in `project-dirs`,
+  where it printed one for each repository.
 - Something kept only because it is younger than its age setting is no longer
-  printed as `SKIPPED`. It is still kept, and it is neither listed nor among
-  the paths the summary counts. `system-temp` no longer prints a line such as
-  `/private/tmp: 413 files younger than 3 days`. Something kept for any other
-  reason is still printed: a file a process has open, a file Git tracks, a
-  socket, a mounted volume, a simulator that is running.
+  printed as a `SKIPPED` line; it is still kept. `system-temp` no longer
+  prints a line such as `/private/tmp: 413 files younger than 3 days`.
+  Something kept for any other reason is still printed: a file a process has
+  open, a file Git tracks, a socket, a mounted volume, a simulator that is
+  running.
 - `xcode-archives`, `emulator-snapshots` and `claude-scratchpads` check
-  whether their tool is running, and `simulator-caches` whether a simulator is
-  shut down, only after they have found something to remove, and print that
-  they skip only then. With nothing to remove, a running Xcode or emulator, a
-  Swift build or a booted simulator is no longer mentioned by these steps.
-- When a step runs a command, such as `brew cleanup`, its `RUN` line is
-  printed after the command finishes and gives the space freed: the size the
-  command reports, or how much the folder it cleans shrank. In a dry run, the
-  pruning of Git LFS objects is printed like any other command, as
-  `WOULD RUN git -C <repository> lfs prune --verify-remote`, with the size
-  Git LFS says it would free.
+  whether their tool is running, and `simulator-caches` whether each simulator
+  is shut down, only after they have found something to remove, and print
+  their `SKIPPED` line only then. With nothing to remove, a running Xcode or
+  emulator, a Swift build or a booted simulator is no longer mentioned by
+  these steps. `simulator-caches` still checks first, as before, whether Xcode
+  is building or Simulator is open.
+- When a step runs a command, its `RUN` line is printed after the command
+  finishes and gives the space freed: the size `brew cleanup` reports for
+  `homebrew`, and for the other steps how much the folder the command cleans
+  shrank. The pruning of Git LFS objects is printed like any other command,
+  `RUN git -C <repository> lfs prune --verify-remote` in a run, with how much
+  the repository's `.git/lfs` shrank, and `WOULD RUN …` in a dry run, with the
+  size Git LFS says it would free.
 - A folder listed in `project-dirs` that does not exist is reported as a
   failure, so `clean` exits 1, and the other folders are still cleaned.
   Before, `clean` did not start and exited 2.
 - If a step's folder is `/`, your home folder or a folder that contains your
-  home folder, the step stops without removing anything and is reported as a
-  failure, so `clean` exits 1. Only something you set can name such a folder:
+  home folder, the whole step stops, its other folders included, and is
+  reported as a failure, so `clean` exits 1. Unlike a missing folder, such a
+  folder means something is set wrong, so `projects` does not go on with the
+  rest of `project-dirs`. Only something you set can name such a folder:
   `project-dirs`; the environment variables `GRADLE_USER_HOME`,
   `ANDROID_AVD_HOME`, `ANDROID_USER_HOME`, `CLAUDE_CONFIG_DIR` or `CODEX_HOME`;
   Go's `GOCACHE` or `GOMODCACHE`; or a custom DerivedData folder in Xcode.
@@ -58,19 +66,19 @@ upgrade shows the difference on your machine.
 - A symbolic link found inside a folder being cleaned is neither followed nor
   removed. An Android virtual device stored elsewhere and linked into
   `~/.android/avd` therefore keeps its saved states, and the link stays. A
-  step's own folder may itself be a link, such as `~/.gradle/caches` linked
-  to another disk: a step that cleans inside its folder follows that one link,
-  and a step that removes its folder whole removes only the link.
+  step's own folder may itself be a link. `gradle-caches` and `swiftpm-cache`
+  remove their folder whole, so if `~/.gradle/caches` is a link to another
+  disk, only the link goes and the caches on that disk stay, as before. The
+  steps that remove what they find inside their folder follow that one link.
 - Every age setting means the same in every step: something stays while its
   age is at most the setting. Before, a session log or an Xcode archive
-  exactly as old as `min-age` was removed; now it stays until the next run.
+  exactly as old as `min-age` was removed; now it stays one run longer.
   An age setting of `0` keeps nothing for its age, not even a file whose
-  modification time lies in the future, which some steps used to keep.
-- Temporary files left by `git fetch` and `git repack` are now kept while a
-  process has them open, as build output is, besides being kept for
-  `projects.git-tmp-min-age` and while the `git repack` that writes them runs.
-  If `diskcleaner` cannot ask which files are open, they stay and `clean`
-  exits 1.
+  modification time lies in the future.
+- A temporary file left by `git fetch` or `git repack` now counts as open
+  whichever of its names a process opened it by, as build output does; before,
+  `lsof` was asked about the one name `diskcleaner` found. If `lsof` fails or
+  does not answer in time, `projects` removes nothing more and `clean` exits 1.
 
 ### Fixed
 
@@ -82,8 +90,8 @@ upgrade shows the difference on your machine.
   Chrome makes such a copy, `code_sign_clone`, when it starts, and the
   copy's program file is a hard link to the one in `/Applications`: one file
   under two names. Which of the two a running Chrome was started from cannot be
-  told, so a copy is now kept while any running Chrome uses that file; once
-  Chrome quits or updates, the next `clean` removes it.
+  told, so a copy is now kept while any running Chrome uses that one file,
+  under either name; once Chrome quits or updates, the next `clean` removes it.
 
 ## [0.24.0] - 2026-11-23
 
@@ -1005,6 +1013,8 @@ this release removes one kind of them. Install it with a Go toolchain:
   status 1.
 - `diskcleaner version` prints the installed version.
 
+[0.25.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.25.0
+[0.24.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.24.0
 [0.23.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.23.0
 [0.22.1]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.22.1
 [0.18.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.18.0

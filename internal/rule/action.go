@@ -70,6 +70,9 @@ func (c *ctx) action(n *Node) {
 		}
 	}
 	if c.r.DryRun {
+		if !size.known && len(n.DryRun) == 0 {
+			return
+		}
 		if !size.known {
 			dry, ok := c.fillAll(n.DryRun)
 			if !ok {

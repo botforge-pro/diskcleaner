@@ -33,10 +33,12 @@ type Newest struct {
 }
 
 type FolderPattern struct {
-	Glob  string
-	Match string   `yaml:"match"`
-	Has   []string `yaml:"has"`
-	name  *regexp.Regexp
+	Glob   string   `yaml:"glob"`
+	Match  string   `yaml:"match"`
+	Has    []string `yaml:"has"`
+	Beside []string `yaml:"beside"`
+	Says   string   `yaml:"says"`
+	name   *regexp.Regexp
 }
 
 func (p *FolderPattern) UnmarshalYAML(node *yaml.Node) error {
@@ -136,10 +138,13 @@ func (f File) checkRemoval(m Removal) error {
 			}
 			p.name = re
 		}
-		for _, path := range p.Has {
-			if !inside(path) {
-				return fmt.Errorf("remove: folders: has %q: want a path inside the folder", path)
+		for _, path := range append(slices.Clone(p.Has), p.Beside...) {
+			if !inside(strings.TrimSuffix(path, "/")) {
+				return fmt.Errorf("remove: folders: has or beside %q: want a path inside the folder or its parent", path)
 			}
+		}
+		if p.Says != "" && len(p.Has) == 0 && len(p.Beside) == 0 {
+			return fmt.Errorf("remove: folders: %q: says: want has or beside, whose absence it explains", p.Glob)
 		}
 	}
 	for _, pattern := range m.Files {
@@ -154,10 +159,9 @@ func (f File) checkRemoval(m Removal) error {
 func (s Rule) folders(r *report.Report) []string {
 	var matches []string
 	for _, p := range s.remove.Folders {
-		found, err := s.matchFolders(p)
+		found, err := s.matchFolders(r, p)
 		if err != nil {
-			r.Fail("find %s: %v", s.root, err)
-			continue
+			r.Fail("find %s: %v", s.base, err)
 		}
 		matches = append(matches, found...)
 	}
@@ -223,15 +227,12 @@ func (s Rule) olderThanTheNewest(r *report.Report, folders []string) []string {
 	return older
 }
 
-func (s Rule) matchFolders(p FolderPattern) ([]string, error) {
+func (s Rule) matchFolders(r *report.Report, p FolderPattern) ([]string, error) {
 	var found []string
+	var walkErr error
 	switch {
 	case strings.Contains(p.Glob, "**"):
-		matches, err := s.deepFolders(s.base, p.Glob)
-		if err != nil {
-			return nil, err
-		}
-		found = matches
+		found, walkErr = s.deepFolders(s.base, p.Glob)
 	case p.Glob != "":
 		matches, err := filepath.Glob(filepath.Join(s.base, p.Glob))
 		if err != nil {
@@ -250,9 +251,22 @@ func (s Rule) matchFolders(p FolderPattern) ([]string, error) {
 		}
 	}
 	return slices.DeleteFunc(found, func(folder string) bool {
-		return slices.ContainsFunc(p.Has, func(path string) bool {
-			_, err := os.Stat(filepath.Join(folder, path))
-			return err != nil
-		})
-	}), nil
+		missing := slices.ContainsFunc(p.Has, func(path string) bool { return !present(folder, path) }) ||
+			slices.ContainsFunc(p.Beside, func(path string) bool { return !present(filepath.Dir(folder), path) })
+		if missing && p.Says != "" {
+			r.Skip("%s: %s", folder, p.Says)
+		}
+		return missing
+	}), walkErr
+}
+
+func present(folder, path string) bool {
+	info, err := os.Stat(filepath.Join(folder, strings.TrimSuffix(path, "/")))
+	if err != nil {
+		return false
+	}
+	if strings.HasSuffix(path, "/") {
+		return info.IsDir()
+	}
+	return info.Mode().IsRegular()
 }

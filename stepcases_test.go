@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -86,6 +87,7 @@ func builtinFile(t *testing.T, name string) rule.File {
 
 func (c stepCase) run(t *testing.T, f rule.File) {
 	require.NotEmpty(t, c.Case, "every case is named")
+	c = c.withUID()
 	require.NotNil(t, c.Removes, "%s: removes: name what goes, or [] for nothing", c.Case)
 	if len(*c.Removes) == 0 {
 		require.True(t, len(c.Says) > 0 || len(c.Fails) > 0 || len(c.Shows) > 0 || c.Counts != nil,
@@ -140,6 +142,7 @@ func (c stepCase) run(t *testing.T, f rule.File) {
 	r := &report.Report{Out: &stdout, Err: &stderr, DryRun: c.DryRun}
 	f.Rule(rule.Environment{
 		Home:      home,
+		Under:     filepath.Join(home, "fs"),
 		Getenv:    func(key string) string { return c.variable(home, key) },
 		Processes: newProcessTable(home, c.Running).processes(),
 		Commands:  c.commands(t, home),
@@ -231,6 +234,31 @@ func (c stepCase) variable(home, key string) string {
 		return filepath.Join(home, rest)
 	}
 	return value
+}
+
+func (c stepCase) withUID() stepCase {
+	uid := strings.NewReplacer("{uid}", strconv.Itoa(os.Getuid()))
+	files := map[string]fakeFile{}
+	for path, file := range c.Files {
+		files[uid.Replace(path)] = file
+	}
+	links := map[string]string{}
+	for link, target := range c.Links {
+		links[uid.Replace(link)] = uid.Replace(target)
+	}
+	each := func(paths []string) []string {
+		out := make([]string, len(paths))
+		for i, path := range paths {
+			out[i] = uid.Replace(path)
+		}
+		return out
+	}
+	c.Files, c.Links, c.Open, c.Tracked = files, links, each(c.Open), each(c.Tracked)
+	if c.Removes != nil {
+		removes := each(*c.Removes)
+		c.Removes = &removes
+	}
+	return c
 }
 
 func (c stepCase) setting(t *testing.T, key string) any {

@@ -1,0 +1,56 @@
+- case: build output in scratchpads goes and the rest stays
+  files:
+    fs/private/tmp/claude-{uid}/-dev-app/session/scratchpad/dd-app/Build/Intermediates.noindex/App.o:
+    fs/private/tmp/claude-{uid}/-dev-app/session/scratchpad/dd-app/SourcePackages/workspace-state.json:
+    fs/private/tmp/claude-{uid}/-dev-app/session/scratchpad/dd-app/SourcePackages/checkouts/pkg/Package.swift:
+    fs/private/tmp/claude-{uid}/-dev-app/session/scratchpad/spm/workspace-state.json:
+    fs/private/tmp/claude-{uid}/-dev-app/session/scratchpad/spm/checkouts/pkg/Package.swift:
+    fs/private/tmp/claude-{uid}/-dev-app/session/scratchpad/copy/Package.swift:
+    fs/private/tmp/claude-{uid}/-dev-app/session/scratchpad/copy/.build/debug/Core.o:
+    fs/private/tmp/claude-{uid}/-dev-app/session/scratchpad/tools/.build/deploy.sh:
+    fs/private/tmp/claude-{uid}/-dev-app/session/scratchpad/notes.txt:
+    fs/private/tmp/claude-{uid}/-dev-app/session/scratchpad/Build/Intermediates.noindex/Root.o:
+    fs/private/tmp/claude-{uid}/-dev-app/session/scratchpad/clone/wip.swift:
+    fs/private/tmp/claude-{uid}/-dev-app/session/scratchpad/clone/Build/Intermediates.noindex/:
+    fs/private/tmp/claude-{uid}/-dev-app/session/tasks/Build/Intermediates.noindex/:
+  removes:
+    - fs/private/tmp/claude-{uid}/-dev-app/session/scratchpad/Build
+    - fs/private/tmp/claude-{uid}/-dev-app/session/scratchpad/clone/Build
+    - fs/private/tmp/claude-{uid}/-dev-app/session/scratchpad/copy/.build
+    - fs/private/tmp/claude-{uid}/-dev-app/session/scratchpad/dd-app/Build
+    - fs/private/tmp/claude-{uid}/-dev-app/session/scratchpad/dd-app/SourcePackages
+    - fs/private/tmp/claude-{uid}/-dev-app/session/scratchpad/spm/checkouts
+  says: ['tools/.build: no Package.swift next to it']
+  counts: 6
+
+- case: a package build inside a .build without Package.swift is not looked for
+  files:
+    fs/private/tmp/claude-{uid}/-dev-app/session/scratchpad/tools/.build/fixture/Package.swift:
+    fs/private/tmp/claude-{uid}/-dev-app/session/scratchpad/tools/.build/fixture/.build/data:
+  removes: []
+  says: [no Package.swift next to it]
+
+- case: caches inside a build Git protects are still found
+  files:
+    fs/private/tmp/claude-{uid}/-dev-app/session/scratchpad/tracked-app/Build/Intermediates.noindex/kept.txt:
+    fs/private/tmp/claude-{uid}/-dev-app/session/scratchpad/tracked-app/Build/Intermediates.noindex/deps/workspace-state.json:
+    fs/private/tmp/claude-{uid}/-dev-app/session/scratchpad/tracked-app/Build/Intermediates.noindex/deps/checkouts/pkg/Package.swift:
+  tracked:
+    - fs/private/tmp/claude-{uid}/-dev-app/session/scratchpad/tracked-app/Build/Intermediates.noindex/kept.txt
+  removes:
+    - fs/private/tmp/claude-{uid}/-dev-app/session/scratchpad/tracked-app/Build/Intermediates.noindex/deps/checkouts
+  says: ['tracked-app/Build: contains files tracked by git']
+
+- case: a dry run removes nothing
+  dry-run: true
+  files:
+    fs/private/tmp/claude-{uid}/-dev-app/session/scratchpad/dd-app/Build/Intermediates.noindex/App.o:
+  removes: []
+  counts: 1
+
+- case: a running Swift build keeps everything
+  running: [/usr/bin/swift-build --package-path app]
+  files:
+    fs/private/tmp/claude-{uid}/-dev-app/session/scratchpad/dd-app/Build/Intermediates.noindex/App.o:
+  removes: []
+  says: [a Swift package build or xcodebuild is running]

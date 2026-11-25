@@ -26,6 +26,7 @@ const (
 
 type Environment struct {
 	Home      string
+	Under     string
 	Getenv    func(string) string
 	Processes Processes
 	Commands  Commands

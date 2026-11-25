@@ -3,7 +3,9 @@ package rule
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -156,7 +158,7 @@ func (s Rule) choose(r *report.Report, root Root) (string, place, bool) {
 				return "", place{}, false
 			}
 		case p.variable == "":
-			return expand(s.env.Home, p.path), p, true
+			return s.local(p.path), p, true
 		default:
 			if value := s.env.Getenv(p.variable); value != "" {
 				return filepath.Join(value, p.path), p, true
@@ -189,6 +191,14 @@ func (s Rule) commandFolder(r *report.Report, p place, last bool) (string, bool)
 		return filepath.Clean(filepath.Join(value, p.then)), true
 	}
 	return value, true
+}
+
+func (s Rule) local(path string) string {
+	path = strings.ReplaceAll(path, "{uid}", strconv.Itoa(os.Getuid()))
+	if strings.HasPrefix(path, "~/") {
+		return expand(s.env.Home, path)
+	}
+	return filepath.Join(s.env.Under, path)
 }
 
 func expand(home, place string) string {

@@ -5,4 +5,21 @@ reversible: true
 readme:
   keeps: the scratchpads
 
-run: code
+root: /private/tmp/claude-{uid}
+
+busy:
+  processes: [swift-build, swift-package, swift-test, swift-run, xcodebuild]
+  says: a Swift package build or xcodebuild is running
+
+remove:
+  folders:
+    - {glob: '**/scratchpad/**/Build', has: [Intermediates.noindex/]}
+    - {glob: '**/scratchpad/**/Index.noindex', beside: [Build/Intermediates.noindex/]}
+    - {glob: '**/scratchpad/**/ModuleCache.noindex', beside: [Build/Intermediates.noindex/]}
+    - {glob: '**/scratchpad/**/SourcePackages', beside: [Build/Intermediates.noindex/]}
+    - {glob: '**/scratchpad/**/checkouts', beside: [workspace-state.json]}
+    - {glob: '**/scratchpad/**/repositories', beside: [workspace-state.json, checkouts/]}
+    - {glob: '**/scratchpad/**/.build', beside: [Package.swift], says: no Package.swift next to it}
+
+keep:
+  tracked: true

@@ -4,7 +4,6 @@ import (
 	"github.com/botforge-pro/diskcleaner/internal/config"
 	"github.com/botforge-pro/diskcleaner/internal/ide"
 	"github.com/botforge-pro/diskcleaner/internal/projects"
-	"github.com/botforge-pro/diskcleaner/internal/scratchpads"
 	"github.com/botforge-pro/diskcleaner/internal/systemtemp"
 )
 
@@ -20,8 +19,5 @@ var written = map[string]construct{
 	},
 	"ide-old-versions": func(home string, _ *config.Config) (step, error) {
 		return ide.Default(home), nil
-	},
-	"claude-scratchpads": func(string, *config.Config) (step, error) {
-		return scratchpads.Default(), nil
 	},
 }

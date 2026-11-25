@@ -134,9 +134,11 @@ func (s Rule) deepFolders(base, pattern string) ([]string, error) {
 		return nil, err
 	}
 	var found []string
+	var failures []error
 	err = filepath.WalkDir(root, func(current string, entry fs.DirEntry, err error) error {
 		if err != nil {
-			return err
+			failures = append(failures, err)
+			return nil
 		}
 		if !entry.IsDir() || current == root {
 			return nil
@@ -151,7 +153,7 @@ func (s Rule) deepFolders(base, pattern string) ([]string, error) {
 		}
 		return nil
 	})
-	return found, err
+	return found, errors.Join(append(failures, err)...)
 }
 
 func matchDeep(pattern, parts []string) bool {

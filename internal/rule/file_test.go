@@ -38,12 +38,12 @@ func parse(t *testing.T, name, body string) File {
 }
 
 func TestAValidFileBecomesARule(t *testing.T) {
-	r := parse(t, "some-cache.yaml", valid).Rule(at("/Users/me", nil))
+	f := parse(t, "some-cache.yaml", valid)
 
-	assert.Equal(t, "/Users/me/Library/Caches/some", r.Root)
-	assert.Equal(t, "some-build|"+groups["xcode"], r.Busy.Processes)
-	assert.Equal(t, "some build is running", r.Busy.Says)
-	assert.Equal(t, []string{"*/old"}, r.Folders)
+	assert.Equal(t, "/Users/me/Library/Caches/some", f.Rule(at("/Users/me", nil)).Root())
+	assert.Equal(t, "some-build|"+groups["xcode"], f.BusyPattern())
+	assert.Equal(t, "some build is running", f.Busy.Says)
+	assert.Equal(t, []string{"*/old"}, f.Remove.Folders)
 }
 
 func TestTheNameComesFromTheFileAndTheLabelFromItsFirstWord(t *testing.T) {
@@ -51,21 +51,20 @@ func TestTheNameComesFromTheFileAndTheLabelFromItsFirstWord(t *testing.T) {
 
 	assert.Equal(t, "some-cache", f.Name)
 	assert.Equal(t, "SOME", f.Label())
-	assert.Equal(t, "SOME", f.Rule(at("/Users/me", nil)).Label)
 }
 
 func TestTheRootIsTheFirstChoiceWhoseVariableIsSet(t *testing.T) {
 	f := parse(t, "some-cache.yaml", valid)
 
-	assert.Equal(t, "/opt/some/cache", f.Rule(at("/Users/me", map[string]string{"SOME_HOME": "/opt/some"})).Root)
-	assert.Equal(t, "/var/some", f.Rule(at("/Users/me", map[string]string{"SOME_CACHE": "/var/some", "SOME_HOME": "/opt/some"})).Root)
+	assert.Equal(t, "/opt/some/cache", f.Rule(at("/Users/me", map[string]string{"SOME_HOME": "/opt/some"})).Root())
+	assert.Equal(t, "/var/some", f.Rule(at("/Users/me", map[string]string{"SOME_CACHE": "/var/some", "SOME_HOME": "/opt/some"})).Root())
 }
 
-func TestRemoveRootTakesTheRootWhole(t *testing.T) {
-	r := parse(t, "tmp.yaml", "order: 1\ndescribes: x\nroot: /private/tmp/tool\nremove: root\n").Rule(at("/Users/me", nil))
+func TestAnAbsoluteRootIsTakenAsWritten(t *testing.T) {
+	f := parse(t, "tmp.yaml", "order: 1\ndescribes: x\nroot: /private/tmp/tool\nremove: root\n")
 
-	assert.Equal(t, "/private/tmp/tool", r.Root)
-	assert.Empty(t, r.Folders)
+	assert.Equal(t, "/private/tmp/tool", f.Rule(at("/Users/me", nil)).Root())
+	assert.True(t, f.Remove.Root)
 }
 
 func TestAStepWrittenInCodeDeclaresItsSettings(t *testing.T) {

@@ -11,13 +11,10 @@ import (
 	"regexp"
 	"slices"
 	"strings"
-	"time"
 
 	"go.yaml.in/yaml/v3"
 
-	"github.com/botforge-pro/diskcleaner/internal/age"
 	"github.com/botforge-pro/diskcleaner/internal/config"
-	"github.com/botforge-pro/diskcleaner/internal/inuse"
 	"github.com/botforge-pro/diskcleaner/internal/process"
 )
 
@@ -354,31 +351,12 @@ func parseRoot(root string) ([]place, error) {
 	return places, nil
 }
 
-type Environment struct {
-	Home     string
-	Getenv   func(string) string
-	Running  func(string) (bool, error)
-	Duration func(key string) time.Duration
-}
-
-func (f File) Rule(env Environment) Rule {
+func (f File) BusyPattern() string {
 	patterns := slices.Clone(f.Busy.Processes)
 	for _, group := range f.Busy.Groups {
 		patterns = append(patterns, groups[group])
 	}
-	keep := Keep{Age: age.Of(0)}
-	if f.Keep.WrittenWithin != "" {
-		keep.Age = age.Of(env.Duration(f.Keep.WrittenWithin))
-	}
-	return Rule{
-		Label:   f.Label(),
-		Root:    f.root(env.Home, env.Getenv),
-		Busy:    Busy{Processes: strings.Join(patterns, "|"), Running: env.Running, Says: f.Busy.Says},
-		Folders: f.Remove.Folders,
-		Files:   f.Remove.Files,
-		Keep:    keep,
-		Lsof:    inuse.DefaultLsof(),
-	}
+	return strings.Join(patterns, "|")
 }
 
 func (f File) root(home string, getenv func(string) string) string {

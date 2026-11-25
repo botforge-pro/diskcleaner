@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/botforge-pro/diskcleaner/internal/age"
 	"github.com/botforge-pro/diskcleaner/internal/candidates"
@@ -16,57 +17,68 @@ import (
 	"github.com/botforge-pro/diskcleaner/internal/settings"
 )
 
-type Busy struct {
-	Processes string
-	Running   func(pattern string) (bool, error)
-	Says      string
-}
-
 const openAnswersPerListing = 50
 
-type Keep struct {
-	Age age.Limit
+type Environment struct {
+	Home     string
+	Getenv   func(string) string
+	Running  func(pattern string) (bool, error)
+	Duration func(key string) time.Duration
+	Now      func() time.Time
+	Lsof     inuse.Lsof
 }
 
 type Rule struct {
-	Label   string
-	Root    string
-	Busy    Busy
-	Folders []string
-	Files   []string
-	Keep    Keep
-	Lsof    inuse.Lsof
+	file File
+	root string
+	env  Environment
+}
+
+func (f File) Rule(env Environment) Rule {
+	return Rule{file: f, root: f.root(env.Home, env.Getenv), env: env}
+}
+
+func (s Rule) Root() string {
+	return s.root
 }
 
 func (s Rule) Run(r *report.Report) {
-	if !r.Directory(s.Root) {
+	if !r.Directory(s.root) {
 		return
 	}
-	fmt.Fprintf(r.Out, "%-8s %s\n", s.Label, s.Root)
+	fmt.Fprintf(r.Out, "%-8s %s\n", s.file.Label(), s.root)
 	defer fmt.Fprintln(r.Out)
 
-	if s.Busy.Processes != "" && r.Busy(s.Busy.Running, s.Busy.Processes) {
-		r.Skip("%s: %s", s.Root, s.Busy.Says)
+	if pattern := s.file.BusyPattern(); pattern != "" && r.Busy(s.env.Running, pattern) {
+		r.Skip("%s: %s", s.root, s.file.Busy.Says)
 		return
 	}
-	switch {
-	case len(s.Files) > 0:
-		s.removeFiles(r)
-	case len(s.Folders) > 0:
+	switch remove := s.file.Remove; {
+	case remove.Root:
+		r.Remove(s.root)
+	case len(remove.Folders) > 0:
 		for _, folder := range s.folders(r) {
 			r.Remove(folder)
 		}
-	default:
-		r.Remove(s.Root)
+	case len(remove.Files) > 0:
+		s.removeFiles(r)
 	}
+}
+
+func (s Rule) age() age.Limit {
+	limit := age.Limit{Now: s.env.Now}
+	if key := s.file.Keep.WrittenWithin; key != "" {
+		limit.Min = s.env.Duration(key)
+	}
+	return limit
 }
 
 func (s Rule) folders(r *report.Report) []string {
 	var matches []string
-	for _, pattern := range s.Folders {
-		found, err := filepath.Glob(filepath.Join(s.Root, pattern))
+	for _, pattern := range s.file.Remove.Folders {
+		found, err := filepath.Glob(filepath.Join(s.root, pattern))
 		if err != nil {
-			r.Fail("find %s: %v", s.Root, err)
+			r.Fail("find %s: %v", s.root, err)
 			continue
 		}
 		matches = append(matches, found...)
@@ -87,11 +99,12 @@ func (s Rule) folders(r *report.Report) []string {
 }
 
 func (s Rule) removeFiles(r *report.Report) {
-	root, err := settings.Canonical(s.Root)
+	root, err := settings.Canonical(s.root)
 	if err != nil {
-		r.Fail("resolve %s: %v", s.Root, err)
+		r.Fail("resolve %s: %v", s.root, err)
 		return
 	}
+	limit := s.age()
 	var set candidates.Set
 	var scanErrors []error
 	err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
@@ -107,19 +120,18 @@ func (s Rule) removeFiles(r *report.Report) {
 			scanErrors = append(scanErrors, err)
 			return nil
 		}
-		if s.Keep.Age.Recent(info.ModTime()) {
-			return nil
+		if !limit.Recent(info.ModTime()) {
+			set.Add(r, path)
 		}
-		set.Add(r, path)
 		return nil
 	})
 	if err != nil {
 		scanErrors = append(scanErrors, err)
 	}
 	if len(scanErrors) > 0 {
-		r.Fail("scan %s: %v", s.Root, errors.Join(scanErrors...))
+		r.Fail("scan %s: %v", s.root, errors.Join(scanErrors...))
 	}
-	set.RemoveUnless(r, s.keeper(r))
+	set.RemoveUnless(r, s.keeper(r, limit))
 }
 
 func (s Rule) wanted(root, path string) bool {
@@ -127,7 +139,7 @@ func (s Rule) wanted(root, path string) bool {
 	if err != nil {
 		return false
 	}
-	return slices.ContainsFunc(s.Files, func(pattern string) bool {
+	return slices.ContainsFunc(s.file.Remove.Files, func(pattern string) bool {
 		if anywhere, ok := strings.CutPrefix(pattern, "**/"); ok {
 			matched, _ := filepath.Match(anywhere, filepath.Base(rel))
 			return matched
@@ -137,8 +149,8 @@ func (s Rule) wanted(root, path string) bool {
 	})
 }
 
-func (s Rule) keeper(r *report.Report) func(path string) bool {
-	open := s.Lsof.Every(openAnswersPerListing)
+func (s Rule) keeper(r *report.Report, limit age.Limit) func(path string) bool {
+	open := s.env.Lsof.Every(openAnswersPerListing)
 	failed := false
 	return func(path string) bool {
 		if failed {
@@ -146,7 +158,7 @@ func (s Rule) keeper(r *report.Report) func(path string) bool {
 		}
 		held, err := open.HoldsAny(path)
 		if err != nil {
-			r.Fail("lsof %s: %v", s.Root, err)
+			r.Fail("lsof %s: %v", s.root, err)
 			failed = true
 			return true
 		}
@@ -159,7 +171,7 @@ func (s Rule) keeper(r *report.Report) func(path string) bool {
 			r.Fail("stat %s: %v", path, err)
 			return true
 		}
-		if s.Keep.Age.Recent(info.ModTime()) {
+		if limit.Recent(info.ModTime()) {
 			r.Skip("%s: written again since the scan", path)
 			return true
 		}

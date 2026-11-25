@@ -3,10 +3,13 @@ package rule
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/botforge-pro/diskcleaner/internal/inuse"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,14 +43,26 @@ func run(s Rule, dryRun bool) (*report.Report, string, string) {
 
 func idle(string) (bool, error) { return false, nil }
 
-func cache(root string, running func(string) (bool, error)) Rule {
-	return Rule{Label: "SWIFTPM", Root: root, Busy: Busy{Processes: "swift", Running: running, Says: "a Swift build is running"}}
+func environment(running func(string) (bool, error)) Environment {
+	return Environment{
+		Home:     "/nowhere",
+		Getenv:   func(string) string { return "" },
+		Running:  running,
+		Duration: func(string) time.Duration { return 0 },
+		Now:      time.Now,
+		Lsof:     inuse.Lsof{Command: "../process/testdata/lsof-none-open", TimeoutSeconds: 5},
+	}
+}
+
+func cache(t *testing.T, root string, running func(string) (bool, error)) Rule {
+	body := fmt.Sprintf("order: 1\ndescribes: x\nroot: %s\nbusy: {processes: [swift], says: a Swift build is running}\nremove: root\n", root)
+	return parse(t, "swiftpm-cache.yaml", body).Rule(environment(running))
 }
 
 func TestRemoveRootTakesItWhole(t *testing.T) {
 	root := newCache(t)
 
-	r, stdout, _ := run(cache(root, idle), false)
+	r, stdout, _ := run(cache(t, root, idle), false)
 
 	assert.NoDirExists(t, root)
 	assert.Equal(t, 1, r.Count)
@@ -56,8 +71,9 @@ func TestRemoveRootTakesItWhole(t *testing.T) {
 
 func TestFolderPatternsRemoveTheFoldersTheyMatchAndNothingElse(t *testing.T) {
 	devices, avd := newDevices(t)
+	body := fmt.Sprintf("order: 1\ndescribes: x\nroot: %s\nremove: {folders: ['*.avd/snapshots/*']}\n", devices)
 
-	r, stdout, _ := run(Rule{Label: "EMULATOR", Root: devices, Folders: []string{"*.avd/snapshots/*"}}, false)
+	r, stdout, _ := run(parse(t, "emulator-snapshots.yaml", body).Rule(environment(idle)), false)
 
 	assert.NoDirExists(t, filepath.Join(avd, "snapshots", "default_boot"))
 	assert.FileExists(t, filepath.Join(avd, "snapshots", "snapshots.pb"), "a file a folder pattern matches stays")
@@ -69,7 +85,7 @@ func TestFolderPatternsRemoveTheFoldersTheyMatchAndNothingElse(t *testing.T) {
 func TestDryRunRemovesNothing(t *testing.T) {
 	root := newCache(t)
 
-	r, _, _ := run(cache(root, idle), true)
+	r, _, _ := run(cache(t, root, idle), true)
 
 	assert.DirExists(t, root)
 	assert.Equal(t, 1, r.Count)
@@ -79,7 +95,7 @@ func TestARunningToolKeepsEverythingAndSaysWhy(t *testing.T) {
 	root := newCache(t)
 	busy := func(string) (bool, error) { return true, nil }
 
-	r, _, stderr := run(cache(root, busy), false)
+	r, _, stderr := run(cache(t, root, busy), false)
 
 	assert.DirExists(t, root)
 	assert.Zero(t, r.Count)
@@ -90,7 +106,7 @@ func TestAFailedProcessCheckKeepsEverythingAndFails(t *testing.T) {
 	root := newCache(t)
 	broken := func(string) (bool, error) { return false, errors.New("exit status 2") }
 
-	r, _, _ := run(cache(root, broken), false)
+	r, _, _ := run(cache(t, root, broken), false)
 
 	assert.DirExists(t, root)
 	assert.Len(t, r.Failures, 1)
@@ -101,7 +117,7 @@ func TestALinkedRootLosesOnlyTheLink(t *testing.T) {
 	link := filepath.Join(t.TempDir(), "cache")
 	require.NoError(t, os.Symlink(target, link))
 
-	r, _, _ := run(cache(link, idle), false)
+	r, _, _ := run(cache(t, link, idle), false)
 
 	_, err := os.Lstat(link)
 	assert.ErrorIs(t, err, os.ErrNotExist)
@@ -110,7 +126,7 @@ func TestALinkedRootLosesOnlyTheLink(t *testing.T) {
 }
 
 func TestAMissingRootIsQuiet(t *testing.T) {
-	r, stdout, stderr := run(cache(filepath.Join(t.TempDir(), "absent"), idle), false)
+	r, stdout, stderr := run(cache(t, filepath.Join(t.TempDir(), "absent"), idle), false)
 
 	assert.Zero(t, r.Count)
 	assert.Empty(t, stdout)

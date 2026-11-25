@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/botforge-pro/diskcleaner/internal/age"
 	"github.com/botforge-pro/diskcleaner/internal/inuse"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/stretchr/testify/assert"
@@ -45,20 +44,34 @@ func fakeLsof(t *testing.T, body string) string {
 	return path
 }
 
-func logs(folder string) Rule {
-	return Rule{
-		Label: "CLAUDE",
-		Root:  folder,
-		Files: []string{"**/*.jsonl"},
-		Keep:  Keep{Age: age.Limit{Min: 31 * day, Now: func() time.Time { return now }}},
-		Lsof:  inuse.Lsof{Command: "../process/testdata/lsof-none-open", TimeoutSeconds: 5},
-	}
+type logsStep struct {
+	root  string
+	files string
+	env   Environment
+}
+
+func logs(folder string) *logsStep {
+	env := environment(idle)
+	env.Duration = func(string) time.Duration { return 31 * day }
+	env.Now = func() time.Time { return now }
+	return &logsStep{root: folder, files: "['**/*.jsonl']", env: env}
+}
+
+func (s *logsStep) rule(t *testing.T) Rule {
+	body := fmt.Sprintf(`order: 1
+describes: logs older than {min-age}
+settings: [{key: min-age, kind: duration, default: 31d, help: x}]
+root: %s
+remove: {files: %s}
+keep: {written-within: min-age}
+`, s.root, s.files)
+	return parse(t, "claude-logs.yaml", body).Rule(s.env)
 }
 
 func TestFilesOlderThanTheAgeGoAndTheRestStay(t *testing.T) {
 	folder := newLogs(t)
 
-	r, stdout, stderr := run(logs(folder), false)
+	r, stdout, stderr := run(logs(folder).rule(t), false)
 
 	assert.Empty(t, stderr)
 	assert.NoFileExists(t, filepath.Join(folder, "-dev-app", "old.jsonl"))
@@ -75,9 +88,9 @@ func TestFilesOlderThanTheAgeGoAndTheRestStay(t *testing.T) {
 func TestAPatternWithoutStarsMatchesFromTheRoot(t *testing.T) {
 	folder := newLogs(t)
 	s := logs(folder)
-	s.Files = []string{"-dev-app/*.jsonl"}
+	s.files = "['-dev-app/*.jsonl']"
 
-	r, _, _ := run(s, false)
+	r, _, _ := run(s.rule(t), false)
 
 	assert.FileExists(t, filepath.Join(folder, "-dev-app", "session", "subagents", "agent-old.jsonl"))
 	assert.Equal(t, 2, r.Count)
@@ -87,9 +100,9 @@ func TestAFileOpenInAProcessStays(t *testing.T) {
 	folder := newLogs(t)
 	open := filepath.Join(folder, "-dev-app", "old.jsonl")
 	s := logs(folder)
-	s.Lsof.Command = fakeLsof(t, "printf 'p42\\nf3\\nn"+open+"\\n'\nexit 0\n")
+	s.env.Lsof.Command = fakeLsof(t, "printf 'p42\\nf3\\nn"+open+"\\n'\nexit 0\n")
 
-	r, _, stderr := run(s, false)
+	r, _, stderr := run(s.rule(t), false)
 
 	assert.FileExists(t, open)
 	assert.Equal(t, 2, r.Count)
@@ -105,9 +118,9 @@ func TestAnOpenFileStaysWhenTheRootIsReachedThroughALink(t *testing.T) {
 	require.NoError(t, err)
 	defer file.Close()
 	s := logs(link)
-	s.Lsof.Command = "lsof"
+	s.env.Lsof = inuse.DefaultLsof()
 
-	_, _, stderr := run(s, false)
+	_, _, stderr := run(s.rule(t), false)
 
 	assert.FileExists(t, open, "lsof prints the resolved path, so the walk must use it too")
 	assert.Contains(t, stderr, "SKIPPED       "+open+": a process still has it open\n")
@@ -116,14 +129,14 @@ func TestAnOpenFileStaysWhenTheRootIsReachedThroughALink(t *testing.T) {
 func TestAFileWrittenAgainAfterTheScanStays(t *testing.T) {
 	folder := newLogs(t)
 	s := logs(folder)
-	s.Lsof.Command = fakeLsof(t, "find '"+folder+"' -name '*.jsonl' -exec touch {} +\nprintf 'n/\\n'\n")
-	s.Keep.Age.Now = time.Now
+	s.env.Lsof.Command = fakeLsof(t, "find '"+folder+"' -name '*.jsonl' -exec touch {} +\nprintf 'n/\\n'\n")
+	s.env.Now = time.Now
 	for _, name := range []string{"old.jsonl", "thirty-one.jsonl"} {
 		path := filepath.Join(folder, "-dev-app", name)
 		require.NoError(t, os.Chtimes(path, time.Now().Add(-40*day), time.Now().Add(-40*day)))
 	}
 
-	r, _, stderr := run(s, false)
+	r, _, stderr := run(s.rule(t), false)
 
 	assert.FileExists(t, filepath.Join(folder, "-dev-app", "old.jsonl"))
 	assert.Zero(t, r.Count)
@@ -142,9 +155,9 @@ func TestOpenFilesAreAskedAboutWithAFreshListingForEachBatch(t *testing.T) {
 	last := paths[openAnswersPerListing]
 	calls := filepath.Join(t.TempDir(), "calls")
 	s := logs(folder)
-	s.Lsof.Command = fakeLsof(t, "echo listed >>"+calls+"\nprintf 'p42\\nf3\\nn"+last+"\\n'\n")
+	s.env.Lsof.Command = fakeLsof(t, "echo listed >>"+calls+"\nprintf 'p42\\nf3\\nn"+last+"\\n'\n")
 
-	r, _, stderr := run(s, false)
+	r, _, stderr := run(s.rule(t), false)
 
 	assert.Equal(t, openAnswersPerListing, r.Count)
 	assert.FileExists(t, last, "open in the second batch")
@@ -157,9 +170,9 @@ func TestOpenFilesAreAskedAboutWithAFreshListingForEachBatch(t *testing.T) {
 func TestAFailedOpenCheckRemovesNothing(t *testing.T) {
 	folder := newLogs(t)
 	s := logs(folder)
-	s.Lsof.Command = fakeLsof(t, "echo 'lsof: status error' >&2\nexit 1\n")
+	s.env.Lsof.Command = fakeLsof(t, "echo 'lsof: status error' >&2\nexit 1\n")
 
-	r, _, _ := run(s, false)
+	r, _, _ := run(s.rule(t), false)
 
 	assert.FileExists(t, filepath.Join(folder, "-dev-app", "old.jsonl"))
 	assert.Zero(t, r.Count)
@@ -173,15 +186,15 @@ func TestNoAgeRemovesEvenAFileStampedInTheFuture(t *testing.T) {
 	future := filepath.Join(folder, "future.jsonl")
 	writeLog(t, future, -time.Hour)
 	s := logs(folder)
-	s.Keep.Age.Min = 0
+	s.env.Duration = func(string) time.Duration { return 0 }
 
-	r, _, _ := run(s, false)
+	r, _, _ := run(s.rule(t), false)
 
 	assert.NoFileExists(t, future)
 	assert.Equal(t, 1, r.Count)
 }
 
-func TestARelativeRootKeepsAFileGitTracks(t *testing.T) {
+func TestAFileGitTracksStays(t *testing.T) {
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
 	tracked := filepath.Join(root, "logs", "old.jsonl")
@@ -194,9 +207,8 @@ func TestARelativeRootKeepsAFileGitTracks(t *testing.T) {
 		output, err := exec.Command("git", append([]string{"-C", root}, args...)...).CombinedOutput()
 		require.NoError(t, err, string(output))
 	}
-	t.Chdir(root)
 
-	r, _, stderr := run(logs("logs"), false)
+	r, _, stderr := run(logs(filepath.Join(root, "logs")).rule(t), false)
 
 	assert.FileExists(t, tracked)
 	assert.Zero(t, r.Count)
@@ -206,7 +218,7 @@ func TestARelativeRootKeepsAFileGitTracks(t *testing.T) {
 func TestFilesDryRunRemovesNothing(t *testing.T) {
 	folder := newLogs(t)
 
-	r, stdout, _ := run(logs(folder), true)
+	r, stdout, _ := run(logs(folder).rule(t), true)
 
 	assert.FileExists(t, filepath.Join(folder, "-dev-app", "old.jsonl"))
 	assert.Equal(t, 3, r.Count)
@@ -220,7 +232,7 @@ func TestAnUnreadableFolderUnderTheRootFails(t *testing.T) {
 	require.NoError(t, os.Chmod(locked, 0))
 	t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
 
-	r, _, _ := run(logs(folder), false)
+	r, _, _ := run(logs(folder).rule(t), false)
 
 	require.Len(t, r.Failures, 1)
 	assert.Contains(t, r.Failures[0], "scan "+folder)
@@ -231,7 +243,7 @@ func TestFilesUnderAMissingRootAreQuiet(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	r := &report.Report{Out: &stdout, Err: &stderr}
 
-	logs(filepath.Join(t.TempDir(), "absent")).Run(r)
+	logs(filepath.Join(t.TempDir(), "absent")).rule(t).Run(r)
 
 	assert.Zero(t, r.Count)
 	assert.Empty(t, stdout.String())

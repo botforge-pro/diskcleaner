@@ -15,17 +15,21 @@ import (
 
 func idleProcesses(string) (bool, error) { return false, nil }
 
-func builtinRule(t *testing.T, name, home string, env map[string]string) rule.Rule {
+func builtinFile(t *testing.T, name string) rule.File {
 	data, err := fs.ReadFile(builtinFiles, "builtin/"+name+".yaml")
 	require.NoError(t, err)
 	f, err := rule.Parse(name+".yaml", data)
 	require.NoError(t, err)
-	return f.Rule(rule.Environment{
+	return f
+}
+
+func builtinRoot(t *testing.T, name, home string, env map[string]string) string {
+	return builtinFile(t, name).Rule(rule.Environment{
 		Home:     home,
 		Getenv:   func(key string) string { return env[key] },
 		Running:  idleProcesses,
 		Duration: func(key string) time.Duration { return settingsDefault(t, name+"."+key) },
-	})
+	}).Root()
 }
 
 func settingsDefault(t *testing.T, key string) time.Duration {
@@ -63,11 +67,11 @@ func TestACatalogThatCannotRunAsWrittenIsRefused(t *testing.T) {
 
 func TestSwiftPMCacheGoesWholeWhileNoSwiftOrXcodeBuilds(t *testing.T) {
 	home := t.TempDir()
-	s := builtinRule(t, "swiftpm-cache", home, nil)
+	f := builtinFile(t, "swiftpm-cache")
 
-	assert.Equal(t, filepath.Join(home, "Library/Caches/org.swift.swiftpm"), s.Root)
-	assert.Empty(t, s.Folders)
-	pattern := regexp.MustCompile(s.Busy.Processes)
+	assert.Equal(t, filepath.Join(home, "Library/Caches/org.swift.swiftpm"), builtinRoot(t, "swiftpm-cache", home, nil))
+	assert.True(t, f.Remove.Root)
+	pattern := regexp.MustCompile(f.BusyPattern())
 	for _, command := range []string{
 		"/usr/bin/swift-build --package-path app",
 		"/usr/bin/swift-run app",
@@ -81,39 +85,38 @@ func TestSwiftPMCacheGoesWholeWhileNoSwiftOrXcodeBuilds(t *testing.T) {
 func TestSessionLogsAreLookedForWhereEachToolKeepsThem(t *testing.T) {
 	home := t.TempDir()
 
-	claude := builtinRule(t, "claude-logs", home, nil)
-	assert.Equal(t, filepath.Join(home, ".claude", "projects"), claude.Root)
-	assert.Equal(t, "CLAUDE", claude.Label)
-	assert.Equal(t, "/opt/claude/projects", builtinRule(t, "claude-logs", home, map[string]string{"CLAUDE_CONFIG_DIR": "/opt/claude"}).Root)
+	assert.Equal(t, filepath.Join(home, ".claude", "projects"), builtinRoot(t, "claude-logs", home, nil))
+	assert.Equal(t, "CLAUDE", builtinFile(t, "claude-logs").Label())
+	assert.Equal(t, "/opt/claude/projects", builtinRoot(t, "claude-logs", home, map[string]string{"CLAUDE_CONFIG_DIR": "/opt/claude"}))
 
-	codex := builtinRule(t, "codex-logs", home, nil)
-	assert.Equal(t, filepath.Join(home, ".codex", "sessions"), codex.Root)
-	assert.Equal(t, "CODEX", codex.Label)
-	assert.Equal(t, "/opt/codex/sessions", builtinRule(t, "codex-logs", home, map[string]string{"CODEX_HOME": "/opt/codex"}).Root)
+	assert.Equal(t, filepath.Join(home, ".codex", "sessions"), builtinRoot(t, "codex-logs", home, nil))
+	assert.Equal(t, "CODEX", builtinFile(t, "codex-logs").Label())
+	assert.Equal(t, "/opt/codex/sessions", builtinRoot(t, "codex-logs", home, map[string]string{"CODEX_HOME": "/opt/codex"}))
 }
 
 func TestSessionLogsKeepWhatIsYoung(t *testing.T) {
 	for _, name := range []string{"claude-logs", "codex-logs"} {
-		s := builtinRule(t, name, t.TempDir(), nil)
+		f := builtinFile(t, name)
 
-		assert.Equal(t, []string{"**/*.jsonl"}, s.Files, name)
-		assert.Equal(t, 20*24*time.Hour, s.Keep.Age.Min, name)
+		assert.Equal(t, []string{"**/*.jsonl"}, f.Remove.Files, name)
+		assert.Equal(t, "min-age", f.Keep.WrittenWithin, name)
+		assert.Equal(t, 20*24*time.Hour, settingsDefault(t, name+".min-age"), name)
 	}
 }
 
 func TestEmulatorSnapshotsAreLookedForWhereAndroidKeepsDevices(t *testing.T) {
 	home := t.TempDir()
 
-	assert.Equal(t, filepath.Join(home, ".android/avd"), builtinRule(t, "emulator-snapshots", home, nil).Root)
-	assert.Equal(t, "/opt/android/avd", builtinRule(t, "emulator-snapshots", home, map[string]string{"ANDROID_USER_HOME": "/opt/android"}).Root)
-	assert.Equal(t, "/opt/avd", builtinRule(t, "emulator-snapshots", home, map[string]string{"ANDROID_AVD_HOME": "/opt/avd", "ANDROID_USER_HOME": "/opt/android"}).Root)
+	assert.Equal(t, filepath.Join(home, ".android/avd"), builtinRoot(t, "emulator-snapshots", home, nil))
+	assert.Equal(t, "/opt/android/avd", builtinRoot(t, "emulator-snapshots", home, map[string]string{"ANDROID_USER_HOME": "/opt/android"}))
+	assert.Equal(t, "/opt/avd", builtinRoot(t, "emulator-snapshots", home, map[string]string{"ANDROID_AVD_HOME": "/opt/avd", "ANDROID_USER_HOME": "/opt/android"}))
 }
 
 func TestEmulatorSnapshotsWaitForTheEmulatorAndNotTheSDKTools(t *testing.T) {
-	s := builtinRule(t, "emulator-snapshots", t.TempDir(), nil)
+	f := builtinFile(t, "emulator-snapshots")
 
-	assert.Equal(t, []string{"*.avd/snapshots/*"}, s.Folders)
-	pattern := regexp.MustCompile(s.Busy.Processes)
+	assert.Equal(t, []string{"*.avd/snapshots/*"}, f.Remove.Folders)
+	pattern := regexp.MustCompile(f.BusyPattern())
 	for _, command := range []string{
 		"/Users/me/Library/Android/sdk/emulator/qemu/darwin-aarch64/qemu-system-aarch64 -avd Pixel",
 		"/Users/me/Library/Android/sdk/emulator/emulator -avd Pixel -no-window",

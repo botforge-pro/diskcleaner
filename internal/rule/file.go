@@ -14,6 +14,7 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
+	"github.com/botforge-pro/diskcleaner/internal/config"
 	"github.com/botforge-pro/diskcleaner/internal/process"
 )
 
@@ -27,14 +28,41 @@ var (
 )
 
 type File struct {
-	Name       string   `yaml:"name"`
-	Label      string   `yaml:"label"`
-	Describes  string   `yaml:"describes"`
-	Reversible bool     `yaml:"reversible"`
-	Root       string   `yaml:"root"`
-	Busy       BusyWhen `yaml:"busy"`
-	Remove     Removal  `yaml:"remove"`
+	Name       string    `yaml:"name"`
+	Order      int       `yaml:"order"`
+	Label      string    `yaml:"label"`
+	Describes  string    `yaml:"describes"`
+	Reversible bool      `yaml:"reversible"`
+	Settings   []Setting `yaml:"settings"`
+	Run        string    `yaml:"run"`
+	Root       string    `yaml:"root"`
+	Busy       BusyWhen  `yaml:"busy"`
+	Remove     Removal   `yaml:"remove"`
 	places     []place
+}
+
+type Setting struct {
+	Key     string `yaml:"key"`
+	Kind    string `yaml:"kind"`
+	Default string `yaml:"default"`
+	Help    string `yaml:"help"`
+}
+
+var kinds = map[string]config.Kind{
+	"bool":     config.Bool,
+	"duration": config.Duration,
+	"timeout":  config.Timeout,
+	"size":     config.Size,
+	"count":    config.Count,
+	"folders":  config.Dirs,
+}
+
+func (f File) Step() config.Step {
+	settings := make([]config.Setting, len(f.Settings))
+	for i, s := range f.Settings {
+		settings[i] = config.Setting{Key: s.Key, Kind: kinds[s.Kind], Default: s.Default, Help: s.Help}
+	}
+	return config.Step{Name: f.Name, Reversible: f.Reversible, Settings: settings}
 }
 
 type BusyWhen struct {
@@ -115,10 +143,24 @@ func (f *File) check(base string) error {
 		return fmt.Errorf("name %q: want lowercase words joined by -, like xcode-derived-data", f.Name)
 	case f.Name != base:
 		return fmt.Errorf("name %q: want the name of the file, %q", f.Name, base)
-	case f.Label == "" || len(f.Label) > 8 || strings.ToUpper(f.Label) != f.Label:
-		return fmt.Errorf("label %q: want up to 8 capital letters", f.Label)
+	case f.Order <= 0:
+		return errors.New("order: want a whole number above 0; steps run from the lowest")
 	case f.Describes == "":
 		return errors.New("describes: want what the step removes, for --help")
+	}
+	for _, s := range f.Settings {
+		if err := s.check(); err != nil {
+			return err
+		}
+	}
+	if f.Run != "" {
+		if f.Label != "" || f.Root != "" || f.Busy.Says != "" || len(f.Busy.Processes) > 0 || len(f.Busy.Groups) > 0 || f.Remove.given {
+			return fmt.Errorf("run %q: the step is written in code, so label, root, busy and remove belong to it there", f.Run)
+		}
+		return nil
+	}
+	if f.Label == "" || len(f.Label) > 8 || strings.ToUpper(f.Label) != f.Label {
+		return fmt.Errorf("label %q: want up to 8 capital letters", f.Label)
 	}
 	places, err := parseRoot(f.Root)
 	if err != nil {
@@ -149,6 +191,22 @@ func (f *File) check(base string) error {
 		if _, err := filepath.Match(pattern, ""); err != nil || filepath.IsAbs(pattern) || slices.Contains(strings.Split(pattern, "/"), "..") {
 			return fmt.Errorf("remove: folders: %q: want a pattern inside the root, like *.avd/snapshots/*", pattern)
 		}
+	}
+	return nil
+}
+
+func (s Setting) check() error {
+	kind, ok := kinds[s.Kind]
+	switch {
+	case !stepName.MatchString(s.Key) || s.Key == "enabled":
+		return fmt.Errorf("settings: key %q: want lowercase words joined by -, other than enabled", s.Key)
+	case !ok:
+		return fmt.Errorf("settings: %s: kind %q: want one of %s", s.Key, s.Kind, strings.Join(slices.Sorted(maps.Keys(kinds)), ", "))
+	case s.Help == "":
+		return fmt.Errorf("settings: %s: help: want what it changes, for --help", s.Key)
+	}
+	if _, err := config.Parse(config.Setting{Key: s.Key, Kind: kind}, s.Default, "/"); err != nil {
+		return fmt.Errorf("settings: %s: default: %w", s.Key, err)
 	}
 	return nil
 }

@@ -1,0 +1,16 @@
+name: docker-images
+order: 30
+describes: Docker images not used by any container
+reversible: true
+
+settings:
+  - key: timeout
+    kind: timeout
+    default: 30s
+    help: give up on a Docker that does not answer within this
+  - key: prune-timeout
+    kind: timeout
+    default: 15m
+    help: give up on a prune that runs longer
+
+run: docker-images

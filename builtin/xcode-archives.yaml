@@ -1,0 +1,16 @@
+name: xcode-archives
+order: 80
+describes: old Xcode archives, the newest of each app kept
+reversible: false
+
+settings:
+  - key: min-age
+    kind: duration
+    default: 15d
+    help: remove archives older than this
+  - key: keep
+    kind: count
+    default: "1"
+    help: keep this many newest archives of each app
+
+run: xcode-archives

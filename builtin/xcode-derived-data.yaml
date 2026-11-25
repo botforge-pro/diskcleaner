@@ -1,0 +1,6 @@
+name: xcode-derived-data
+order: 70
+describes: Xcode DerivedData
+reversible: true
+
+run: xcode-derived-data

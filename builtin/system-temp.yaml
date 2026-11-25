@@ -1,0 +1,6 @@
+name: system-temp
+order: 100
+describes: your files and empty folders in /private/tmp untouched for 3 days, as macOS removes them
+reversible: false
+
+run: system-temp

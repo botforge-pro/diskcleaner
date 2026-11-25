@@ -1,0 +1,16 @@
+name: projects
+order: 10
+describes: build output, Python caches, node_modules and Git leftovers in your projects
+reversible: true
+
+settings:
+  - key: git-tmp-min-age
+    kind: duration
+    default: 1h
+    help: keep temporary files of git fetch and repack written within this
+  - key: lfs-timeout
+    kind: timeout
+    default: 10m
+    help: give up on a git lfs prune of one repository that runs longer
+
+run: projects

@@ -1,0 +1,6 @@
+name: code-sign-clones
+order: 110
+describes: copies of Chrome and other apps no running app uses
+reversible: true
+
+run: code-sign-clones

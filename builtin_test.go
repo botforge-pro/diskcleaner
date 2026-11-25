@@ -14,8 +14,10 @@ import (
 func idleProcesses(string) (bool, error) { return false, nil }
 
 func builtinRule(t *testing.T, name, home string, env map[string]string) rule.Rule {
-	f, ok := builtins[name]
-	require.True(t, ok, name)
+	data, err := fs.ReadFile(builtinFiles, "builtin/"+name+".yaml")
+	require.NoError(t, err)
+	f, err := rule.Parse(name+".yaml", data)
+	require.NoError(t, err)
 	return f.Rule(home, func(key string) string { return env[key] }, idleProcesses)
 }
 
@@ -27,6 +29,30 @@ func TestEveryBuiltinFileLoadsAndIsInTheCatalog(t *testing.T) {
 		step := filepath.Base(name[:len(name)-len(".yaml")])
 		assert.Contains(t, stepNames(), step, "%s is loaded but no step runs it", name)
 	}
+}
+
+func TestTheStepsRunInTheirOrder(t *testing.T) {
+	assert.Equal(t, []string{
+		"projects", "gradle-caches", "docker-images", "go-cache", "homebrew", "swiftpm-cache",
+		"xcode-derived-data", "xcode-archives", "temp-leftovers", "system-temp", "code-sign-clones",
+		"ide-old-versions", "simulator-caches", "emulator-snapshots", "claude-logs", "codex-logs",
+		"claude-scratchpads",
+	}, stepNames())
+}
+
+func TestACatalogThatCannotRunAsWrittenIsRefused(t *testing.T) {
+	code := map[string]construct{"a": nil, "unused": nil}
+	files := []rule.File{
+		{Name: "a", Order: 10, Run: "a"},
+		{Name: "b", Order: 10, Run: "missing"},
+	}
+
+	err := checkCatalog(files, code)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "b.yaml: order 10: a.yaml has it too")
+	assert.Contains(t, err.Error(), `b.yaml: run "missing": no step written in code has this name`)
+	assert.Contains(t, err.Error(), "the step unused is written in code, but no file runs it")
 }
 
 func TestSwiftPMCacheGoesWholeWhileNoSwiftOrXcodeBuilds(t *testing.T) {

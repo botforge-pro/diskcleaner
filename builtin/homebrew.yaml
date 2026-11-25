@@ -1,0 +1,12 @@
+name: homebrew
+order: 50
+describes: old Homebrew versions and downloads
+reversible: false
+
+settings:
+  - key: timeout
+    kind: timeout
+    default: 15m
+    help: give up on a cleanup that runs longer
+
+run: homebrew

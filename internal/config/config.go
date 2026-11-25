@@ -149,7 +149,7 @@ func Load(t Table, set *pflag.FlagSet, home string) (*Config, error) {
 		}
 	})
 	for _, s := range t {
-		value, err := parse(s, raw[s.Key], home)
+		value, err := Parse(s, raw[s.Key], home)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", s.Key, err)
 		}
@@ -186,7 +186,7 @@ func configPath(set *pflag.FlagSet, home string) (string, error) {
 	return path, nil
 }
 
-func parse(s Setting, raw any, home string) (any, error) {
+func Parse(s Setting, raw any, home string) (any, error) {
 	if s.Kind == Dirs {
 		return dirs(raw, home)
 	}

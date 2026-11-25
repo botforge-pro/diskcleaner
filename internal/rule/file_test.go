@@ -4,11 +4,13 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/botforge-pro/diskcleaner/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 const valid = `name: some-cache
+order: 10
 label: SOME
 describes: the cache of some tool
 root: $SOME_CACHE or $SOME_HOME/cache or ~/Library/Caches/some
@@ -50,22 +52,55 @@ func TestTheRootIsTheFirstChoiceWhoseVariableIsSet(t *testing.T) {
 }
 
 func TestRemoveRootTakesTheRootWhole(t *testing.T) {
-	r := parse(t, "tmp.yaml", "name: tmp\nlabel: TMP\ndescribes: x\nroot: /private/tmp/tool\nremove: root\n").Rule("/Users/me", noVariables, nil)
+	r := parse(t, "tmp.yaml", "name: tmp\norder: 1\nlabel: TMP\ndescribes: x\nroot: /private/tmp/tool\nremove: root\n").Rule("/Users/me", noVariables, nil)
 
 	assert.Equal(t, "/private/tmp/tool", r.Root)
 	assert.Empty(t, r.Targets)
 }
 
+func TestAStepWrittenInCodeDeclaresItsSettings(t *testing.T) {
+	f := parse(t, "xcode-archives.yaml", `name: xcode-archives
+order: 80
+describes: old Xcode archives, the newest of each app kept
+settings:
+  - key: min-age
+    kind: duration
+    default: 15d
+    help: remove archives older than this
+  - key: keep
+    kind: count
+    default: "1"
+    help: keep this many newest archives of each app
+run: xcode-archives
+`)
+
+	step := f.Step()
+
+	assert.Equal(t, "xcode-archives", f.Run)
+	assert.Equal(t, "xcode-archives", step.Name)
+	assert.False(t, step.Reversible)
+	require.Len(t, step.Settings, 2)
+	assert.Equal(t, config.Setting{Key: "min-age", Kind: config.Duration, Default: "15d", Help: "remove archives older than this"}, step.Settings[0])
+	assert.Equal(t, config.Count, step.Settings[1].Kind)
+}
+
 func TestAMistakeInAFileIsNamed(t *testing.T) {
-	head := "label: A\ndescribes: x\n"
+	head := "order: 1\nlabel: A\ndescribes: x\n"
+	code := "order: 1\ndescribes: x\nrun: a\n"
 	cases := []struct {
 		name, file, body, want string
 	}{
 		{"unknown key", "a.yaml", "name: a\n" + head + "root: ~/a\nremove: root\ntargets: [x]\n", "field targets not found"},
 		{"name differs from the file", "a.yaml", "name: b\n" + head + "root: ~/a\nremove: root\n", `want the name of the file, "a"`},
 		{"name not in words", "A_b.yaml", "name: A_b\n" + head + "root: ~/a\nremove: root\n", "want lowercase words"},
-		{"long label", "a.yaml", "name: a\nlabel: TOOLONGLABEL\ndescribes: x\nroot: ~/a\nremove: root\n", "want up to 8 capital letters"},
-		{"no describes", "a.yaml", "name: a\nlabel: A\nroot: ~/a\nremove: root\n", "describes: want"},
+		{"long label", "a.yaml", "name: a\norder: 1\nlabel: TOOLONGLABEL\ndescribes: x\nroot: ~/a\nremove: root\n", "want up to 8 capital letters"},
+		{"no describes", "a.yaml", "name: a\norder: 1\nlabel: A\nroot: ~/a\nremove: root\n", "describes: want"},
+		{"no order", "a.yaml", "name: a\nlabel: A\ndescribes: x\nroot: ~/a\nremove: root\n", "order: want a whole number above 0"},
+		{"code with a root", "a.yaml", "name: a\n" + code + "root: ~/a\n", "belong to it there"},
+		{"setting of an unknown kind", "a.yaml", "name: a\n" + code + "settings: [{key: wait, kind: minutes, default: '1', help: x}]\n", "want one of bool, count, duration, folders, size, timeout"},
+		{"setting with a bad default", "a.yaml", "name: a\n" + code + "settings: [{key: wait, kind: duration, default: soon, help: x}]\n", "settings: wait: default: want a duration"},
+		{"setting named enabled", "a.yaml", "name: a\n" + code + "settings: [{key: enabled, kind: bool, default: 'true', help: x}]\n", "other than enabled"},
+		{"setting without help", "a.yaml", "name: a\n" + code + "settings: [{key: wait, kind: duration, default: 1h}]\n", "settings: wait: help: want"},
 		{"no root", "a.yaml", "name: a\n" + head + "remove: root\n", "root: want a folder"},
 		{"variable last", "a.yaml", "name: a\n" + head + "root: ~/a or $A_HOME\nremove: root\n", "the last choice must be a path"},
 		{"relative path", "a.yaml", "name: a\n" + head + "root: Library/a\nremove: root\n", "want $VARIABLE"},

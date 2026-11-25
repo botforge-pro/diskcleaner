@@ -1,0 +1,12 @@
+name: codex-logs
+order: 160
+describes: old Codex session logs
+reversible: false
+
+settings:
+  - key: min-age
+    kind: duration
+    default: 20d
+    help: remove session logs older than this
+
+run: codex-logs

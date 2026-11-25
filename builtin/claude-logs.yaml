@@ -1,0 +1,12 @@
+name: claude-logs
+order: 150
+describes: old Claude Code session logs
+reversible: false
+
+settings:
+  - key: min-age
+    kind: duration
+    default: 20d
+    help: remove session logs older than this
+
+run: claude-logs

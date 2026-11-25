@@ -17,6 +17,7 @@ type place struct {
 	command  []string
 	absolute bool
 	then     string
+	remove   *Removal
 }
 
 type Root struct {
@@ -28,6 +29,7 @@ type commandPlace struct {
 	Command  []string `yaml:"command"`
 	Absolute bool     `yaml:"absolute"`
 	Then     string   `yaml:"then"`
+	Remove   *Removal `yaml:"remove"`
 }
 
 const rootForms = "root: want a path, a variable choice like $TOOL_HOME/cache or ~/.tool/cache, {command: [...]}, or a list of these"
@@ -75,7 +77,7 @@ func decodeCommandPlace(node *yaml.Node) (place, error) {
 	if len(c.Command) == 0 {
 		return place{}, errors.New("root: command: want the command and its arguments, whose one line of output is the folder")
 	}
-	return place{command: c.Command, absolute: c.Absolute, then: c.Then}, nil
+	return place{command: c.Command, absolute: c.Absolute, then: c.Then, remove: c.Remove}, nil
 }
 
 func pathPlace(part string) (place, error) {
@@ -123,40 +125,45 @@ func (root Root) words() string {
 }
 
 func (s Rule) resolve(r *report.Report, root Root) (string, bool) {
-	folder, ok := s.choose(r, root)
+	folder, _, ok := s.resolveChoice(r, root)
+	return folder, ok
+}
+
+func (s Rule) resolveChoice(r *report.Report, root Root) (string, place, bool) {
+	folder, chosen, ok := s.choose(r, root)
 	if !ok {
-		return "", false
+		return "", place{}, false
 	}
 	clean := filepath.Clean(folder)
 	home := filepath.Clean(s.env.Home)
 	if !filepath.IsAbs(clean) || clean == "/" || clean == home || strings.HasPrefix(home, clean+"/") {
 		r.Fail("root %s: refused, as removing in it would reach %s", folder, "/, the home folder or a folder above it")
-		return "", false
+		return "", place{}, false
 	}
-	return clean, true
+	return clean, chosen, true
 }
 
-func (s Rule) choose(r *report.Report, root Root) (string, bool) {
+func (s Rule) choose(r *report.Report, root Root) (string, place, bool) {
 	for i, p := range root.places {
 		last := i == len(root.places)-1
 		switch {
 		case p.command != nil:
 			folder, ok := s.commandFolder(r, p, last)
 			if ok {
-				return folder, true
+				return folder, p, true
 			}
 			if last {
-				return "", false
+				return "", place{}, false
 			}
 		case p.variable == "":
-			return expand(s.env.Home, p.path), true
+			return expand(s.env.Home, p.path), p, true
 		default:
 			if value := s.env.Getenv(p.variable); value != "" {
-				return filepath.Join(value, p.path), true
+				return filepath.Join(value, p.path), p, true
 			}
 		}
 	}
-	return "", false
+	return "", place{}, false
 }
 
 func (s Rule) commandFolder(r *report.Report, p place, last bool) (string, bool) {

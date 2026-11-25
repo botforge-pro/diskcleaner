@@ -126,6 +126,9 @@ func (f File) usedSettings() map[string]bool {
 	}
 	add(f.Keep.Age.Within)
 	add(f.Ready.Timeout)
+	if f.Remove.Newest != nil {
+		add(f.Remove.Newest.Keep)
+	}
 	for _, c := range f.Remove.Commands {
 		add(c.Timeout)
 		add(c.Estimate.Timeout)
@@ -206,60 +209,6 @@ func literalDuration(text string) (time.Duration, error) {
 		return 0, err
 	}
 	return value.(time.Duration), nil
-}
-
-type Removal struct {
-	Root     bool
-	Folders  []string
-	Files    []string
-	Commands []Command
-	given    bool
-}
-
-func (m *Removal) UnmarshalYAML(node *yaml.Node) error {
-	m.given = true
-	want := fmt.Errorf("line %d: remove: want root, one of folders: [patterns] and files: [patterns], or run: [command] or a list of these", node.Line)
-	if node.Kind == yaml.ScalarNode {
-		if node.Value != "root" {
-			return want
-		}
-		m.Root = true
-		return nil
-	}
-	if node.Kind == yaml.SequenceNode {
-		for _, item := range node.Content {
-			var c Command
-			if err := strict(item, &c); err != nil {
-				return fmt.Errorf("remove: %w", err)
-			}
-			m.Commands = append(m.Commands, c)
-		}
-		return nil
-	}
-	if node.Kind == yaml.MappingNode && slices.ContainsFunc(node.Content, func(key *yaml.Node) bool { return key.Value == "run" }) {
-		var c Command
-		if err := strict(node, &c); err != nil {
-			return fmt.Errorf("remove: %w", err)
-		}
-		m.Commands = []Command{c}
-		return nil
-	}
-	if node.Kind != yaml.MappingNode || len(node.Content) != 2 {
-		return want
-	}
-	var patterns []string
-	if err := node.Content[1].Decode(&patterns); err != nil {
-		return err
-	}
-	switch node.Content[0].Value {
-	case "folders":
-		m.Folders = patterns
-	case "files":
-		m.Files = patterns
-	default:
-		return want
-	}
-	return nil
 }
 
 const TestSuffix = "_test.yaml"
@@ -357,26 +306,14 @@ func (f *File) check() error {
 	if err := f.Stop.check(); err != nil {
 		return err
 	}
-	switch {
-	case !f.Remove.given:
-		return errors.New("remove: want root, or one of folders: [patterns] and files: [patterns] inside the root")
-	case !f.Remove.Root && len(f.Remove.Folders) == 0 && len(f.Remove.Files) == 0 && len(f.Remove.Commands) == 0:
-		return errors.New("remove: want at least one pattern")
+	if err := f.checkRemoval(f.Remove); err != nil {
+		return err
 	}
-	for _, c := range f.Remove.Commands {
-		if err := f.checkCommand(c); err != nil {
-			return err
-		}
-	}
-	for _, pattern := range f.Remove.Folders {
-		if !inside(pattern) || strings.Contains(pattern, "**") {
-			return fmt.Errorf("remove: folders: %q: want a pattern inside the root, like *.avd/snapshots/*", pattern)
-		}
-	}
-	for _, pattern := range f.Remove.Files {
-		rest, anywhere := strings.CutPrefix(pattern, "**/")
-		if !inside(rest) || strings.Contains(rest, "**") || anywhere && strings.Contains(rest, "/") {
-			return fmt.Errorf("remove: files: %q: want a pattern inside the root, like logs/*.log, or **/ and a name pattern, like **/*.jsonl", pattern)
+	for i := range f.Root.places {
+		if choice := f.Root.places[i].remove; choice != nil {
+			if err := f.checkRemoval(*choice); err != nil {
+				return fmt.Errorf("root: %w", err)
+			}
 		}
 	}
 	return f.checkKeep()

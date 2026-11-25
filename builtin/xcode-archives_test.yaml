@@ -1,0 +1,68 @@
+- case: old archives go and the newest of each app stays
+  files:
+    Library/Developer/Xcode/Archives/2026-09-25/App 25.09.2026.xcarchive/Info.plist:
+      text: <plist><dict><key>ApplicationProperties</key><dict><key>CFBundleIdentifier</key><string>com.example.app</string></dict><key>CreationDate</key><date>{ago 40d}</date></dict></plist>
+    Library/Developer/Xcode/Archives/App-20260905-120000.xcarchive/Info.plist:
+      text: <plist><dict><key>ApplicationProperties</key><dict><key>CFBundleIdentifier</key><string>com.example.app</string></dict><key>CreationDate</key><date>{ago 60d}</date></dict></plist>
+    Library/Developer/Xcode/Archives/2026-10-01/App 01.10.2026.xcarchive/Info.plist:
+      text: <plist><dict><key>ApplicationProperties</key><dict><key>CFBundleIdentifier</key><string>com.example.app</string></dict><key>CreationDate</key><date>{ago 34d}</date></dict></plist>
+    Library/Developer/Xcode/Archives/2026-11-01/App 01.11.2026.xcarchive/Info.plist:
+      text: <plist><dict><key>ApplicationProperties</key><dict><key>CFBundleIdentifier</key><string>com.example.app</string></dict><key>CreationDate</key><date>{ago 3d}</date></dict></plist>
+    Library/Developer/Xcode/Archives/2026-08-06/Other 06.08.2026.xcarchive/Info.plist:
+      text: <plist><dict><key>Name</key><string>Other</string><key>CreationDate</key><date>{ago 90d}</date></dict></plist>
+  removes:
+    - Library/Developer/Xcode/Archives/2026-09-25/App 25.09.2026.xcarchive
+    - Library/Developer/Xcode/Archives/App-20260905-120000.xcarchive
+    - Library/Developer/Xcode/Archives/2026-10-01/App 01.10.2026.xcarchive
+
+- case: as many newest archives stay as set
+  settings: {xcode-archives.keep: "2"}
+  files:
+    Library/Developer/Xcode/Archives/2026-09-25/App 25.09.2026.xcarchive/Info.plist:
+      text: <plist><dict><key>Name</key><string>App</string><key>CreationDate</key><date>{ago 40d}</date></dict></plist>
+    Library/Developer/Xcode/Archives/2026-10-01/App 01.10.2026.xcarchive/Info.plist:
+      text: <plist><dict><key>Name</key><string>App</string><key>CreationDate</key><date>{ago 34d}</date></dict></plist>
+    Library/Developer/Xcode/Archives/2026-08-01/App 01.08.2026.xcarchive/Info.plist:
+      text: <plist><dict><key>Name</key><string>App</string><key>CreationDate</key><date>{ago 100d}</date></dict></plist>
+  removes: [Library/Developer/Xcode/Archives/2026-08-01/App 01.08.2026.xcarchive]
+
+- case: an archive younger than the age stays even when not the newest
+  files:
+    Library/Developer/Xcode/Archives/2026-11-20/App 20.11.2026.xcarchive/Info.plist:
+      text: <plist><dict><key>Name</key><string>App</string><key>CreationDate</key><date>{ago 5d}</date></dict></plist>
+    Library/Developer/Xcode/Archives/2026-11-22/App 22.11.2026.xcarchive/Info.plist:
+      text: <plist><dict><key>Name</key><string>App</string><key>CreationDate</key><date>{ago 3d}</date></dict></plist>
+  removes: []
+  says: [made within 15d]
+
+- case: the age is read from the archive, not from when its folder changed
+  files:
+    Library/Developer/Xcode/Archives/2026-01-01/App 01.01.2026.xcarchive/Info.plist:
+      text: <plist><dict><key>Name</key><string>App</string><key>CreationDate</key><date>{ago 300d}</date></dict></plist>
+    Library/Developer/Xcode/Archives/2026-11-22/App 22.11.2026.xcarchive/Info.plist:
+      text: <plist><dict><key>Name</key><string>App</string><key>CreationDate</key><date>{ago 3d}</date></dict></plist>
+  removes: [Library/Developer/Xcode/Archives/2026-01-01/App 01.01.2026.xcarchive]
+
+- case: an archive whose Info.plist cannot be read stays and fails
+  files:
+    Library/Developer/Xcode/Archives/2026-09-01/Broken.xcarchive/Info.plist: {text: <plist><dict>}
+  removes: []
+  fails: [Broken.xcarchive/Info.plist]
+  says: [does not say what it is and when it was made]
+
+- case: archives in folders not named by a date stay
+  files:
+    Library/Developer/Xcode/Archives/Keep/App 01.01.2026.xcarchive/Info.plist:
+      text: <plist><dict><key>Name</key><string>App</string><key>CreationDate</key><date>{ago 300d}</date></dict></plist>
+    Library/Developer/Xcode/Archives/Released/App 02.01.2026.xcarchive/Info.plist:
+      text: <plist><dict><key>Name</key><string>App</string><key>CreationDate</key><date>{ago 290d}</date></dict></plist>
+  removes: []
+  counts: 0
+
+- case: a running Xcode keeps every archive
+  running: [/Applications/Xcode.app/Contents/MacOS/Xcode]
+  files:
+    Library/Developer/Xcode/Archives/2026-01-01/App 01.01.2026.xcarchive/Info.plist:
+      text: <plist><dict><key>Name</key><string>App</string><key>CreationDate</key><date>{ago 300d}</date></dict></plist>
+  removes: []
+  says: [Xcode or an Xcode build is running]

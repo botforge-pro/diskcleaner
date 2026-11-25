@@ -30,6 +30,7 @@ type Environment struct {
 	Processes Processes
 	Commands  Commands
 	Duration  func(key string) time.Duration
+	Count     func(key string) int
 	Now       func() time.Time
 	Lsof      inuse.Lsof
 }
@@ -53,9 +54,10 @@ func SystemProcesses() Processes {
 }
 
 type Rule struct {
-	file File
-	root string
-	env  Environment
+	file   File
+	root   string
+	remove Removal
+	env    Environment
 }
 
 func (f File) Rule(env Environment) Rule {
@@ -98,10 +100,14 @@ func (s Rule) Run(r *report.Report) {
 	if !s.needed(r) {
 		return
 	}
+	s.remove = s.file.Remove
 	if !s.file.Root.empty() {
-		root, ok := s.resolve(r, s.file.Root)
+		root, chosen, ok := s.resolveChoice(r, s.file.Root)
 		if !ok || !r.Directory(root) {
 			return
+		}
+		if chosen.remove != nil {
+			s.remove = *chosen.remove
 		}
 		s.root = root
 		if resolved, err := filepath.EvalSymlinks(root); err == nil {
@@ -116,15 +122,15 @@ func (s Rule) Run(r *report.Report) {
 	if s.file.Stop.given() && !s.stopIdle(r) {
 		return
 	}
-	switch remove := s.file.Remove; {
+	switch remove := s.remove; {
 	case remove.Root:
 		r.Remove(s.root)
 	case len(remove.Folders) > 0:
-		s.removeFolders(r, s.folders(r))
+		s.removeFolders(r, s.olderThanTheNewest(r, s.folders(r)))
 	case len(remove.Files) > 0:
 		s.removeFiles(r)
 	}
-	for _, c := range s.file.Remove.Commands {
+	for _, c := range s.remove.Commands {
 		if !s.runCommand(r, c, s.root) {
 			return
 		}
@@ -203,31 +209,6 @@ func (s Rule) cpuTimes(r *report.Report) (string, bool) {
 	return times, true
 }
 
-func (s Rule) folders(r *report.Report) []string {
-	var matches []string
-	for _, pattern := range s.file.Remove.Folders {
-		found, err := filepath.Glob(filepath.Join(s.root, pattern))
-		if err != nil {
-			r.Fail("find %s: %v", s.root, err)
-			continue
-		}
-		matches = append(matches, found...)
-	}
-	slices.Sort(matches)
-	var folders []string
-	for _, match := range slices.Compact(matches) {
-		info, err := os.Lstat(match)
-		if err != nil {
-			r.Fail("stat %s: %v", match, err)
-			continue
-		}
-		if info.IsDir() {
-			folders = append(folders, match)
-		}
-	}
-	return folders
-}
-
 func (s Rule) removeFiles(r *report.Report) {
 	root, err := settings.Canonical(s.root)
 	if err != nil {
@@ -285,7 +266,7 @@ func (s Rule) wanted(root, path string) bool {
 	if err != nil {
 		return false
 	}
-	return slices.ContainsFunc(s.file.Remove.Files, func(pattern string) bool {
+	return slices.ContainsFunc(s.remove.Files, func(pattern string) bool {
 		if anywhere, ok := strings.CutPrefix(pattern, "**/"); ok {
 			matched, _ := filepath.Match(anywhere, filepath.Base(rel))
 			return matched

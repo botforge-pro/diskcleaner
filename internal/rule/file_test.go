@@ -43,7 +43,8 @@ func TestAValidFileBecomesARule(t *testing.T) {
 	assert.Equal(t, "/Users/me/Library/Caches/some", f.Rule(at("/Users/me", nil)).Root())
 	assert.Equal(t, "some-build|"+groups["xcode"], f.BusyPattern())
 	assert.Equal(t, "some build is running", f.Busy.Says)
-	assert.Equal(t, []string{"*/old"}, f.Remove.Folders)
+	require.Len(t, f.Remove.Folders, 1)
+	assert.Equal(t, "*/old", f.Remove.Folders[0].Glob)
 }
 
 func TestTheNameComesFromTheFileAndTheLabelFromItsFirstWord(t *testing.T) {

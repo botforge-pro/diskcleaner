@@ -85,6 +85,7 @@ func constructor(f rule.File) construct {
 			Processes: rule.SystemProcesses(),
 			Commands:  rule.SystemCommands(),
 			Duration:  c.Duration,
+			Count:     c.Count,
 			Now:       time.Now,
 			Lsof:      inuse.DefaultLsof(),
 		}), nil

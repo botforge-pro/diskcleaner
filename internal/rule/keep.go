@@ -26,8 +26,26 @@ type KeepWhen struct {
 }
 
 type AgeWhen struct {
-	Of     string `yaml:"of"`
+	Of     AgeOf  `yaml:"of"`
 	Within string `yaml:"within"`
+}
+
+func (a AgeWhen) given() bool {
+	return a.Within != "" || a.Of.Clock != "" || a.Of.Value != nil
+}
+
+type AgeOf struct {
+	Clock string
+	Value *Value
+}
+
+func (a *AgeOf) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind == yaml.ScalarNode {
+		a.Clock = node.Value
+		return nil
+	}
+	a.Value = &Value{}
+	return strict(node, a.Value)
 }
 
 type OpenWhen struct {
@@ -47,7 +65,7 @@ func (o OpenWhen) given() bool {
 }
 
 func (k KeepWhen) given() bool {
-	return k.Age != (AgeWhen{}) || k.Open.given() || k.Sockets || k.Mounts || k.Tracked
+	return k.Age.given() || k.Open.given() || k.Sockets || k.Mounts || k.Tracked
 }
 
 var ages = []string{"mtime", "newest-write"}
@@ -57,9 +75,14 @@ func (f File) checkKeep() error {
 	if !k.given() {
 		return nil
 	}
-	if k.Age != (AgeWhen{}) {
-		if !slices.Contains(ages, k.Age.Of) {
-			return fmt.Errorf("keep: age: of %q: want one of %v", k.Age.Of, ages)
+	if k.Age.given() {
+		switch {
+		case k.Age.Of.Value != nil:
+			if err := k.Age.Of.Value.check(); err != nil {
+				return fmt.Errorf("keep: age: of: %w", err)
+			}
+		case !slices.Contains(ages, k.Age.Of.Clock):
+			return fmt.Errorf("keep: age: of %q: want one of %v, or {file, key}, a date read from the folder", k.Age.Of.Clock, ages)
 		}
 		if !hasSetting(f.Settings, k.Age.Within, "duration") && k.Age.Within != "min-age" {
 			return fmt.Errorf("keep: age: within %q: want the key of one of this step's duration settings or min-age", k.Age.Within)
@@ -73,7 +96,7 @@ func (f File) checkKeep() error {
 	if f.Remove.Root || len(f.Remove.Commands) > 0 {
 		return errors.New("keep: want remove: folders or files; a root or a command has nothing to keep")
 	}
-	if len(f.Remove.Files) > 0 && (k.Sockets || k.Mounts || len(k.Open.Files) > 0 || k.Age.Of == "newest-write") {
+	if len(f.Remove.Files) > 0 && (k.Sockets || k.Mounts || len(k.Open.Files) > 0 || k.Age.Of.Clock != "mtime" && k.Age.given()) {
 		return errors.New("keep: for files, want age of mtime, open: true and tracked; the rest is for folders")
 	}
 	return nil
@@ -115,7 +138,7 @@ func (s Rule) removeFolders(r *report.Report, folders []string) {
 func (s Rule) keepFolder(r *report.Report, path string, open *inuse.Listing) (bool, error) {
 	k := s.file.Keep
 	limit := s.ageLimit()
-	if k.Mounts || k.Sockets || k.Age.Of == "newest-write" {
+	if k.Mounts || k.Sockets || k.Age.Of.Clock == "newest-write" {
 		volume, err := os.Stat(s.root)
 		if err != nil {
 			r.Fail("stat %s: %v", s.root, err)
@@ -139,18 +162,30 @@ func (s Rule) keepFolder(r *report.Report, path string, open *inuse.Listing) (bo
 		case k.Sockets && found.socket != "":
 			r.Skip("%s: holds the socket %s, which a process may be listening on", path, found.socket)
 			return true, nil
-		case k.Age.Of == "newest-write" && limit.Recent(found.latest):
+		case k.Age.Of.Clock == "newest-write" && limit.Recent(found.latest):
 			r.Skip("%s: written within %s", path, limit)
 			return true, nil
 		}
 	}
-	if k.Age.Of == "mtime" {
+	if k.Age.Of.Clock == "mtime" {
 		info, err := os.Lstat(path)
 		if err != nil {
 			r.Fail("stat %s: %v", path, err)
 			return true, nil
 		}
 		if limit.Recent(info.ModTime()) {
+			r.Skip("%s: made within %s", path, limit)
+			return true, nil
+		}
+	}
+	if v := k.Age.Of.Value; v != nil {
+		made, err := v.time(path)
+		if err != nil {
+			r.Skip("%s: %s does not say when it was made", path, v.File)
+			r.Fail("read %s: %v", filepath.Join(path, v.File), err)
+			return true, nil
+		}
+		if limit.Recent(made) {
 			r.Skip("%s: made within %s", path, limit)
 			return true, nil
 		}

@@ -30,7 +30,9 @@ type stepCase struct {
 	Env      map[string]string      `yaml:"env"`
 	Running  []fakeProcess          `yaml:"running"`
 	Commands map[string]fakeCommand `yaml:"commands"`
-	Files    map[string]string      `yaml:"files"`
+	Files    map[string]fakeFile    `yaml:"files"`
+	Links    map[string]string      `yaml:"links"`
+	Settings map[string]string      `yaml:"settings"`
 	Open     []string               `yaml:"open"`
 	Tracked  []string               `yaml:"tracked"`
 	Removes  *[]string              `yaml:"removes"`
@@ -106,8 +108,8 @@ func (c stepCase) run(t *testing.T, f rule.File) {
 	require.NoError(t, err)
 	now := time.Now()
 	folders := map[string]time.Time{}
-	for path, age := range c.Files {
-		written := now.Add(-c.age(t, age))
+	for path, file := range c.Files {
+		written := now.Add(-c.age(t, file.Age))
 		full := filepath.Join(home, path)
 		if strings.HasSuffix(path, "/") {
 			require.NoError(t, os.MkdirAll(full, 0o755))
@@ -115,10 +117,21 @@ func (c stepCase) run(t *testing.T, f rule.File) {
 			continue
 		}
 		require.NoError(t, os.MkdirAll(filepath.Dir(full), 0o755))
-		require.NoError(t, os.WriteFile(full, []byte("x"), 0o644))
+		text := ago.ReplaceAllStringFunc(file.Text, func(found string) string {
+			return now.Add(-c.age(t, ago.FindStringSubmatch(found)[1])).UTC().Format(time.RFC3339)
+		})
+		if text == "" {
+			text = "x"
+		}
+		require.NoError(t, os.WriteFile(full, []byte(text), 0o644))
 		require.NoError(t, os.Chtimes(full, written, written))
 	}
 	ageFolders(t, home, folders)
+	for link, target := range c.Links {
+		full := filepath.Join(home, link)
+		require.NoError(t, os.MkdirAll(filepath.Dir(full), 0o755))
+		require.NoError(t, os.Symlink(filepath.Join(home, target), full))
+	}
 	if len(c.Tracked) > 0 {
 		track(t, home, c.Tracked)
 	}
@@ -130,7 +143,8 @@ func (c stepCase) run(t *testing.T, f rule.File) {
 		Getenv:    func(key string) string { return c.variable(home, key) },
 		Processes: newProcessTable(home, c.Running).processes(),
 		Commands:  c.commands(t, home),
-		Duration:  func(key string) time.Duration { return settingsDefault(t, key) },
+		Duration:  func(key string) time.Duration { return c.setting(t, key).(time.Duration) },
+		Count:     func(key string) int { return c.setting(t, key).(int) },
 		Now:       time.Now,
 		Lsof:      inuse.Lsof{Command: c.lsof(t, home), TimeoutSeconds: 5},
 	}).Run(r)
@@ -217,6 +231,34 @@ func (c stepCase) variable(home, key string) string {
 		return filepath.Join(home, rest)
 	}
 	return value
+}
+
+func (c stepCase) setting(t *testing.T, key string) any {
+	text, ok := c.Settings[key]
+	if !ok {
+		return settingsDefault(t, key)
+	}
+	s, found := settingsTable.Find(key)
+	require.True(t, found, "%s: settings: %s is no setting", c.Case, key)
+	value, err := config.Parse(s, text, "/")
+	require.NoError(t, err, "%s: settings: %s", c.Case, key)
+	return value
+}
+
+var ago = regexp.MustCompile(`\{ago ([^}]+)\}`)
+
+type fakeFile struct {
+	Age  string `yaml:"age"`
+	Text string `yaml:"text"`
+}
+
+func (f *fakeFile) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind == yaml.ScalarNode {
+		f.Age = node.Value
+		return nil
+	}
+	type plain fakeFile
+	return node.Decode((*plain)(f))
 }
 
 type fakeCommand struct {

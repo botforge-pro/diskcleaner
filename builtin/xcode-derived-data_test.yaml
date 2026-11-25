@@ -1,0 +1,76 @@
+- case: every folder in DerivedData goes
+  commands:
+    defaults read com.apple.dt.Xcode IDECustomDerivedDataLocation: {stderr: does not exist, exit: 1}
+  files:
+    Library/Developer/Xcode/DerivedData/App-123/Build/App.o:
+    Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Foundation.pcm:
+    Library/Developer/Xcode/DerivedData/info.plist:
+  removes:
+    - Library/Developer/Xcode/DerivedData/App-123
+    - Library/Developer/Xcode/DerivedData/ModuleCache.noindex
+
+- case: a dry run removes nothing
+  dry-run: true
+  commands:
+    defaults read com.apple.dt.Xcode IDECustomDerivedDataLocation: {exit: 1}
+  files:
+    Library/Developer/Xcode/DerivedData/App-123/Build/App.o:
+  removes: []
+  counts: 1
+
+- case: a running Xcode keeps everything
+  running: [/Applications/Xcode.app/Contents/MacOS/Xcode]
+  commands:
+    defaults read com.apple.dt.Xcode IDECustomDerivedDataLocation: {exit: 1}
+  files:
+    Library/Developer/Xcode/DerivedData/App-123/Build/App.o:
+  removes: []
+  says: [Xcode or an Xcode build is running]
+
+- case: in a folder picked in Xcode only what Xcode made goes
+  commands:
+    defaults read com.apple.dt.Xcode IDECustomDerivedDataLocation: {stdout: ~/Fast/DerivedData}
+  files:
+    Fast/DerivedData/App-abcdefghijklmnopqrstuvwxyzab/info.plist:
+    Fast/DerivedData/ModuleCache.noindex/Foundation.pcm:
+    Fast/DerivedData/App-123/Build/App.o:
+    Fast/DerivedData/notes-abcdefghijklmnopqrstuvwxyzab/todo.txt:
+    Library/Developer/Xcode/DerivedData/Other-1/Build/App.o:
+  removes:
+    - Fast/DerivedData/App-abcdefghijklmnopqrstuvwxyzab
+    - Fast/DerivedData/ModuleCache.noindex
+  says: ['notes-abcdefghijklmnopqrstuvwxyzab: not made by Xcode']
+
+- case: a picked folder that is gone is quiet rather than falling back
+  commands:
+    defaults read com.apple.dt.Xcode IDECustomDerivedDataLocation: {stdout: ~/Fast/DerivedData}
+  files:
+    Library/Developer/Xcode/DerivedData/App-123/Build/App.o:
+  removes: []
+  counts: 0
+
+- case: a picked folder that is not a path counts as not picked
+  commands:
+    defaults read com.apple.dt.Xcode IDECustomDerivedDataLocation: {stdout: DerivedData}
+  files:
+    Library/Developer/Xcode/DerivedData/App-123/Build/App.o:
+  removes: [Library/Developer/Xcode/DerivedData/App-123]
+
+- case: DerivedData reached through a link is cleaned where it is
+  commands:
+    defaults read com.apple.dt.Xcode IDECustomDerivedDataLocation: {exit: 1}
+  files:
+    Volumes/DerivedData/App-123/Build/App.o:
+  links:
+    Library/Developer/Xcode/DerivedData: Volumes/DerivedData
+  removes: [Volumes/DerivedData/App-123]
+
+- case: a link inside DerivedData stays, and so does what it points to
+  commands:
+    defaults read com.apple.dt.Xcode IDECustomDerivedDataLocation: {exit: 1}
+  files:
+    Library/Developer/Xcode/DerivedData/App-123/Build/App.o:
+    elsewhere/kept/work:
+  links:
+    Library/Developer/Xcode/DerivedData/Linked: elsewhere/kept
+  removes: [Library/Developer/Xcode/DerivedData/App-123]

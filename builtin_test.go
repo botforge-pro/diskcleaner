@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/botforge-pro/diskcleaner/internal/config"
 	"github.com/botforge-pro/diskcleaner/internal/rule"
@@ -13,12 +12,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func settingsDefault(t *testing.T, key string) time.Duration {
+func settingsDefault(t *testing.T, key string) any {
 	s, ok := settingsTable.Find(key)
 	require.True(t, ok, key)
 	value, err := config.Parse(s, s.Default, "/")
 	require.NoError(t, err)
-	return value.(time.Duration)
+	return value
 }
 
 func TestEveryBuiltinFileLoadsAndIsInTheCatalog(t *testing.T) {

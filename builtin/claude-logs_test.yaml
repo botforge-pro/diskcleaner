@@ -1,0 +1,30 @@
+- case: logs older than 20 days go, younger logs and other files stay
+  files:
+    .claude/projects/-dev-app/old.jsonl: 21d
+    .claude/projects/-dev-app/session/subagents/agent-old.jsonl: 30d
+    .claude/projects/-dev-app/young.jsonl: 19d
+    .claude/projects/-dev-app/notes.txt: 40d
+  removes:
+    - .claude/projects/-dev-app/old.jsonl
+    - .claude/projects/-dev-app/session/subagents/agent-old.jsonl
+
+- case: a log a process holds open stays
+  files:
+    .claude/projects/-dev-app/old.jsonl: 30d
+    .claude/projects/-dev-app/live.jsonl: 30d
+  open: [.claude/projects/-dev-app/live.jsonl]
+  removes: [.claude/projects/-dev-app/old.jsonl]
+  says: [a process still has it open]
+
+- case: a log Git tracks stays
+  files:
+    .claude/projects/repo/fixture.jsonl: 30d
+  tracked: [.claude/projects/repo/fixture.jsonl]
+  says: [contains files tracked by git]
+
+- case: CLAUDE_CONFIG_DIR moves the logs
+  env: {CLAUDE_CONFIG_DIR: ~/claude-config}
+  files:
+    claude-config/projects/a/old.jsonl: 30d
+    .claude/projects/a/old.jsonl: 30d
+  removes: [claude-config/projects/a/old.jsonl]

@@ -1,0 +1,39 @@
+- case: saved boot states go, the device's own data stays
+  files:
+    .android/avd/Pixel.avd/snapshots/default_boot/ram.bin:
+    .android/avd/Pixel.avd/snapshots/snapshots.pb:
+    .android/avd/Pixel.avd/userdata-qemu.img.qcow2:
+  removes: [.android/avd/Pixel.avd/snapshots/default_boot]
+
+- case: ANDROID_USER_HOME moves the devices
+  env: {ANDROID_USER_HOME: ~/android}
+  files:
+    android/avd/Pixel.avd/snapshots/default_boot/ram.bin:
+    .android/avd/Pixel.avd/snapshots/default_boot/ram.bin:
+  removes: [android/avd/Pixel.avd/snapshots/default_boot]
+
+- case: ANDROID_AVD_HOME wins over ANDROID_USER_HOME
+  env: {ANDROID_AVD_HOME: ~/avd, ANDROID_USER_HOME: ~/android}
+  files:
+    avd/Pixel.avd/snapshots/default_boot/ram.bin:
+    android/avd/Pixel.avd/snapshots/default_boot/ram.bin:
+  removes: [avd/Pixel.avd/snapshots/default_boot]
+
+- case: a running emulator keeps the snapshots
+  running: [/Users/me/Library/Android/sdk/emulator/qemu/darwin-aarch64/qemu-system-aarch64 -avd Pixel]
+  files:
+    .android/avd/Pixel.avd/snapshots/default_boot/ram.bin:
+  says: [an Android emulator is running]
+
+- case: the emulator launcher counts as running
+  running: [/Users/me/Library/Android/sdk/emulator/emulator -avd Pixel -no-window]
+  files:
+    .android/avd/Pixel.avd/snapshots/default_boot/ram.bin:
+
+- case: adb and the emulator's crash handler are not the emulator
+  running:
+    - /Users/me/Library/Android/sdk/platform-tools/adb devices
+    - /Users/me/Library/Android/sdk/emulator/crashpad_handler
+  files:
+    .android/avd/Pixel.avd/snapshots/default_boot/ram.bin:
+  removes: [.android/avd/Pixel.avd/snapshots/default_boot]

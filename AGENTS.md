@@ -19,7 +19,8 @@ to use it.
   steps in `internal/config`. The config file and the flags set the same keys.
 - Each step is described by `builtin/<step>.yaml`, and the README's table of
   steps is made from these files by `make readme`. A step whose work is written
-  in Go says `run: code` and is constructed in `steps.go`.
+  in Go says `run: code` and is constructed in `steps.go`; any other step has
+  its cases in `builtin/<step>_test.yaml`.
 - The config selects which steps run, where projects are and the thresholds.
 - Every step runs unless turned off, a step that deletes what cannot come back
   included; such a step is marked as one in `--help` and in the README.

@@ -186,6 +186,8 @@ type place struct {
 	path     string
 }
 
+const TestSuffix = "_test.yaml"
+
 func Load(fsys fs.FS) ([]File, error) {
 	names, err := fs.Glob(fsys, "*.yaml")
 	if err != nil {
@@ -194,6 +196,9 @@ func Load(fsys fs.FS) ([]File, error) {
 	var files []File
 	var errs []error
 	for _, name := range names {
+		if strings.HasSuffix(name, TestSuffix) {
+			continue
+		}
 		data, err := fs.ReadFile(fsys, name)
 		if err != nil {
 			errs = append(errs, err)

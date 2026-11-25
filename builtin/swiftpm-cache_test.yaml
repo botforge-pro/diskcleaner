@@ -1,0 +1,26 @@
+- case: the whole cache goes while nothing builds
+  files:
+    Library/Caches/org.swift.swiftpm/repositories/pkg.git/HEAD:
+  removes: [Library/Caches/org.swift.swiftpm]
+
+- case: a Swift package build keeps the cache
+  running: [/usr/bin/swift-build --package-path app]
+  files:
+    Library/Caches/org.swift.swiftpm/repositories/pkg.git/HEAD:
+  says: [a Swift package build, xcodebuild or Xcode is running]
+
+- case: running a package keeps the cache
+  running: [/usr/bin/swift-run app]
+  files:
+    Library/Caches/org.swift.swiftpm/repositories/pkg.git/HEAD:
+
+- case: Xcode keeps the cache, a beta too
+  running: [/Applications/Xcode-beta.app/Contents/MacOS/Xcode]
+  files:
+    Library/Caches/org.swift.swiftpm/repositories/pkg.git/HEAD:
+
+- case: git from Xcode's tools is not a build
+  running: [/Applications/Xcode.app/Contents/Developer/usr/bin/git status]
+  files:
+    Library/Caches/org.swift.swiftpm/repositories/pkg.git/HEAD:
+  removes: [Library/Caches/org.swift.swiftpm]

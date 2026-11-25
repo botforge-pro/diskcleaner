@@ -1,0 +1,12 @@
+- case: logs older than 20 days go, younger logs stay
+  files:
+    .codex/sessions/2026/10/01/rollout-old.jsonl: 21d
+    .codex/sessions/2026/11/20/rollout-young.jsonl: 5d
+  removes: [.codex/sessions/2026/10/01/rollout-old.jsonl]
+
+- case: CODEX_HOME moves the logs
+  env: {CODEX_HOME: ~/codex}
+  files:
+    codex/sessions/2026/10/01/rollout-old.jsonl: 30d
+    .codex/sessions/2026/10/01/rollout-old.jsonl: 30d
+  removes: [codex/sessions/2026/10/01/rollout-old.jsonl]

@@ -171,6 +171,7 @@ func TestLoadNamesEveryBadFileAndKeepsTheGoodOnes(t *testing.T) {
 		"a.yaml":          {Data: []byte("order: 1\n")},
 		"c.yaml":          {Data: []byte("nope: 1\n")},
 		"notes.txt":       {Data: []byte("not a rule")},
+		"a_test.yaml":     {Data: []byte("- case: tests of a step, not a step\n")},
 	}
 
 	files, err := Load(fsys)

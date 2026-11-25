@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -438,9 +439,13 @@ func (c stepCase) removed(path string) bool {
 }
 
 func (c stepCase) lsof(t *testing.T, home string) string {
-	listing := "n/\n"
+	listing := "fcwd\nn/\n"
 	for _, path := range c.Open {
-		listing += "n" + filepath.Join(home, path) + "\n"
+		full := filepath.Join(home, path)
+		info, err := os.Lstat(full)
+		require.NoError(t, err, "%s: open: %s", c.Case, path)
+		stat := info.Sys().(*syscall.Stat_t)
+		listing += fmt.Sprintf("f3\nD0x%x\ni%d\nn%s\n", uint64(stat.Dev), stat.Ino, full)
 	}
 	script := filepath.Join(t.TempDir(), "lsof")
 	body := fmt.Sprintf("#!/bin/sh\ncat <<'LISTING'\np1\n%sLISTING\n", listing)

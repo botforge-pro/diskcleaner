@@ -153,6 +153,14 @@ func (s Rule) timeout(text string) time.Duration {
 	return value
 }
 
+func (s Rule) within(timeout string) string {
+	limit := report.FormatDuration(s.timeout(timeout))
+	if hasSetting(s.file.Settings, timeout, "timeout") {
+		return fmt.Sprintf("%s (%s.%s)", limit, s.file.Name, timeout)
+	}
+	return limit
+}
+
 func (s Rule) needed(r *report.Report) bool {
 	for _, program := range s.file.Needs {
 		_, err := s.env.Commands.LookPath(program)
@@ -177,7 +185,7 @@ func (s Rule) ready(r *report.Report) bool {
 	result := s.env.Commands.Run(limit, ready.Run[0], ready.Run[1:]...)
 	switch {
 	case result.TimedOut:
-		r.Fail("%s did not answer within %s: %s", words, limit, ready.Hung)
+		r.Fail("%s did not answer within %s: %s", words, s.within(ready.Timeout), ready.Hung)
 	case result.Leftover:
 		r.Fail("%s: exited but left a process running, which was stopped: %v", words, result.Err)
 	case result.Err != nil && !r.Busy(s.env.Processes.Running, strings.Join(ready.Down.Processes, "|")):
@@ -205,7 +213,7 @@ func (s Rule) runCommand(r *report.Report, c Command, dir string) bool {
 	estimate, kb, known := "", int64(0), false
 	if c.Estimate.Run != nil {
 		var ok bool
-		estimate, kb, ok = s.estimate(r, c, c.Estimate.Run, s.timeout(c.Estimate.Timeout))
+		estimate, kb, ok = s.estimate(r, c, c.Estimate.Run, c.Estimate.Timeout)
 		if !ok {
 			return true
 		}
@@ -235,7 +243,7 @@ func (s Rule) runCommand(r *report.Report, c Command, dir string) bool {
 		if !known {
 			args := append(append([]string{}, c.Run[1:]...), c.DryRun...)
 			var ok bool
-			if estimate, kb, ok = s.estimate(r, c, append([]string{c.Run[0]}, args...), s.timeout(c.Timeout)); !ok {
+			if estimate, kb, ok = s.estimate(r, c, append([]string{c.Run[0]}, args...), c.Timeout); !ok {
 				return true
 			}
 		}
@@ -267,7 +275,7 @@ func (s Rule) runCommand(r *report.Report, c Command, dir string) bool {
 	}
 	switch {
 	case result.TimedOut:
-		r.Fail("%s did not finish within %s", c.words(), s.timeout(c.Timeout))
+		r.Fail("%s did not finish within %s", c.words(), s.within(c.Timeout))
 	case result.Err != nil:
 		r.Fail("%s: %v: %s", c.words(), result.Err, result.Output())
 	default:
@@ -297,12 +305,13 @@ func (s Rule) measured(c Command, dir string) string {
 	}
 }
 
-func (s Rule) estimate(r *report.Report, c Command, run []string, limit time.Duration) (string, int64, bool) {
+func (s Rule) estimate(r *report.Report, c Command, run []string, timeout string) (string, int64, bool) {
+	limit := s.timeout(timeout)
 	words := strings.Join(run, " ")
 	result := s.env.Commands.Run(limit, run[0], run[1:]...)
 	switch {
 	case result.TimedOut:
-		r.Fail("%s did not answer within %s", words, limit)
+		r.Fail("%s did not answer within %s", words, s.within(timeout))
 		return "", 0, false
 	case result.Err != nil:
 		r.Fail("%s: %v: %s", words, result.Err, result.Output())

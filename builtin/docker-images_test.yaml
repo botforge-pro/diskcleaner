@@ -46,7 +46,7 @@
   commands:
     docker info: {hangs: true}
   removes: []
-  fails: ['docker info did not answer within 30s: the Docker daemon is hung, restart Docker Desktop']
+  fails: ['docker info did not answer within 30s (docker-images.timeout): the Docker daemon is hung, restart Docker Desktop']
 
 - case: a failed prune fails and counts nothing
   commands:

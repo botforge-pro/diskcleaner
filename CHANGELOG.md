@@ -13,8 +13,10 @@ is 0.x, commands and output may still change.
   as before unless a line below says otherwise; the steps, their settings and
   their flags keep their names.
 - A step prints its heading only when it has something to say, and the heading
-  names the folder it works in with links resolved. `projects` prints one
-  heading for each project folder instead of one for each repository.
+  names the folder it works in with links resolved. The heading's label is the
+  first word of the step's name, such as `SYSTEM` for `system-temp` where it
+  was `TEMP`. `projects` prints one heading for each project folder instead of
+  one for each repository.
 - What is kept only because it is younger than its age setting is no longer
   listed as `SKIPPED`; what is kept because it is open, tracked by Git, a
   socket, a mounted volume or a running simulator still is.

@@ -286,7 +286,7 @@ func (s Rule) matchFolders(r *report.Report, p FolderPattern) ([]string, error) 
 		}
 	}
 	return slices.DeleteFunc(found, func(folder string) bool {
-		missing := !s.qualifies(p, folder)
+		missing := !s.qualifies(r, p, folder)
 		if missing && p.Says != "" {
 			r.Skip("%s: %s", folder, p.Says)
 		}
@@ -294,7 +294,7 @@ func (s Rule) matchFolders(r *report.Report, p FolderPattern) ([]string, error) 
 	}), walkErr
 }
 
-func (s Rule) qualifies(p FolderPattern, folder string) bool {
+func (s Rule) qualifies(r *report.Report, p FolderPattern, folder string) bool {
 	parent := filepath.Dir(folder)
 	if slices.ContainsFunc(p.Has, func(path string) bool { return !present(folder, path) }) ||
 		slices.ContainsFunc(p.Beside, func(path string) bool { return !present(parent, path) }) {
@@ -304,7 +304,7 @@ func (s Rule) qualifies(p FolderPattern, folder string) bool {
 		return true
 	}
 	for above := parent; len(p.OrAbove) > 0; above = filepath.Dir(above) {
-		if !slices.ContainsFunc(p.OrAbove, func(g Group) bool { return !g.in(above) }) {
+		if !slices.ContainsFunc(p.OrAbove, func(g Group) bool { return !g.in(r, above) }) {
 			return true
 		}
 		if above == s.base || above == filepath.Dir(above) {
@@ -318,8 +318,8 @@ type Group struct {
 	Any []Mark `yaml:"any"`
 }
 
-func (g Group) in(folder string) bool {
-	return slices.ContainsFunc(g.Any, func(m Mark) bool { return m.in(folder) })
+func (g Group) in(r *report.Report, folder string) bool {
+	return slices.ContainsFunc(g.Any, func(m Mark) bool { return m.in(r, folder) })
 }
 
 type Mark struct {
@@ -347,16 +347,17 @@ func (m Mark) check() error {
 	return fmt.Errorf("%q: want a path inside the folder, or {file: a .json inside it, key: one it has}", m.Path+m.File)
 }
 
-func (m Mark) in(folder string) bool {
+func (m Mark) in(r *report.Report, folder string) bool {
 	if m.Path != "" {
 		return present(folder, m.Path)
 	}
 	values, found, err := readValues(filepath.Join(folder, m.File))
-	if err != nil || !found {
+	if err != nil {
+		r.Fail("read %s: %v", filepath.Join(folder, m.File), err)
 		return false
 	}
 	_, has := values[m.Key]
-	return has
+	return found && has
 }
 
 func expandGlob(base, pattern string) ([]string, error) {

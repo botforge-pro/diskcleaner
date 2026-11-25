@@ -38,8 +38,9 @@
     fs/private/tmp/share/quota.user: 4d
     fs/private/tmp/share/.X0-lock: 4d
     fs/private/tmp/normal/.vfs_rsrc_streams_123/: 4d
-  removes: []
-  counts: 0
+    fs/private/tmp/plain.json: 4d
+  removes: [fs/private/tmp/plain.json]
+  counts: 1
 
 - case: a file a process holds open stays
   later: 4d

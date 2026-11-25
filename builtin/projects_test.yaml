@@ -113,11 +113,14 @@
     outside/external/.build/x.o: 2h
     Developer/linked-git/Package.swift: 2h
     Developer/linked-git/.build/x.o: 2h
+    Developer/real/.git/:
+    Developer/real/Package.swift: 2h
+    Developer/real/.build/x.o: 2h
   links:
     Developer/alias: outside/external
     Developer/linked-git/.git: outside/external/.git
-  removes: []
-  counts: 0
+  removes: [Developer/real/.build]
+  counts: 1
 
 - case: a temporary file a process holds open stays
   settings: {project-dirs: ~/Developer}
@@ -204,23 +207,23 @@
   commands:
     git -C ~/Developer/media lfs prune --dry-run --verify-remote: {hangs: true}
   removes: []
-  fails: [did not answer within 1s]
+  fails: [did not answer within 1s (projects.lfs-timeout)]
 
 - case: node_modules with a lockfile beside it or in its workspace goes
   settings: {project-dirs: ~/Developer}
   files:
-    Developer/locked/package.json: 2h
+    Developer/locked/package.json: {age: 2h, text: '{}'}
     Developer/locked/package-lock.json: 2h
     Developer/locked/node_modules/left-pad/index.js: 2h
     Developer/workspace/package-lock.json: 2h
     Developer/workspace/package.json: {age: 2h, text: '{"workspaces": ["packages/*"]}'}
-    Developer/workspace/packages/web/package.json: 2h
+    Developer/workspace/packages/web/package.json: {age: 2h, text: '{}'}
     Developer/workspace/packages/web/node_modules/left-pad/index.js: 2h
-    Developer/plain/package.json: 2h
+    Developer/plain/package.json: {age: 2h, text: '{}'}
     Developer/plain/package-lock.json: 2h
-    Developer/plain/nested/package.json: 2h
+    Developer/plain/nested/package.json: {age: 2h, text: '{}'}
     Developer/plain/nested/node_modules/left-pad/index.js: 2h
-    Developer/unlocked/package.json: 2h
+    Developer/unlocked/package.json: {age: 2h, text: '{}'}
     Developer/unlocked/node_modules/left-pad/index.js: 2h
   removes:
     - Developer/locked/node_modules
@@ -229,6 +232,15 @@
     - 'unlocked/node_modules: no lockfile, reinstall would not restore the same versions'
     - 'plain/nested/node_modules: no lockfile'
   counts: 2
+
+- case: a package.json that cannot be read fails, and the node_modules it would decide stays
+  settings: {project-dirs: ~/Developer}
+  files:
+    Developer/workspace/package-lock.json: 2h
+    Developer/workspace/package.json: {age: 2h, text: '{"workspaces": '}
+    Developer/workspace/packages/web/node_modules/left-pad/index.js: 2h
+  removes: []
+  fails: [workspace/package.json]
 
 - case: a pnpm workspace counts as a workspace
   settings: {project-dirs: ~/Developer}
@@ -243,8 +255,10 @@
   files:
     Developer/locked/package-lock.json: 2h
     Developer/locked/node_modules/left-pad/index.js:
-  removes: []
-  counts: 0
+    Developer/done/package-lock.json: 2h
+    Developer/done/node_modules/left-pad/index.js: 2h
+  removes: [Developer/done/node_modules]
+  counts: 1
 
 - case: every project folder is cleaned, and one named twice once
   settings: {project-dirs: '~/Developer, ~/Work, ~/Developer/'}

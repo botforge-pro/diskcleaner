@@ -8,7 +8,7 @@ readme:
 
 apps:
   run: [mdfind, 'kMDItemContentType == "com.apple.application-bundle"']
-  says: Spotlight lists no apps, so IDEs outside the folders below cannot be found; is its indexing off?
+  says: Spotlight lists no apps, so IDEs outside the Applications folders and JetBrains Toolbox cannot be found; is its indexing off?
   in:
     - /Applications/*.app
     - /Applications/*/*.app

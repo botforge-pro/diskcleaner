@@ -104,17 +104,11 @@ func (s Rule) removeInEach(r *report.Report) bool {
 func (s Rule) holds(r *report.Report, folder string, paths []string) bool {
 	for _, p := range paths {
 		full := filepath.Join(folder, strings.TrimSuffix(p, "/"))
-		if strings.HasSuffix(p, "/") {
-			info, err := os.Lstat(full)
-			if err != nil && !errors.Is(err, fs.ErrNotExist) {
-				r.Fail("stat %s: %v", full, err)
-			}
-			if err != nil || !info.IsDir() {
-				return false
-			}
-			continue
+		info, err := os.Lstat(full)
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			r.Fail("stat %s: %v", full, err)
 		}
-		if _, err := os.Stat(full); err != nil {
+		if err != nil || strings.HasSuffix(p, "/") && !info.IsDir() {
 			return false
 		}
 	}

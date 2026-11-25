@@ -31,6 +31,7 @@
   files:
     .android/avd/Pixel.avd/snapshots/default_boot/ram.bin:
   removes: []
+  says: [an Android emulator is running]
 
 - case: adb and the emulator's crash handler are not the emulator
   running:

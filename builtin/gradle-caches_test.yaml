@@ -47,3 +47,4 @@
   files:
     .gradle/caches/modules-2/lib.jar:
   removes: []
+  says: [a Gradle build or Android Studio / IntelliJ IDEA is running]

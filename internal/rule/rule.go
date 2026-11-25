@@ -311,6 +311,10 @@ func (s Rule) keeper(r *report.Report, limit age.Limit) func(path string) bool {
 			r.Fail("stat %s: %v", path, err)
 			return true
 		}
+		if !info.Mode().IsRegular() {
+			r.Skip("%s: no longer a file since the scan", path)
+			return true
+		}
 		if limit.Recent(info.ModTime()) {
 			r.Skip("%s: written again since the scan", path)
 			return true

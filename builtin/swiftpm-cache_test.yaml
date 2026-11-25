@@ -15,12 +15,14 @@
   files:
     Library/Caches/org.swift.swiftpm/repositories/pkg.git/HEAD:
   removes: []
+  says: [a Swift package build, xcodebuild or Xcode is running]
 
 - case: Xcode keeps the cache, a beta too
   running: [/Applications/Xcode-beta.app/Contents/MacOS/Xcode]
   files:
     Library/Caches/org.swift.swiftpm/repositories/pkg.git/HEAD:
   removes: []
+  says: [a Swift package build, xcodebuild or Xcode is running]
 
 - case: git from Xcode's tools is not a build
   running: [/Applications/Xcode.app/Contents/Developer/usr/bin/git status]

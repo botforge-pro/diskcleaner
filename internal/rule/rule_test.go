@@ -131,6 +131,26 @@ func TestALinkedRootLosesOnlyTheLink(t *testing.T) {
 	assert.Equal(t, 1, r.Count)
 }
 
+func TestARootAtOrAboveHomeIsRefused(t *testing.T) {
+	home, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	for _, root := range []string{"/", home, filepath.Dir(home)} {
+		t.Run(root, func(t *testing.T) {
+			env := environment(idle)
+			env.Home = home
+			env.Getenv = func(string) string { return root }
+			s := parse(t, "tool-cache.yaml", "order: 1\ndescribes: x\nroot: $TOOL_HOME or ~/.tool\nremove: root\n").Rule(env)
+
+			r, _, _ := run(s, false)
+
+			assert.DirExists(t, home)
+			assert.Zero(t, r.Count)
+			require.Len(t, r.Failures, 1)
+			assert.Contains(t, r.Failures[0], "refused")
+		})
+	}
+}
+
 func TestAMissingRootIsQuiet(t *testing.T) {
 	r, stdout, stderr := run(cache(t, filepath.Join(t.TempDir(), "absent"), idle), false)
 

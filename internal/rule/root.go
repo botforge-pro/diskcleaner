@@ -123,6 +123,20 @@ func (root Root) words() string {
 }
 
 func (s Rule) resolve(r *report.Report, root Root) (string, bool) {
+	folder, ok := s.choose(r, root)
+	if !ok {
+		return "", false
+	}
+	clean := filepath.Clean(folder)
+	home := filepath.Clean(s.env.Home)
+	if !filepath.IsAbs(clean) || clean == "/" || clean == home || strings.HasPrefix(home, clean+"/") {
+		r.Fail("root %s: refused, as removing in it would reach %s", folder, "/, the home folder or a folder above it")
+		return "", false
+	}
+	return clean, true
+}
+
+func (s Rule) choose(r *report.Report, root Root) (string, bool) {
 	for i, p := range root.places {
 		last := i == len(root.places)-1
 		switch {

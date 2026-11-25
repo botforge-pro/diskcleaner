@@ -110,7 +110,7 @@ func (f File) checkTimeout(timeout string) error {
 
 func hasSetting(settings []Setting, key, kind string) bool {
 	for _, s := range settings {
-		if s.Key == key && s.Kind == kind {
+		if s.Key == key && (kind == "" || s.Kind == kind) {
 			return true
 		}
 	}

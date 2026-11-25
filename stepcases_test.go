@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -84,6 +85,20 @@ func builtinFile(t *testing.T, name string) rule.File {
 func (c stepCase) run(t *testing.T, f rule.File) {
 	require.NotEmpty(t, c.Case, "every case is named")
 	require.NotNil(t, c.Removes, "%s: removes: name what goes, or [] for nothing", c.Case)
+	if len(*c.Removes) == 0 {
+		require.True(t, len(c.Says) > 0 || len(c.Fails) > 0 || len(c.Shows) > 0 || c.Counts != nil,
+			"%s: removes: []: say what shows that the step ran and kept everything: says, fails, shows or counts", c.Case)
+	}
+	for _, gone := range *c.Removes {
+		require.True(t, slices.ContainsFunc(slices.Collect(maps.Keys(c.Files)), func(path string) bool {
+			return path == gone || strings.HasPrefix(path, gone+"/")
+		}), "%s: removes: %s is not under files, so nothing would show that it went", c.Case, gone)
+	}
+	for key, value := range c.Env {
+		require.True(t, value == "" || strings.HasPrefix(value, "~/"), "%s: env: %s: want a path under the test's home, starting with ~/", c.Case, key)
+	}
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	for _, path := range append(slices.Clone(c.Open), c.Tracked...) {
 		require.Contains(t, c.Files, path, "%s: open and tracked name paths under files", c.Case)
 	}
@@ -229,7 +244,7 @@ func newProcessTable(home string, running []fakeProcess) *processTable {
 }
 
 func (t *processTable) matching(pattern string) ([]int, error) {
-	re, err := regexp.Compile(pattern)
+	re, err := regexp.CompilePOSIX(pattern)
 	if err != nil {
 		return nil, err
 	}

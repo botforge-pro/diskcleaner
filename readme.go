@@ -23,7 +23,7 @@ func stepsTable(steps []stepInfo) string {
 }
 
 func cell(text string) string {
-	return strings.ReplaceAll(text, "|", `\|`)
+	return strings.NewReplacer("|", `\|`, "\n", " ").Replace(text)
 }
 
 func withStepsTable(readme string, steps []stepInfo) (string, error) {

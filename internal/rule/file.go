@@ -100,7 +100,37 @@ func (f File) checkReadme() error {
 			return fmt.Errorf("readme: want {%s} in its text, so that the README names every setting of the step", s.Key)
 		}
 	}
+	if f.Run == "code" {
+		return nil
+	}
+	used := f.usedSettings()
+	for _, s := range f.Settings {
+		if !used[s.Key] {
+			return fmt.Errorf("settings: %s: nothing in the file uses it, so the README would promise what the step does not do", s.Key)
+		}
+	}
+	for key := range mentioned {
+		if _, own := f.mentioned(key); own && key != "root" && !hasSetting(f.Settings, key, "") && !used[key] {
+			return fmt.Errorf("readme: {%s}: the step does not apply it, so the README would promise what the step does not do", key)
+		}
+	}
 	return nil
+}
+
+func (f File) usedSettings() map[string]bool {
+	used := map[string]bool{}
+	add := func(key string) {
+		if key != "" {
+			used[key] = true
+		}
+	}
+	add(f.Keep.WrittenWithin)
+	add(f.Ready.Timeout)
+	for _, c := range f.Remove.Commands {
+		add(c.Timeout)
+		add(c.Estimate.Timeout)
+	}
+	return used
 }
 
 type Setting struct {
@@ -156,7 +186,7 @@ func (s *StopWhen) check() error {
 		return errors.New("stop: want processes, names, unless-busy-for, timeout and says together")
 	}
 	for _, pattern := range s.Processes {
-		if _, err := regexp.Compile(pattern); err != nil {
+		if _, err := regexp.CompilePOSIX(pattern); err != nil {
 			return fmt.Errorf("stop: processes %q: %w", pattern, err)
 		}
 	}
@@ -319,7 +349,7 @@ func (f *File) check() error {
 		return errors.New("busy: want processes or groups together with says")
 	}
 	for _, pattern := range busy.Processes {
-		if _, err := regexp.Compile(pattern); err != nil {
+		if _, err := regexp.CompilePOSIX(pattern); err != nil {
 			return fmt.Errorf("busy: processes %q: %w", pattern, err)
 		}
 	}
@@ -403,7 +433,7 @@ func (f File) checkReady() error {
 		return errors.New("ready: want run with hung, what to do when it does not answer, and down: {processes, says}, what tells that it is not running")
 	}
 	for _, pattern := range ready.Down.Processes {
-		if _, err := regexp.Compile(pattern); err != nil {
+		if _, err := regexp.CompilePOSIX(pattern); err != nil {
 			return fmt.Errorf("ready: down: processes %q: %w", pattern, err)
 		}
 	}

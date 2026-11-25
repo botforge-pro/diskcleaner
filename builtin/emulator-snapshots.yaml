@@ -3,15 +3,11 @@ label: EMULATOR
 describes: saved quick-boot states of Android emulators that are not running
 reversible: true
 
-root:
-  - env: ANDROID_AVD_HOME
-  - env: ANDROID_USER_HOME
-    path: avd
-  - path: ~/.android/avd
+root: $ANDROID_AVD_HOME or $ANDROID_USER_HOME/avd or ~/.android/avd
 
 busy:
   processes: ['qemu-system-', '/emulator/emulator( |$)']
   says: an Android emulator is running
 
-targets:
-  - '*.avd/snapshots/*'
+remove:
+  folders: ['*.avd/snapshots/*']

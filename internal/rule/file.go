@@ -21,27 +21,56 @@ var groups = map[string]string{
 	"xcode": process.Xcode,
 }
 
-var stepName = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`)
+var (
+	stepName = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`)
+	variable = regexp.MustCompile(`^\$([A-Z_][A-Z0-9_]*)(/.*)?$`)
+)
 
 type File struct {
 	Name       string   `yaml:"name"`
 	Label      string   `yaml:"label"`
 	Describes  string   `yaml:"describes"`
 	Reversible bool     `yaml:"reversible"`
-	Root       []Place  `yaml:"root"`
+	Root       string   `yaml:"root"`
 	Busy       BusyWhen `yaml:"busy"`
-	Targets    []string `yaml:"targets"`
-}
-
-type Place struct {
-	Env  string `yaml:"env"`
-	Path string `yaml:"path"`
+	Remove     Removal  `yaml:"remove"`
+	places     []place
 }
 
 type BusyWhen struct {
 	Processes []string `yaml:"processes"`
 	Groups    []string `yaml:"groups"`
 	Says      string   `yaml:"says"`
+}
+
+type Removal struct {
+	Root    bool
+	Folders []string
+	given   bool
+}
+
+func (m *Removal) UnmarshalYAML(node *yaml.Node) error {
+	m.given = true
+	if node.Kind == yaml.ScalarNode {
+		if node.Value != "root" {
+			return fmt.Errorf("line %d: remove: want root, or folders: [patterns]", node.Line)
+		}
+		m.Root = true
+		return nil
+	}
+	var folders struct {
+		Folders []string `yaml:"folders"`
+	}
+	if err := node.Decode(&folders); err != nil {
+		return err
+	}
+	m.Folders = folders.Folders
+	return nil
+}
+
+type place struct {
+	variable string
+	path     string
 }
 
 func Load(fsys fs.FS) ([]File, error) {
@@ -80,7 +109,7 @@ func Parse(name string, data []byte) (File, error) {
 	return f, nil
 }
 
-func (f File) check(base string) error {
+func (f *File) check(base string) error {
 	switch {
 	case !stepName.MatchString(f.Name):
 		return fmt.Errorf("name %q: want lowercase words joined by -, like xcode-derived-data", f.Name)
@@ -90,22 +119,12 @@ func (f File) check(base string) error {
 		return fmt.Errorf("label %q: want up to 8 capital letters", f.Label)
 	case f.Describes == "":
 		return errors.New("describes: want what the step removes, for --help")
-	case len(f.Root) == 0:
-		return errors.New("root: want at least one place")
 	}
-	for i, place := range f.Root {
-		last := i == len(f.Root)-1
-		switch {
-		case place.Env == "" && place.Path == "":
-			return fmt.Errorf("root %d: want env, path or both", i+1)
-		case last && place.Env != "":
-			return errors.New("root: the last place must be a path without env, so that a root is always found")
-		case place.Env == "" && !strings.HasPrefix(place.Path, "~/") && !filepath.IsAbs(place.Path):
-			return fmt.Errorf("root %d: path %q: want it to start with ~/ or /", i+1, place.Path)
-		case place.Env != "" && (filepath.IsAbs(place.Path) || strings.HasPrefix(place.Path, "~")):
-			return fmt.Errorf("root %d: path %q: under env it is a subfolder of the variable's value", i+1, place.Path)
-		}
+	places, err := parseRoot(f.Root)
+	if err != nil {
+		return err
 	}
+	f.places = places
 	busy := f.Busy
 	if (len(busy.Processes) > 0 || len(busy.Groups) > 0) != (busy.Says != "") {
 		return errors.New("busy: want processes or groups together with says")
@@ -120,12 +139,42 @@ func (f File) check(base string) error {
 			return fmt.Errorf("busy: groups %q: want one of %s", group, strings.Join(slices.Sorted(maps.Keys(groups)), ", "))
 		}
 	}
-	for _, target := range f.Targets {
-		if _, err := filepath.Match(target, ""); err != nil || filepath.IsAbs(target) || slices.Contains(strings.Split(target, "/"), "..") {
-			return fmt.Errorf("targets: %q: want a pattern inside the root, like *.avd/snapshots/*", target)
+	switch {
+	case !f.Remove.given:
+		return errors.New("remove: want root, or folders: [patterns inside the root]")
+	case !f.Remove.Root && len(f.Remove.Folders) == 0:
+		return errors.New("remove: folders: want at least one pattern")
+	}
+	for _, pattern := range f.Remove.Folders {
+		if _, err := filepath.Match(pattern, ""); err != nil || filepath.IsAbs(pattern) || slices.Contains(strings.Split(pattern, "/"), "..") {
+			return fmt.Errorf("remove: folders: %q: want a pattern inside the root, like *.avd/snapshots/*", pattern)
 		}
 	}
 	return nil
+}
+
+func parseRoot(root string) ([]place, error) {
+	if strings.TrimSpace(root) == "" {
+		return nil, errors.New("root: want a folder, like ~/Library/Caches/tool or $TOOL_HOME/cache or ~/.tool/cache")
+	}
+	parts := strings.Split(root, " or ")
+	places := make([]place, len(parts))
+	for i, part := range parts {
+		part = strings.TrimSpace(part)
+		last := i == len(parts)-1
+		if match := variable.FindStringSubmatch(part); match != nil {
+			if last {
+				return nil, fmt.Errorf("root: %q: the last choice must be a path, so that a root is always found", part)
+			}
+			places[i] = place{variable: match[1], path: strings.TrimPrefix(match[2], "/")}
+			continue
+		}
+		if !strings.HasPrefix(part, "~/") && !filepath.IsAbs(part) {
+			return nil, fmt.Errorf("root: %q: want $VARIABLE, $VARIABLE/subfolder, a path starting with ~/ or /", part)
+		}
+		places[i] = place{path: part}
+	}
+	return places, nil
 }
 
 func (f File) Rule(home string, getenv func(string) string, running func(string) (bool, error)) Rule {
@@ -137,17 +186,17 @@ func (f File) Rule(home string, getenv func(string) string, running func(string)
 		Label:   f.Label,
 		Root:    f.root(home, getenv),
 		Busy:    Busy{Processes: strings.Join(patterns, "|"), Running: running, Says: f.Busy.Says},
-		Targets: f.Targets,
+		Targets: f.Remove.Folders,
 	}
 }
 
 func (f File) root(home string, getenv func(string) string) string {
-	for _, place := range f.Root {
-		if place.Env == "" {
-			return expand(home, place.Path)
+	for _, p := range f.places {
+		if p.variable == "" {
+			return expand(home, p.path)
 		}
-		if value := getenv(place.Env); value != "" {
-			return filepath.Join(value, place.Path)
+		if value := getenv(p.variable); value != "" {
+			return filepath.Join(value, p.path)
 		}
 	}
 	return ""

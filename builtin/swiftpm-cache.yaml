@@ -3,10 +3,11 @@ label: SWIFTPM
 describes: the Swift Package Manager cache
 reversible: true
 
-root:
-  - path: ~/Library/Caches/org.swift.swiftpm
+root: ~/Library/Caches/org.swift.swiftpm
 
 busy:
   processes: [swift-build, swift-package, swift-test, swift-run]
   groups: [xcode]
   says: a Swift package build, xcodebuild or Xcode is running
+
+remove: root

@@ -9,6 +9,25 @@ is 0.x, commands and output may still change.
 
 ### Changed
 
+- Every step is now described by a file built into `diskcleaner`, and works
+  as before unless a line below says otherwise; the steps, their settings and
+  their flags keep their names.
+- A step prints its heading only when it has something to say, and the heading
+  names the folder it works in with links resolved. `projects` prints one
+  heading for each project folder instead of one for each repository.
+- What is kept only because it is younger than its age setting is no longer
+  listed as `SKIPPED`; what is kept because it is open, tracked by Git, a
+  socket, a mounted volume or a running simulator still is.
+- A step that runs a command prints its `RUN` line after the command finishes,
+  with the size it freed; in a dry run, pruning Git LFS objects shows as
+  `WOULD RUN git -C <repository> lfs prune --verify-remote` with the size
+  Git LFS reports.
+- A folder in `project-dirs` that does not exist fails only itself, and the
+  other project folders are cleaned; before, `clean` refused to start. A step
+  refuses to work in `/`, in your home folder or above it.
+- A copy of Chrome or another app is kept while any running program shares a
+  file with it, not only while a program was started from that very copy.
+
 - Every age setting means the same in every step: what is not older than it
   stays, and `0` keeps nothing for its age. Before, a session log or an Xcode
   archive exactly as old as its `min-age` was removed, and with an age of `0`
@@ -25,6 +44,9 @@ is 0.x, commands and output may still change.
   given in another case than the disk has, such as `project-dirs =
   ["~/developer"]` for `~/Developer`. Before, build output, `node_modules` or a
   temporary file of Git in use could be removed.
+- A copy of Chrome that a running Chrome was started from could be removed:
+  its program is the same file as the app's under several names, and `lsof`
+  may name any of them.
 
 ## [0.24.0] - 2026-11-23
 

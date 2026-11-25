@@ -35,7 +35,7 @@
     folders/X/com.google.Chrome.code_sign_clone/code_sign_clone.abc/: 30m
     folders/X/com.google.Chrome.code_sign_clone/code_sign_clone.abc/Google Chrome.app.bundle/Contents/MacOS/Google Chrome: 2h
   removes: []
-  says: ['made within 1h']
+  counts: 0
 
 - case: a copy with no program in it to ask about stays
   commands:

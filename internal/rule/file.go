@@ -41,6 +41,7 @@ type File struct {
 	Ready      Ready     `yaml:"ready"`
 	Busy       BusyWhen  `yaml:"busy"`
 	Stop       StopWhen  `yaml:"stop"`
+	Each       EachWhen  `yaml:"each"`
 	Remove     Removal   `yaml:"remove"`
 	Keep       KeepWhen  `yaml:"keep"`
 }
@@ -278,8 +279,8 @@ func (f *File) check() error {
 	switch {
 	case f.Run != "" && f.Run != "code":
 		return fmt.Errorf("run %q: want code, for a step whose work is written in Go", f.Run)
-	case f.Run == "code" && (!f.Root.empty() || len(f.Needs) > 0 || len(f.Ready.Run) > 0 || f.Busy.Says != "" || len(f.Busy.Processes) > 0 || len(f.Busy.Groups) > 0 || f.Stop.given() || f.Remove.given || f.Keep.given()):
-		return errors.New("run: code: the step is written in Go, so needs, root, ready, busy, stop, remove and keep belong to it there")
+	case f.Run == "code" && (!f.Root.empty() || len(f.Needs) > 0 || len(f.Ready.Run) > 0 || f.Busy.Says != "" || len(f.Busy.Processes) > 0 || len(f.Busy.Groups) > 0 || f.Stop.given() || f.Each.given() || f.Remove.given || f.Keep.given()):
+		return errors.New("run: code: the step is written in Go, so needs, root, ready, busy, stop, each, remove and keep belong to it there")
 	case f.Run == "code":
 		return nil
 	}
@@ -307,6 +308,9 @@ func (f *File) check() error {
 		return err
 	}
 	if err := f.checkRemoval(f.Remove); err != nil {
+		return err
+	}
+	if err := f.checkEach(); err != nil {
 		return err
 	}
 	for i := range f.Root.places {

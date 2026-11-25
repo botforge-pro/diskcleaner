@@ -281,7 +281,7 @@ func (c stepCase) commands(t *testing.T, home string) rule.Commands {
 			return "", exec.ErrNotFound
 		},
 		Run: func(_ time.Duration, name string, args ...string) process.Result {
-			line := strings.Join(append([]string{name}, args...), " ")
+			line := strings.ReplaceAll(strings.Join(append([]string{name}, args...), " "), home+"/", "~/")
 			fake, ok := c.Commands[line]
 			if !ok {
 				return process.Result{Err: fmt.Errorf("exit status 127"), Stderr: "not expected in this case: " + line}

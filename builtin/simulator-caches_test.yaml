@@ -1,0 +1,65 @@
+- case: caches of a shut-down simulator go, its app data and documents stay, a booted one keeps all
+  commands:
+    plutil -extract state raw -o - ~/Library/Developer/CoreSimulator/Devices/shut/device.plist: {stdout: '1'}
+    plutil -extract state raw -o - ~/Library/Developer/CoreSimulator/Devices/booted/device.plist: {stdout: '3'}
+  files:
+    Library/Developer/CoreSimulator/Devices/shut/data/Containers/Data/Application/APP/Library/Caches/com.example.app/com.apple.e5rt.e5bundlecache/24A434/model.bundle:
+    Library/Developer/CoreSimulator/Devices/shut/data/Library/Caches/com.apple.icloudmailagent/com.apple.e5rt.e5bundlecache/entry:
+    Library/Developer/CoreSimulator/Devices/shut/data/Containers/Data/Application/APP/Library/Application Support/default.store:
+    Library/Developer/CoreSimulator/Devices/shut/data/Containers/Data/Application/APP/Documents/com.apple.e5rt.e5bundlecache/kept:
+    Library/Developer/CoreSimulator/Devices/shut/data/Library/Application Support/PRBPosterExtensionDataStore/61/snapshot.heic:
+    Library/Developer/CoreSimulator/Devices/booted/data/Library/Caches/com.apple.icloudmailagent/com.apple.e5rt.e5bundlecache/entry:
+  removes:
+    - Library/Developer/CoreSimulator/Devices/shut/data/Containers/Data/Application/APP/Library/Caches/com.example.app/com.apple.e5rt.e5bundlecache
+    - Library/Developer/CoreSimulator/Devices/shut/data/Library/Caches/com.apple.icloudmailagent/com.apple.e5rt.e5bundlecache
+    - Library/Developer/CoreSimulator/Devices/shut/data/Library/Application Support/PRBPosterExtensionDataStore
+  says: ['booted: the simulator is not shut down (state 3)']
+  counts: 3
+
+- case: a dry run removes nothing
+  dry-run: true
+  commands:
+    plutil -extract state raw -o - ~/Library/Developer/CoreSimulator/Devices/shut/device.plist: {stdout: '1'}
+  files:
+    Library/Developer/CoreSimulator/Devices/shut/data/Library/Caches/com.apple.icloudmailagent/com.apple.e5rt.e5bundlecache/entry:
+  removes: []
+  counts: 1
+
+- case: a running Simulator keeps every device's caches
+  running: [/Applications/Xcode.app/Contents/Developer/Applications/Simulator.app/Contents/MacOS/Simulator]
+  files:
+    Library/Developer/CoreSimulator/Devices/shut/data/Library/Caches/com.apple.icloudmailagent/com.apple.e5rt.e5bundlecache/entry:
+  removes: []
+  says: [Simulator, DeviceHub, simctl or an Xcode build is running]
+
+- case: a process of one simulator keeps that simulator's caches
+  running: [~/Library/Developer/CoreSimulator/Devices/shut/data/Containers/Bundle/Application/X/App.app/App]
+  commands:
+    plutil -extract state raw -o - ~/Library/Developer/CoreSimulator/Devices/shut/device.plist: {stdout: '1'}
+  files:
+    Library/Developer/CoreSimulator/Devices/shut/data/Library/Caches/com.apple.icloudmailagent/com.apple.e5rt.e5bundlecache/entry:
+  removes: []
+  says: ['shut: a process of this simulator is running']
+
+- case: a simulator whose state cannot be read keeps its caches and fails
+  commands:
+    plutil -extract state raw -o - ~/Library/Developer/CoreSimulator/Devices/shut/device.plist: {stderr: 'No value at that key path', exit: 1}
+  files:
+    Library/Developer/CoreSimulator/Devices/shut/data/Library/Caches/com.apple.icloudmailagent/com.apple.e5rt.e5bundlecache/entry:
+  removes: []
+  fails: ['plutil -extract state raw']
+
+- case: a booted simulator with nothing to remove says nothing
+  files:
+    Library/Developer/CoreSimulator/Devices/booted/data/Containers/Data/Application/APP/Documents/notes:
+  removes: []
+  counts: 0
+
+- case: devices reached through a link are cleaned where they are
+  commands:
+    plutil -extract state raw -o - ~/Library/Developer/CoreSimulator/Devices/shut/device.plist: {stdout: '1'}
+  files:
+    Volumes/Devices/shut/data/Library/Caches/com.apple.icloudmailagent/com.apple.e5rt.e5bundlecache/entry:
+  links:
+    Library/Developer/CoreSimulator/Devices: Volumes/Devices
+  removes: [Volumes/Devices/shut/data/Library/Caches/com.apple.icloudmailagent/com.apple.e5rt.e5bundlecache]

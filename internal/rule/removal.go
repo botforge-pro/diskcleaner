@@ -122,8 +122,10 @@ func (f File) checkRemoval(m Removal) error {
 			return fmt.Errorf("remove: folders: %q: want a pattern or match, not both", p.Glob)
 		case p.Glob == "" && p.Match == "":
 			return errors.New("remove: folders: want a pattern, or {match: regex, has: [paths]}")
-		case p.Glob != "" && (!inside(p.Glob) || strings.Contains(p.Glob, "**")):
+		case p.Glob != "" && !inside(strings.ReplaceAll(p.Glob, "**", "*")):
 			return fmt.Errorf("remove: folders: %q: want a pattern inside the root, like *.avd/snapshots/*", p.Glob)
+		case strings.Contains(p.Glob, "**") && slices.ContainsFunc(strings.Split(p.Glob, "/"), func(part string) bool { return part != "**" && strings.Contains(part, "**") }):
+			return fmt.Errorf("remove: folders: %q: want ** as a whole part of the path, like data/**/Caches", p.Glob)
 		case m.Others != "" && strings.Contains(p.Glob, "/"):
 			return fmt.Errorf("remove: folders: %q: others speaks of the folders right in the root, so want patterns of their names", p.Glob)
 		}
@@ -223,20 +225,27 @@ func (s Rule) olderThanTheNewest(r *report.Report, folders []string) []string {
 
 func (s Rule) matchFolders(p FolderPattern) ([]string, error) {
 	var found []string
-	if p.Glob != "" {
-		matches, err := filepath.Glob(filepath.Join(s.root, p.Glob))
+	switch {
+	case strings.Contains(p.Glob, "**"):
+		matches, err := s.deepFolders(s.base, p.Glob)
 		if err != nil {
 			return nil, err
 		}
 		found = matches
-	} else {
-		entries, err := os.ReadDir(s.root)
+	case p.Glob != "":
+		matches, err := filepath.Glob(filepath.Join(s.base, p.Glob))
+		if err != nil {
+			return nil, err
+		}
+		found = matches
+	default:
+		entries, err := os.ReadDir(s.base)
 		if err != nil {
 			return nil, err
 		}
 		for _, entry := range entries {
 			if p.name.MatchString(entry.Name()) {
-				found = append(found, filepath.Join(s.root, entry.Name()))
+				found = append(found, filepath.Join(s.base, entry.Name()))
 			}
 		}
 	}

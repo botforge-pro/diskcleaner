@@ -33,7 +33,7 @@
     Library/Developer/Xcode/Archives/2026-11-22/App 22.11.2026.xcarchive/Info.plist:
       text: <plist><dict><key>Name</key><string>App</string><key>CreationDate</key><date>{ago 3d}</date></dict></plist>
   removes: []
-  says: [made within 15d]
+  counts: 0
 
 - case: the age is read from the archive, not from when its folder changed
   files:

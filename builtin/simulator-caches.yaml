@@ -6,4 +6,24 @@ readme:
   removes: Core ML caches and lock-screen wallpaper snapshots of shut-down simulators
   keeps: app data
 
-run: code
+root: ~/Library/Developer/CoreSimulator/Devices
+
+busy:
+  processes: [xcodebuild, simctl, '/Simulator\.app/', '/DeviceHub\.app/']
+  says: Simulator, DeviceHub, simctl or an Xcode build is running
+
+each:
+  folders: ['*']
+  has: [data/]
+  value:
+    command: [plutil, -extract, state, raw, -o, -, '{path}/device.plist']
+    is: '1'
+    says: the simulator is not shut down (state {value})
+  busy:
+    processes: ['{path}/']
+    says: a process of this simulator is running
+
+remove:
+  folders:
+    - data/**/Library/Caches/**/com.apple.e5rt.e5bundlecache
+    - data/Library/Application Support/PRBPosterExtensionDataStore

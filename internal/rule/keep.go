@@ -163,7 +163,6 @@ func (s Rule) keepFolder(r *report.Report, path string, open *inuse.Listing) (bo
 			r.Skip("%s: holds the socket %s, which a process may be listening on", path, found.socket)
 			return true, nil
 		case k.Age.Of.Clock == "newest-write" && limit.Recent(found.latest):
-			r.Skip("%s: written within %s", path, limit)
 			return true, nil
 		}
 	}
@@ -174,7 +173,6 @@ func (s Rule) keepFolder(r *report.Report, path string, open *inuse.Listing) (bo
 			return true, nil
 		}
 		if limit.Recent(info.ModTime()) {
-			r.Skip("%s: made within %s", path, limit)
 			return true, nil
 		}
 	}
@@ -186,7 +184,6 @@ func (s Rule) keepFolder(r *report.Report, path string, open *inuse.Listing) (bo
 			return true, nil
 		}
 		if limit.Recent(made) {
-			r.Skip("%s: made within %s", path, limit)
 			return true, nil
 		}
 	}

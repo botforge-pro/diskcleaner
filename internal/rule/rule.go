@@ -56,6 +56,7 @@ func SystemProcesses() Processes {
 type Rule struct {
 	file   File
 	root   string
+	base   string
 	remove Removal
 	env    Environment
 }
@@ -109,7 +110,7 @@ func (s Rule) Run(r *report.Report) {
 		if chosen.remove != nil {
 			s.remove = *chosen.remove
 		}
-		s.root = root
+		s.root, s.base = root, root
 		if resolved, err := filepath.EvalSymlinks(root); err == nil {
 			where = resolved
 		} else {
@@ -125,6 +126,8 @@ func (s Rule) Run(r *report.Report) {
 	switch remove := s.remove; {
 	case remove.Root:
 		r.Remove(s.root)
+	case len(remove.Folders) > 0 && s.file.Each.given():
+		s.removeInEach(r)
 	case len(remove.Folders) > 0:
 		s.removeFolders(r, s.olderThanTheNewest(r, s.folders(r)))
 	case len(remove.Files) > 0:

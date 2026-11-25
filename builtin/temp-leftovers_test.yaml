@@ -24,7 +24,7 @@
   files:
     T/go-build1/b001/a.out: 59m
   removes: []
-  says: ['written within 1h']
+  counts: 0
 
 - case: a fresh file deep inside keeps an old folder
   commands:
@@ -33,7 +33,7 @@
     T/go-build1/b001/a.out: 3h
     T/go-build1/b002/deep/importcfg: 5m
   removes: []
-  says: ['written within 1h']
+  counts: 0
 
 - case: a folder a process has a file open in stays
   commands:

@@ -7,50 +7,59 @@ is 0.x, commands and output may still change.
 
 ## [Unreleased]
 
+The steps, their settings and their flags keep their names; the changes below
+are to what `clean` prints, when it fails, and what it keeps. If a script reads
+the output of `clean`, check it against the first three.
+
 ### Changed
 
-- Every step is now described by a file built into `diskcleaner`, and works
-  as before unless a line below says otherwise; the steps, their settings and
-  their flags keep their names.
-- A step prints its heading only when it has something to say, and the heading
-  names the folder it works in with links resolved. The heading's label is the
-  first word of the step's name, such as `SYSTEM` for `system-temp` where it
-  was `TEMP`. `projects` prints one heading for each project folder instead of
-  one for each repository.
-- What is kept only because it is younger than its age setting is no longer
-  listed as `SKIPPED`; what is kept because it is open, tracked by Git, a
-  socket, a mounted volume or a running simulator still is.
-- A step that runs a command prints its `RUN` line after the command finishes,
-  with the size it freed; in a dry run, pruning Git LFS objects shows as
-  `WOULD RUN git -C <repository> lfs prune --verify-remote` with the size
-  Git LFS reports.
-- A folder in `project-dirs` that does not exist fails only itself, and the
-  other project folders are cleaned; before, `clean` refused to start. A step
-  refuses to work in `/`, in your home folder or above it.
-- A copy of Chrome or another app is kept while any running program shares a
-  file with it, not only while a program was started from that very copy.
-- Every step keeps a folder that holds a mounted volume, and no step follows a
-  link inside the folder it cleans: what a link leads to stays, such as an
-  Android virtual device kept elsewhere and linked into `~/.android/avd`.
-- Every age setting means the same in every step: what is not older than it
-  stays, and `0` keeps nothing for its age. Before, a session log or an Xcode
-  archive exactly as old as its `min-age` was removed, and with an age of `0`
-  a file stamped with a time in the future still stayed in projects, temporary
-  folders, app copies, session logs and Xcode archives.
-- Temporary files of `git fetch` and `git repack` are checked against one list
-  of open files per repository, as build output is. When `lsof` warns while
-  making that list, the files stay and `clean` exits 1, as it does for build
-  output.
+- A step prints its heading only when it removes, keeps or fails something.
+  The heading names the folder the step works in, with symbolic links
+  resolved, and its label is the first word of the step's name: `SYSTEM` for
+  `system-temp`, which printed `TEMP`. Two steps may share a label, such as
+  `CLAUDE` for `claude-logs` and `claude-scratchpads`; the folder after it
+  tells them apart. `projects` prints one heading for each folder in
+  `project-dirs`, where it printed one for each repository.
+- Something kept only because it is younger than its age setting is no longer
+  printed as `SKIPPED`. It is still kept, but not counted or listed. Something
+  kept for another reason is still printed: a file a process has open, a file
+  Git tracks, a socket, a mounted volume, a simulator that is running.
+- When a step runs a command, such as `brew cleanup`, its `RUN` line comes
+  after the command finishes and gives the space it freed. In a dry run, the
+  pruning of Git LFS objects is printed like any other command, as
+  `WOULD RUN git -C <repository> lfs prune --verify-remote`, with the size
+  Git LFS expects to free.
+- A folder listed in `project-dirs` that does not exist is reported as a
+  failure, so `clean` exits 1, and the other folders are still cleaned.
+  Before, `clean` did not start and exited 2.
+- A step whose folder is `/`, your home folder, or a folder that contains
+  your home folder does nothing there and is reported as a failure. This
+  happens only when `project-dirs`, or an environment variable that names a
+  tool's folder, such as `GRADLE_USER_HOME`, names one of these.
+- A folder that contains a mounted volume, such as an opened disk image, is
+  always kept. A symbolic link inside a folder being cleaned is never
+  followed: what it points to stays, as an Android virtual device stored
+  elsewhere and linked into `~/.android/avd` does.
+- Every age setting works the same in every step: something exactly as old
+  as the setting, or younger, stays, and the value `0` lets age keep nothing.
+  Before, a session log or an Xcode archive exactly as old as `min-age` was
+  removed. With `0`, a file whose modification time lay in the future was
+  kept in some steps; now it is removed like any other.
+- Temporary files left by `git fetch` and `git repack` are checked for use in
+  the same way as build output. If that check cannot be made, the files stay
+  and `clean` exits 1.
 
 ### Fixed
 
-- A path a process holds open is recognized even when the folder above it was
-  given in another case than the disk has, such as `project-dirs =
-  ["~/developer"]` for `~/Developer`. Before, build output, `node_modules` or a
-  temporary file of Git in use could be removed.
-- A copy of Chrome that a running Chrome was started from could be removed:
-  its program is the same file as the app's under several names, and `lsof`
-  may name any of them.
+- Build output, `node_modules` or a Git temporary file in use could be
+  removed when a folder in `project-dirs` was written in another letter case
+  than it has on disk, such as `~/developer` for `~/Developer`. It is now kept
+  whatever case the setting uses.
+- A copy of Chrome that a running Chrome was started from could be removed.
+  Chrome makes such a copy, `code_sign_clone`, when it starts. Its program
+  file is the same file as the one in `/Applications`, so `diskcleaner` could
+  not tell which copy a running Chrome used. A copy is now kept while any
+  running Chrome uses that file, and goes after Chrome quits or updates.
 
 ## [0.24.0] - 2026-11-23
 

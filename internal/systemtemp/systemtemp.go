@@ -83,8 +83,8 @@ func (s Step) Run(r *report.Report) {
 	if len(removable) == 0 {
 		return
 	}
-	open := s.Lsof.Once()
-	if err := open.Take(); err != nil {
+	open, err := s.Lsof.Take()
+	if err != nil {
 		r.Fail("%s: removed nothing, as it cannot tell which files are open: lsof: %v", dir, err)
 		return
 	}
@@ -94,12 +94,7 @@ func (s Step) Run(r *report.Report) {
 		return
 	}
 	for _, path := range removable {
-		held, err := open.HoldsAny(path)
-		if err != nil {
-			r.Fail("%s: lsof: %v", path, err)
-			continue
-		}
-		if held {
+		if open.Holds(path) {
 			r.Skip("%s: a process has it open", path)
 			continue
 		}

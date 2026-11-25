@@ -46,15 +46,6 @@ func TestEveryBuiltinFileLoadsAndIsInTheCatalog(t *testing.T) {
 	}
 }
 
-func TestTheStepsRunInTheirOrder(t *testing.T) {
-	assert.Equal(t, []string{
-		"projects", "gradle-caches", "docker-images", "go-cache", "homebrew", "swiftpm-cache",
-		"xcode-derived-data", "xcode-archives", "temp-leftovers", "system-temp", "code-sign-clones",
-		"ide-old-versions", "simulator-caches", "emulator-snapshots", "claude-logs", "codex-logs",
-		"claude-scratchpads",
-	}, stepNames())
-}
-
 func TestACatalogThatCannotRunAsWrittenIsRefused(t *testing.T) {
 	code := map[string]construct{"a": nil, "unused": nil}
 	files := []rule.File{

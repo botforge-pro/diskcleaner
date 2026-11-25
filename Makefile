@@ -1,5 +1,6 @@
 STATICCHECK_VERSION := v0.8.2
 STATICCHECK := go run honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION)
+README_CHECK := TestTheREADMEListsTheStepsAsTheirFilesSay
 
 VERSION = $(shell sed -n 's/^\#\# \[\([0-9.]*\)\].*/\1/p' CHANGELOG.md | head -1)
 
@@ -16,19 +17,20 @@ lint:
 	go vet ./...
 	$(STATICCHECK) ./...
 	commentcensor . .github
+	go test -count=1 -run '^$(README_CHECK)$$' .
 
 test-build:
 	go build ./...
 	go test -run '^$$' ./...
 
 test:
-	go test -count=1 -run '$(TEST)' ./...
+	go test -count=1 -run '$(TEST)' -skip '^$(README_CHECK)$$' ./...
 
 build:
 	go build -o diskcleaner .
 
 readme:
-	UPDATE_README=1 go test -count=1 -run '^TestTheREADMEListsTheStepsAsTheirFilesSay$$' .
+	UPDATE_README=1 go test -count=1 -run '^$(README_CHECK)$$' .
 
 install:
 	go install .

@@ -17,7 +17,5 @@ to use it.
 - Every setting lives in one table in the code, which gives its config key, its
   flag and its help line; the config file and the flags set the same keys.
 - The config selects which steps run, where projects are and the thresholds.
-  What counts as removable, and what shows a tool is running, stays in code
-  with its checks; a config cannot add a removal rule.
 - Every step runs unless turned off, a step that deletes what cannot come back
   included; such a step is marked as one in `--help` and in the README.

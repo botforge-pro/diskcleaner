@@ -127,8 +127,9 @@ func (s Rule) Run(r *report.Report) {
 	if !ok {
 		return
 	}
-	if len(targets) == 1 {
+	if len(targets) == 1 && targets[0].root != "" {
 		s.root = targets[0].root
+		h.at(shown(s.root))
 	}
 	if !s.ready(r) || s.busy(r) {
 		return
@@ -137,12 +138,13 @@ func (s Rule) Run(r *report.Report) {
 		return
 	}
 	for _, t := range targets {
+		base := shown(t.root)
 		if t.root != "" {
-			h.at(shown(t.root))
+			h.at(base)
 		}
 		for _, v := range s.file.views() {
 			part := s
-			part.file, part.root, part.base, part.remove = v, t.root, t.root, v.Remove
+			part.file, part.root, part.base, part.remove = v, t.root, base, v.Remove
 			if t.remove != nil {
 				part.remove = *t.remove
 			}

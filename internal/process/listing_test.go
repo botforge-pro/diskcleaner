@@ -29,14 +29,41 @@ func TestHoldsMatchesThePathAndWhatIsInsideIt(t *testing.T) {
 	assert.False(t, Holds(names, "/work/x"))
 }
 
-func TestOpenNamesListsEveryNameLsofPrints(t *testing.T) {
+func names(files []Open) []string {
+	var names []string
+	for _, file := range files {
+		names = append(names, file.Name)
+	}
+	return names
+}
+
+func TestOpenFilesListsEveryNameLsofPrints(t *testing.T) {
 	usePs(t, "exit 0\n")
 	lsof := fakeLsof(t, "printf 'p42\\nfcwd\\nn/work\\nf3\\nn/work/a.o\\np43\\nf4\\nn->0x1234\\n'\nexit 0\n")
 
-	names, err := OpenNames(5, lsof)
+	files, err := OpenFiles(5, lsof)
 
 	require.NoError(t, err)
-	assert.Equal(t, []string{"/work", "/work/a.o", "->0x1234"}, names)
+	assert.Equal(t, []string{"/work", "/work/a.o", "->0x1234"}, names(files))
+}
+
+func TestOpenFilesKeepsTheDeviceAndInodeOfEachFile(t *testing.T) {
+	usePs(t, "exit 0\n")
+	lsof := fakeLsof(t, "printf 'p42\\nftxt\\nD0x100000f\\ni692842124\\nn/bin/zsh\\nf4\\nn->0x1234\\n'\n")
+
+	files, err := OpenFiles(5, lsof)
+
+	require.NoError(t, err)
+	assert.Equal(t, []Open{{Name: "/bin/zsh", Device: 0x100000f, Inode: 692842124}, {Name: "->0x1234"}}, files)
+}
+
+func TestOpenFilesFailsOnADeviceItCannotRead(t *testing.T) {
+	usePs(t, "exit 0\n")
+
+	files, err := OpenFiles(5, fakeLsof(t, "printf 'p42\\nftxt\\nDsomewhere\\nn/bin/zsh\\n'\n"))
+
+	assert.Nil(t, files)
+	require.ErrorContains(t, err, `cannot read "Dsomewhere"`)
 }
 
 func usePs(t *testing.T, body string) {
@@ -45,19 +72,19 @@ func usePs(t *testing.T, body string) {
 	t.Cleanup(func() { ps = previous })
 }
 
-func TestOpenNamesLeavesOutProcessesThatAreExiting(t *testing.T) {
+func TestOpenFilesLeavesOutProcessesThatAreExiting(t *testing.T) {
 	usePs(t, "printf '    1 Ss\\n34891 ?E\\n  700 Z+\\n  701 U\\n  702 Zl\\n'\n")
 	lsof := fakeLsof(t, "for arg in \"$@\"; do printf 'n%s\\n' \"$arg\"; done\n")
 
-	names, err := OpenNames(5, lsof)
+	files, err := OpenFiles(5, lsof)
 
 	require.NoError(t, err)
-	assert.Equal(t, []string{"-n", "-P", "-Fn", "-p", "^34891,^700"}, names,
+	assert.Equal(t, []string{"-n", "-P", "-FDin", "-p", "^34891,^700"}, names(files),
 		"an exiting process or a zombie can no longer use a file, and asking lsof about one stuck while exiting hangs lsof for good; "+
 			"a zombie leader whose threads still run (Zl on Linux) still holds its files")
 }
 
-func TestOpenNamesWithRealLsofLeavesOutARealZombie(t *testing.T) {
+func TestOpenFilesWithRealLsofLeavesOutARealZombie(t *testing.T) {
 	zombie := exec.Command("/bin/sh", "-c", "exit 0")
 	require.NoError(t, zombie.Start())
 	t.Cleanup(func() { _ = zombie.Wait() })
@@ -73,32 +100,32 @@ func TestOpenNamesWithRealLsofLeavesOutARealZombie(t *testing.T) {
 	resolved, err := filepath.EvalSymlinks(path)
 	require.NoError(t, err)
 
-	names, err := OpenNames(30, "lsof")
+	files, err := OpenFiles(30, "lsof")
 
 	require.NoError(t, err, "lsof accepts an excluded process, here a zombie")
-	assert.True(t, slices.Contains(names, resolved))
+	assert.True(t, slices.Contains(names(files), resolved))
 }
 
-func TestOpenNamesAsksAboutEveryProcessWhenNoneIsExiting(t *testing.T) {
+func TestOpenFilesAsksAboutEveryProcessWhenNoneIsExiting(t *testing.T) {
 	usePs(t, "printf '    1 Ss\\n  701 R+\\n'\n")
 	lsof := fakeLsof(t, "for arg in \"$@\"; do printf 'n%s\\n' \"$arg\"; done\n")
 
-	names, err := OpenNames(5, lsof)
+	files, err := OpenFiles(5, lsof)
 
 	require.NoError(t, err)
-	assert.Equal(t, []string{"-n", "-P", "-Fn"}, names)
+	assert.Equal(t, []string{"-n", "-P", "-FDin"}, names(files))
 }
 
-func TestOpenNamesFailsWhenItCannotListProcesses(t *testing.T) {
+func TestOpenFilesFailsWhenItCannotListProcesses(t *testing.T) {
 	usePs(t, "echo 'ps: broken' >&2\nexit 1\n")
 
-	names, err := OpenNames(5, fakeLsof(t, "printf 'n/a\\n'\n"))
+	files, err := OpenFiles(5, fakeLsof(t, "printf 'n/a\\n'\n"))
 
-	assert.Nil(t, names)
+	assert.Nil(t, files)
 	require.ErrorContains(t, err, "ps: exit 1: ps: broken")
 }
 
-func TestOpenNamesWithRealLsofSeesAnOpenFile(t *testing.T) {
+func TestOpenFilesWithRealLsofSeesAnOpenFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "open")
 	require.NoError(t, os.WriteFile(path, []byte("x"), 0o644))
 	file, err := os.Open(path)
@@ -107,13 +134,13 @@ func TestOpenNamesWithRealLsofSeesAnOpenFile(t *testing.T) {
 	resolved, err := filepath.EvalSymlinks(path)
 	require.NoError(t, err)
 
-	names, err := OpenNames(30, "lsof")
+	files, err := OpenFiles(30, "lsof")
 
 	require.NoError(t, err)
-	assert.True(t, slices.Contains(names, resolved))
+	assert.True(t, slices.Contains(names(files), resolved))
 }
 
-func TestOpenNamesFails(t *testing.T) {
+func TestOpenFilesFails(t *testing.T) {
 	cases := []struct {
 		name    string
 		body    string
@@ -129,9 +156,9 @@ func TestOpenNamesFails(t *testing.T) {
 	usePs(t, "exit 0\n")
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			names, err := OpenNames(tc.timeout, fakeLsof(t, tc.body))
+			files, err := OpenFiles(tc.timeout, fakeLsof(t, tc.body))
 
-			assert.Nil(t, names)
+			assert.Nil(t, files)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.fail)
 		})

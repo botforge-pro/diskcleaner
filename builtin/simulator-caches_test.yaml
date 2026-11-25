@@ -57,7 +57,7 @@
 
 - case: devices reached through a link are cleaned where they are
   commands:
-    plutil -extract state raw -o - ~/Library/Developer/CoreSimulator/Devices/shut/device.plist: {stdout: '1'}
+    plutil -extract state raw -o - ~/Volumes/Devices/shut/device.plist: {stdout: '1'}
   files:
     Volumes/Devices/shut/data/Library/Caches/com.apple.icloudmailagent/com.apple.e5rt.e5bundlecache/entry:
   links:

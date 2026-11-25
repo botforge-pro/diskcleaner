@@ -63,9 +63,9 @@ func (s Rule) removeInEach(r *report.Report) bool {
 	e := s.file.Each
 	var folders []string
 	for _, pattern := range e.Folders {
-		matches, err := expandGlob(s.root, pattern)
+		matches, err := expandGlob(s.base, pattern)
 		if err != nil {
-			r.Fail("find %s: %v", s.root, err)
+			r.Fail("find %s: %v", s.base, err)
 		}
 		folders = append(folders, matches...)
 	}

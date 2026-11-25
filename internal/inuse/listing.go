@@ -1,7 +1,9 @@
 package inuse
 
 import (
+	"os"
 	"slices"
+	"syscall"
 
 	"github.com/botforge-pro/diskcleaner/internal/process"
 )
@@ -15,20 +17,41 @@ func DefaultLsof() Lsof {
 	return Lsof{Command: "lsof", TimeoutSeconds: 30}
 }
 
+type identity struct {
+	device, inode uint64
+}
+
 type Snapshot struct {
 	names []string
+	files map[identity]bool
 }
 
 func (l Lsof) Take() (Snapshot, error) {
-	names, err := process.OpenNames(l.TimeoutSeconds, l.Command)
+	open, err := process.OpenFiles(l.TimeoutSeconds, l.Command)
 	if err != nil {
 		return Snapshot{}, err
 	}
-	return Snapshot{names: names}, nil
+	s := Snapshot{files: map[identity]bool{}}
+	for _, file := range open {
+		s.names = append(s.names, file.Name)
+		if file.Inode != 0 {
+			s.files[identity{file.Device, file.Inode}] = true
+		}
+	}
+	return s, nil
 }
 
 func (s Snapshot) Holds(paths ...string) bool {
-	return slices.ContainsFunc(paths, func(path string) bool { return process.Holds(s.names, path) })
+	return slices.ContainsFunc(paths, func(path string) bool { return process.Holds(s.names, path) || s.holdsFile(path) })
+}
+
+func (s Snapshot) holdsFile(path string) bool {
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() {
+		return false
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	return ok && s.files[identity{uint64(stat.Dev), stat.Ino}]
 }
 
 type Listing struct {

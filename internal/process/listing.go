@@ -6,13 +6,20 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 )
 
 var ps = "ps"
 
-func OpenNames(seconds int, lsof string) ([]string, error) {
-	args := []string{"-n", "-P", "-Fn"}
+type Open struct {
+	Name   string
+	Device uint64
+	Inode  uint64
+}
+
+func OpenFiles(seconds int, lsof string) ([]Open, error) {
+	args := []string{"-n", "-P", "-FDin"}
 	exiting, err := exitingProcesses(seconds)
 	if err != nil {
 		return nil, fmt.Errorf("ps: %w", err)
@@ -36,16 +43,41 @@ func OpenNames(seconds int, lsof string) ([]string, error) {
 	case strings.TrimSpace(result.Stderr) != "":
 		return nil, fmt.Errorf("warned: %s", strings.TrimSpace(result.Stderr))
 	}
-	var names []string
-	for _, line := range strings.Split(result.Stdout, "\n") {
-		if name, ok := strings.CutPrefix(line, "n"); ok {
-			names = append(names, name)
-		}
+	files, err := parseOpen(result.Stdout)
+	if err != nil {
+		return nil, err
 	}
-	if len(names) == 0 {
+	if len(files) == 0 {
 		return nil, fmt.Errorf("listed no open files at all, not even its own")
 	}
-	return names, nil
+	return files, nil
+}
+
+func parseOpen(output string) ([]Open, error) {
+	var files []Open
+	var current Open
+	for _, line := range strings.Split(output, "\n") {
+		if line == "" {
+			continue
+		}
+		field, value := line[0], line[1:]
+		var err error
+		switch field {
+		case 'p', 'f':
+			current = Open{}
+		case 'D':
+			current.Device, err = strconv.ParseUint(strings.TrimPrefix(value, "0x"), 16, 64)
+		case 'i':
+			current.Inode, err = strconv.ParseUint(value, 10, 64)
+		case 'n':
+			current.Name = value
+			files = append(files, current)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("cannot read %q: %w", line, err)
+		}
+	}
+	return files, nil
 }
 
 func exitingProcesses(seconds int) ([]string, error) {

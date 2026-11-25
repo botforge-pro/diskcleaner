@@ -218,12 +218,12 @@ func (s Rule) folders(r *report.Report) []string {
 		}
 	}
 	if s.remove.Others != "" {
-		entries, err := os.ReadDir(s.root)
+		entries, err := os.ReadDir(s.base)
 		if err != nil {
-			r.Fail("find %s: %v", s.root, err)
+			r.Fail("find %s: %v", s.base, err)
 		}
 		for _, entry := range entries {
-			path := filepath.Join(s.root, entry.Name())
+			path := filepath.Join(s.base, entry.Name())
 			if entry.IsDir() && !slices.Contains(folders, path) {
 				r.Skip("%s: %s", path, s.remove.Others)
 			}

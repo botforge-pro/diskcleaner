@@ -113,6 +113,40 @@ func TestAFailedLsofKeepsTheFolderAndFails(t *testing.T) {
 	assert.Len(t, r.Failures, 1)
 }
 
+func TestACopyWhoseProgramIsOpenUnderAnotherNameStays(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	program := "Google Chrome.app.bundle/Contents/MacOS/Google Chrome"
+	running := filepath.Join(dir, "com.google.Chrome.code_sign_clone", "code_sign_clone.running")
+	twin := filepath.Join(dir, "com.google.Chrome.code_sign_clone", "code_sign_clone.twin")
+	require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(running, program)), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(twin, program)), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(running, program), make([]byte, 8192), 0o755))
+	require.NoError(t, os.Link(filepath.Join(running, program), filepath.Join(twin, program)))
+	old := time.Now().Add(-2 * time.Hour)
+	for _, clone := range []string{running, twin} {
+		require.NoError(t, os.Chtimes(clone, old, old))
+	}
+	file, err := os.Open(filepath.Join(running, program))
+	require.NoError(t, err)
+	defer file.Close()
+	env := environment(idle)
+	env.Duration = func(string) time.Duration { return time.Hour }
+	env.Lsof = inuse.DefaultLsof()
+	s := parse(t, "code-sign-clones.yaml", fmt.Sprintf(`order: 1
+describes: x
+root: %s
+remove: {folders: ['*.code_sign_clone/code_sign_clone.*']}
+keep: {age: {of: mtime, within: min-age}, open: ['*/Contents/MacOS/*']}
+`, dir)).Rule(env)
+
+	r, _, _ := run(s, false)
+
+	assert.DirExists(t, running)
+	assert.DirExists(t, twin, "lsof may print either name of a file with two, so the file itself is asked about")
+	assert.Zero(t, r.Count)
+}
+
 func TestRealLsofSeesAnOpenProgramInACopy(t *testing.T) {
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
@@ -128,16 +162,21 @@ func TestRealLsofSeesAnOpenProgramInACopy(t *testing.T) {
 	env := environment(idle)
 	env.Duration = func(string) time.Duration { return time.Hour }
 	env.Lsof = inuse.DefaultLsof()
-	s := parse(t, "code-sign-clones.yaml", fmt.Sprintf(`order: 1
+	link := filepath.Join(t.TempDir(), "X")
+	require.NoError(t, os.Symlink(dir, link))
+
+	for _, root := range []string{dir, link} {
+		s := parse(t, "code-sign-clones.yaml", fmt.Sprintf(`order: 1
 describes: x
 root: %s
 remove: {folders: ['*.code_sign_clone/code_sign_clone.*']}
 keep: {age: {of: mtime, within: min-age}, open: ['*/Contents/MacOS/*']}
-`, dir)).Rule(env)
+`, root)).Rule(env)
 
-	r, _, stderr := run(s, false)
+		r, _, stderr := run(s, false)
 
-	assert.DirExists(t, clone)
-	assert.Zero(t, r.Count)
-	assert.Contains(t, stderr, "SKIPPED       "+clone+": a running program was started from it")
+		assert.DirExists(t, clone, root)
+		assert.Zero(t, r.Count, root)
+		assert.Contains(t, stderr, "SKIPPED       "+clone+": a running program was started from it", root)
+	}
 }

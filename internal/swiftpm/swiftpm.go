@@ -1,37 +1,20 @@
 package swiftpm
 
 import (
-	"fmt"
 	"path/filepath"
 
 	"github.com/botforge-pro/diskcleaner/internal/process"
-	"github.com/botforge-pro/diskcleaner/internal/report"
+	"github.com/botforge-pro/diskcleaner/internal/rule"
 )
 
-type Step struct {
-	Cache     string
-	Processes string
-	Running   func(pattern string) (bool, error)
-}
-
-func Default(home string) Step {
-	return Step{
-		Cache:     filepath.Join(home, "Library/Caches/org.swift.swiftpm"),
-		Processes: "swift-build|swift-package|swift-test|swift-run|" + process.Xcode,
-		Running:   process.Running,
+func Default(home string) rule.Rule {
+	return rule.Rule{
+		Label: "SWIFTPM",
+		Root:  filepath.Join(home, "Library/Caches/org.swift.swiftpm"),
+		Busy: rule.Busy{
+			Processes: "swift-build|swift-package|swift-test|swift-run|" + process.Xcode,
+			Running:   process.Running,
+			Says:      "a Swift package build, xcodebuild or Xcode is running",
+		},
 	}
-}
-
-func (s Step) Run(r *report.Report) {
-	if !r.Directory(s.Cache) {
-		return
-	}
-	fmt.Fprintf(r.Out, "SWIFTPM  %s\n", s.Cache)
-	defer fmt.Fprintln(r.Out)
-
-	if r.Busy(s.Running, s.Processes) {
-		r.Skip("%s: a Swift package build, xcodebuild or Xcode is running", s.Cache)
-		return
-	}
-	r.Remove(s.Cache)
 }

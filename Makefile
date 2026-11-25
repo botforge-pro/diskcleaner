@@ -4,10 +4,11 @@ README_CHECK := TestTheREADMEListsTheStepsAsTheirFilesSay
 
 VERSION = $(shell sed -n 's/^\#\# \[\([0-9.]*\)\].*/\1/p' CHANGELOG.md | head -1)
 
-.PHONY: tools format lint test-build test build install install-release release readme
+.PHONY: tools format lint test-build test test-run build install install-release release readme
 
 tools:
 	pip install --upgrade git+https://github.com/botforge-pro/commentcensor.git
+	go install github.com/botforge-pro/time-limit@v0.1.0
 
 format:
 	gofmt -w .
@@ -24,6 +25,9 @@ test-build:
 	go test -run '^$$' ./...
 
 test:
+	time-limit 560 $(MAKE) --no-print-directory test-run
+
+test-run:
 	go test -count=1 -run '$(TEST)' -skip '^$(README_CHECK)$$' ./...
 
 build:

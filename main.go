@@ -45,7 +45,7 @@ it off, and the marked ones delete what cannot be undone:
 		if !info.Reversible {
 			state = " (cannot be undone)"
 		}
-		fmt.Fprintf(&b, "  %-20s %s%s\n", info.Name, info.describes, state)
+		fmt.Fprintf(&b, "  %-20s %s%s\n", info.Name, info.file.Describes, state)
 	}
 	return b.String()
 }

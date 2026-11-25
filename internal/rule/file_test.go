@@ -46,7 +46,7 @@ func TestAValidFileBecomesARule(t *testing.T) {
 	assert.Equal(t, "/Users/me/Library/Caches/some", r.Root)
 	assert.Equal(t, "some-build|"+groups["xcode"], r.Busy.Processes)
 	assert.Equal(t, "some build is running", r.Busy.Says)
-	assert.Equal(t, []string{"*/old"}, r.Targets)
+	assert.Equal(t, []string{"*/old"}, r.Folders)
 }
 
 func TestTheRootIsTheFirstChoiceWhoseVariableIsSet(t *testing.T) {
@@ -60,7 +60,7 @@ func TestRemoveRootTakesTheRootWhole(t *testing.T) {
 	r := parse(t, "tmp.yaml", "name: tmp\norder: 1\nlabel: TMP\ndescribes: x\nreadme: {removes: x}\nroot: /private/tmp/tool\nremove: root\n").Rule(at("/Users/me", nil))
 
 	assert.Equal(t, "/private/tmp/tool", r.Root)
-	assert.Empty(t, r.Targets)
+	assert.Empty(t, r.Folders)
 }
 
 func TestAStepWrittenInCodeDeclaresItsSettings(t *testing.T) {

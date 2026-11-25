@@ -75,7 +75,7 @@ func TestSwiftPMCacheGoesWholeWhileNoSwiftOrXcodeBuilds(t *testing.T) {
 	s := builtinRule(t, "swiftpm-cache", home, nil)
 
 	assert.Equal(t, filepath.Join(home, "Library/Caches/org.swift.swiftpm"), s.Root)
-	assert.Empty(t, s.Targets)
+	assert.Empty(t, s.Folders)
 	pattern := regexp.MustCompile(s.Busy.Processes)
 	for _, command := range []string{
 		"/usr/bin/swift-build --package-path app",
@@ -124,7 +124,7 @@ func TestEmulatorSnapshotsAreLookedForWhereAndroidKeepsDevices(t *testing.T) {
 func TestEmulatorSnapshotsWaitForTheEmulatorAndNotTheSDKTools(t *testing.T) {
 	s := builtinRule(t, "emulator-snapshots", t.TempDir(), nil)
 
-	assert.Equal(t, []string{"*.avd/snapshots/*"}, s.Targets)
+	assert.Equal(t, []string{"*.avd/snapshots/*"}, s.Folders)
 	pattern := regexp.MustCompile(s.Busy.Processes)
 	for _, command := range []string{
 		"/Users/me/Library/Android/sdk/emulator/qemu/darwin-aarch64/qemu-system-aarch64 -avd Pixel",

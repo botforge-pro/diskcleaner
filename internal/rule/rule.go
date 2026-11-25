@@ -33,7 +33,7 @@ type Rule struct {
 	Label   string
 	Root    string
 	Busy    Busy
-	Targets []string
+	Folders []string
 	Files   []string
 	Keep    Keep
 	Lsof    inuse.Lsof
@@ -53,7 +53,7 @@ func (s Rule) Run(r *report.Report) {
 	switch {
 	case len(s.Files) > 0:
 		s.removeFiles(r)
-	case len(s.Targets) > 0:
+	case len(s.Folders) > 0:
 		for _, folder := range s.folders(r) {
 			r.Remove(folder)
 		}
@@ -64,8 +64,8 @@ func (s Rule) Run(r *report.Report) {
 
 func (s Rule) folders(r *report.Report) []string {
 	var matches []string
-	for _, target := range s.Targets {
-		found, err := filepath.Glob(filepath.Join(s.Root, target))
+	for _, pattern := range s.Folders {
+		found, err := filepath.Glob(filepath.Join(s.Root, pattern))
 		if err != nil {
 			r.Fail("find %s: %v", s.Root, err)
 			continue

@@ -342,7 +342,7 @@ func (f File) Rule(env Environment) Rule {
 		Label:   f.Label,
 		Root:    f.root(env.Home, env.Getenv),
 		Busy:    Busy{Processes: strings.Join(patterns, "|"), Running: env.Running, Says: f.Busy.Says},
-		Targets: f.Remove.Folders,
+		Folders: f.Remove.Folders,
 		Files:   f.Remove.Files,
 		Keep:    keep,
 		Lsof:    inuse.DefaultLsof(),

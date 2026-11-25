@@ -44,7 +44,7 @@ func cache(root string, running func(string) (bool, error)) Rule {
 	return Rule{Label: "SWIFTPM", Root: root, Busy: Busy{Processes: "swift", Running: running, Says: "a Swift build is running"}}
 }
 
-func TestWithoutTargetsTheRootGoesWhole(t *testing.T) {
+func TestRemoveRootTakesItWhole(t *testing.T) {
 	root := newCache(t)
 
 	r, stdout, _ := run(cache(root, idle), false)
@@ -54,13 +54,13 @@ func TestWithoutTargetsTheRootGoesWhole(t *testing.T) {
 	assert.Contains(t, stdout, "SWIFTPM  "+root+"\n")
 }
 
-func TestTargetsRemoveTheFoldersTheyMatchAndNothingElse(t *testing.T) {
+func TestFolderPatternsRemoveTheFoldersTheyMatchAndNothingElse(t *testing.T) {
 	devices, avd := newDevices(t)
 
-	r, stdout, _ := run(Rule{Label: "EMULATOR", Root: devices, Targets: []string{"*.avd/snapshots/*"}}, false)
+	r, stdout, _ := run(Rule{Label: "EMULATOR", Root: devices, Folders: []string{"*.avd/snapshots/*"}}, false)
 
 	assert.NoDirExists(t, filepath.Join(avd, "snapshots", "default_boot"))
-	assert.FileExists(t, filepath.Join(avd, "snapshots", "snapshots.pb"), "a file a target matches stays")
+	assert.FileExists(t, filepath.Join(avd, "snapshots", "snapshots.pb"), "a file a folder pattern matches stays")
 	assert.FileExists(t, filepath.Join(avd, "userdata-qemu.img.qcow2"))
 	assert.Equal(t, 1, r.Count)
 	assert.Contains(t, stdout, "EMULATOR "+devices+"\n")

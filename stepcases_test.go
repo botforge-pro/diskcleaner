@@ -30,7 +30,7 @@ type stepCase struct {
 	Files   map[string]string `yaml:"files"`
 	Open    []string          `yaml:"open"`
 	Tracked []string          `yaml:"tracked"`
-	Removes []string          `yaml:"removes"`
+	Removes *[]string         `yaml:"removes"`
 	Says    []string          `yaml:"says"`
 }
 
@@ -77,6 +77,10 @@ func builtinFile(t *testing.T, name string) rule.File {
 func (c stepCase) run(t *testing.T, f rule.File) {
 	require.NotEmpty(t, c.Case, "every case is named")
 	require.NotEmpty(t, c.Files, "%s: files", c.Case)
+	require.NotNil(t, c.Removes, "%s: removes: name what goes, or [] for nothing", c.Case)
+	for _, path := range append(slices.Clone(c.Open), c.Tracked...) {
+		require.Contains(t, c.Files, path, "%s: open and tracked name paths under files", c.Case)
+	}
 	home, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
 	now := time.Now()
@@ -111,7 +115,7 @@ func (c stepCase) run(t *testing.T, f rule.File) {
 			assert.FileExists(t, full, "only removes: may go")
 		}
 	}
-	for _, path := range c.Removes {
+	for _, path := range *c.Removes {
 		_, err := os.Lstat(filepath.Join(home, path))
 		assert.ErrorIs(t, err, os.ErrNotExist, "removes: %s", path)
 	}
@@ -146,7 +150,7 @@ func (c stepCase) running(pattern string) (bool, error) {
 }
 
 func (c stepCase) removed(path string) bool {
-	return slices.ContainsFunc(c.Removes, func(gone string) bool {
+	return slices.ContainsFunc(*c.Removes, func(gone string) bool {
 		return path == gone || strings.HasPrefix(path, gone+"/")
 	})
 }

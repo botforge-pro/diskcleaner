@@ -7,17 +7,20 @@
   running: [/usr/bin/swift-build --package-path app]
   files:
     Library/Caches/org.swift.swiftpm/repositories/pkg.git/HEAD:
+  removes: []
   says: [a Swift package build, xcodebuild or Xcode is running]
 
 - case: running a package keeps the cache
   running: [/usr/bin/swift-run app]
   files:
     Library/Caches/org.swift.swiftpm/repositories/pkg.git/HEAD:
+  removes: []
 
 - case: Xcode keeps the cache, a beta too
   running: [/Applications/Xcode-beta.app/Contents/MacOS/Xcode]
   files:
     Library/Caches/org.swift.swiftpm/repositories/pkg.git/HEAD:
+  removes: []
 
 - case: git from Xcode's tools is not a build
   running: [/Applications/Xcode.app/Contents/Developer/usr/bin/git status]

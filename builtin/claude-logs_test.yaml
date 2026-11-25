@@ -20,6 +20,7 @@
   files:
     .claude/projects/repo/fixture.jsonl: 30d
   tracked: [.claude/projects/repo/fixture.jsonl]
+  removes: []
   says: [contains files tracked by git]
 
 - case: CLAUDE_CONFIG_DIR moves the logs

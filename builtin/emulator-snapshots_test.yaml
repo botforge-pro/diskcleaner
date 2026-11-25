@@ -23,12 +23,14 @@
   running: [/Users/me/Library/Android/sdk/emulator/qemu/darwin-aarch64/qemu-system-aarch64 -avd Pixel]
   files:
     .android/avd/Pixel.avd/snapshots/default_boot/ram.bin:
+  removes: []
   says: [an Android emulator is running]
 
 - case: the emulator launcher counts as running
   running: [/Users/me/Library/Android/sdk/emulator/emulator -avd Pixel -no-window]
   files:
     .android/avd/Pixel.avd/snapshots/default_boot/ram.bin:
+  removes: []
 
 - case: adb and the emulator's crash handler are not the emulator
   running:

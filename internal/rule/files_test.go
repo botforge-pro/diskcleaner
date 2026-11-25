@@ -50,13 +50,8 @@ func logs(folder string) Rule {
 		Label: "CLAUDE",
 		Root:  folder,
 		Files: []string{"**/*.jsonl"},
-		Keep: Keep{
-			Age:            age.Limit{Min: 31 * day, Now: func() time.Time { return now }},
-			Open:           true,
-			OpenPerListing: 50,
-			Tracked:        true,
-		},
-		Lsof: inuse.Lsof{Command: "../process/testdata/lsof-none-open", TimeoutSeconds: 5},
+		Keep:  Keep{Age: age.Limit{Min: 31 * day, Now: func() time.Time { return now }}},
+		Lsof:  inuse.Lsof{Command: "../process/testdata/lsof-none-open", TimeoutSeconds: 5},
 	}
 }
 
@@ -139,21 +134,21 @@ func TestOpenFilesAreAskedAboutWithAFreshListingForEachBatch(t *testing.T) {
 	folder, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
 	var paths []string
-	for i := range 3 {
-		path := filepath.Join(folder, fmt.Sprintf("log-%d.jsonl", i))
+	for i := range openAnswersPerListing + 1 {
+		path := filepath.Join(folder, fmt.Sprintf("log-%02d.jsonl", i))
 		writeLog(t, path, 40*day)
 		paths = append(paths, path)
 	}
+	last := paths[openAnswersPerListing]
 	calls := filepath.Join(t.TempDir(), "calls")
 	s := logs(folder)
-	s.Keep.OpenPerListing = 2
-	s.Lsof.Command = fakeLsof(t, "echo listed >>"+calls+"\nprintf 'p42\\nf3\\nn"+paths[2]+"\\n'\n")
+	s.Lsof.Command = fakeLsof(t, "echo listed >>"+calls+"\nprintf 'p42\\nf3\\nn"+last+"\\n'\n")
 
 	r, _, stderr := run(s, false)
 
-	assert.Equal(t, 2, r.Count)
-	assert.FileExists(t, paths[2], "open in the second batch")
-	assert.Contains(t, stderr, "SKIPPED       "+paths[2]+": a process still has it open\n")
+	assert.Equal(t, openAnswersPerListing, r.Count)
+	assert.FileExists(t, last, "open in the second batch")
+	assert.Contains(t, stderr, "SKIPPED       "+last+": a process still has it open\n")
 	recorded, err := os.ReadFile(calls)
 	require.NoError(t, err)
 	assert.Equal(t, "listed\nlisted\n", string(recorded))
@@ -206,22 +201,6 @@ func TestARelativeRootKeepsAFileGitTracks(t *testing.T) {
 	assert.FileExists(t, tracked)
 	assert.Zero(t, r.Count)
 	assert.Contains(t, stderr, "contains files tracked by git")
-}
-
-func TestWithoutTheGitGuardATrackedFileGoes(t *testing.T) {
-	root, err := filepath.EvalSymlinks(t.TempDir())
-	require.NoError(t, err)
-	tracked := filepath.Join(root, "old.jsonl")
-	writeLog(t, tracked, 40*day)
-	output, err := exec.Command("git", "-C", root, "init", "-q").CombinedOutput()
-	require.NoError(t, err, string(output))
-	s := logs(root)
-	s.Keep.Tracked = false
-
-	r, _, _ := run(s, false)
-
-	assert.NoFileExists(t, tracked)
-	assert.Equal(t, 1, r.Count)
 }
 
 func TestFilesDryRunRemovesNothing(t *testing.T) {

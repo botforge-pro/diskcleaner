@@ -20,5 +20,3 @@ remove:
 
 keep:
   written-within: min-age
-  open: true
-  tracked-by-git: true

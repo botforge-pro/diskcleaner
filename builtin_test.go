@@ -101,15 +101,12 @@ func TestSessionLogsAreLookedForWhereEachToolKeepsThem(t *testing.T) {
 	assert.Equal(t, "/opt/codex/sessions", builtinRule(t, "codex-logs", home, map[string]string{"CODEX_HOME": "/opt/codex"}).Root)
 }
 
-func TestSessionLogsKeepWhatIsYoungOpenOrTracked(t *testing.T) {
+func TestSessionLogsKeepWhatIsYoung(t *testing.T) {
 	for _, name := range []string{"claude-logs", "codex-logs"} {
 		s := builtinRule(t, name, t.TempDir(), nil)
 
 		assert.Equal(t, []string{"**/*.jsonl"}, s.Files, name)
 		assert.Equal(t, 20*24*time.Hour, s.Keep.Age.Min, name)
-		assert.True(t, s.Keep.Open, name)
-		assert.Equal(t, 50, s.Keep.OpenPerListing, name)
-		assert.True(t, s.Keep.Tracked, name)
 	}
 }
 

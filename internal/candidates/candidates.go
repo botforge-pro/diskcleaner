@@ -43,10 +43,6 @@ func (s *Set) Add(r *report.Report, path string) {
 	}
 }
 
-func (s *Set) Put(path string) {
-	s.paths = append(s.paths, path)
-}
-
 func (s *Set) Paths() []string {
 	return slices.Clone(s.paths)
 }

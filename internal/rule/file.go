@@ -21,8 +21,6 @@ import (
 	"github.com/botforge-pro/diskcleaner/internal/process"
 )
 
-const openAnswersPerListing = 50
-
 var groups = map[string]string{
 	"xcode": process.Xcode,
 }
@@ -112,8 +110,6 @@ type BusyWhen struct {
 
 type KeepWhen struct {
 	WrittenWithin string `yaml:"written-within"`
-	Open          bool   `yaml:"open"`
-	TrackedByGit  bool   `yaml:"tracked-by-git"`
 }
 
 type Removal struct {
@@ -333,7 +329,7 @@ func (f File) Rule(env Environment) Rule {
 	for _, group := range f.Busy.Groups {
 		patterns = append(patterns, groups[group])
 	}
-	keep := Keep{Open: f.Keep.Open, OpenPerListing: openAnswersPerListing, Tracked: f.Keep.TrackedByGit, Age: age.Of(0)}
+	keep := Keep{Age: age.Of(0)}
 	if f.Keep.WrittenWithin != "" {
 		keep.Age = age.Of(env.Duration(f.Keep.WrittenWithin))
 	}

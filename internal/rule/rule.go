@@ -22,11 +22,10 @@ type Busy struct {
 	Says      string
 }
 
+const openAnswersPerListing = 50
+
 type Keep struct {
-	Age            age.Limit
-	Open           bool
-	OpenPerListing int
-	Tracked        bool
+	Age age.Limit
 }
 
 type Rule struct {
@@ -111,11 +110,7 @@ func (s Rule) removeFiles(r *report.Report) {
 		if s.Keep.Age.Recent(info.ModTime()) {
 			return nil
 		}
-		if s.Keep.Tracked {
-			set.Add(r, path)
-		} else {
-			set.Put(path)
-		}
+		set.Add(r, path)
 		return nil
 	})
 	if err != nil {
@@ -143,23 +138,21 @@ func (s Rule) wanted(root, path string) bool {
 }
 
 func (s Rule) keeper(r *report.Report) func(path string) bool {
-	open := s.Lsof.Every(s.Keep.OpenPerListing)
+	open := s.Lsof.Every(openAnswersPerListing)
 	failed := false
 	return func(path string) bool {
-		if s.Keep.Open {
-			if failed {
-				return true
-			}
-			held, err := open.HoldsAny(path)
-			if err != nil {
-				r.Fail("lsof %s: %v", s.Root, err)
-				failed = true
-				return true
-			}
-			if held {
-				r.Skip("%s: a process still has it open", path)
-				return true
-			}
+		if failed {
+			return true
+		}
+		held, err := open.HoldsAny(path)
+		if err != nil {
+			r.Fail("lsof %s: %v", s.Root, err)
+			failed = true
+			return true
+		}
+		if held {
+			r.Skip("%s: a process still has it open", path)
+			return true
 		}
 		info, err := os.Lstat(path)
 		if err != nil {

@@ -9,7 +9,7 @@ is 0.x, commands and output may still change.
 
 The steps, their settings and their flags keep their names; the changes below
 are to what `clean` prints, when it fails, and what it keeps. If a script reads
-the output of `clean`, check it against the first three items under Changed.
+the output of `clean`, check it against the first four items under Changed.
 
 ### Changed
 
@@ -21,9 +21,15 @@ the output of `clean`, check it against the first three items under Changed.
   tells them apart. `projects` prints one heading for each folder in
   `project-dirs`, where it printed one for each repository.
 - Something kept only because it is younger than its age setting is no longer
-  printed as `SKIPPED`. It is still kept, but not counted or listed. Something
-  kept for another reason is still printed: a file a process has open, a file
-  Git tracks, a socket, a mounted volume, a simulator that is running.
+  printed as `SKIPPED`. It is still kept, but not counted or listed, and
+  `system-temp` no longer prints a line such as `/private/tmp: 413 files
+  younger than 3 days`. Something kept for another reason is still printed: a
+  file a process has open, a file Git tracks, a socket, a mounted volume, a
+  simulator that is running.
+- A step that looks for what to remove, such as `xcode-archives` or
+  `simulator-caches`, checks whether its tool is running only once it has
+  found something to remove, and prints that it skips only then. With nothing
+  to remove, a running Xcode or a booted simulator is no longer mentioned.
 - When a step runs a command, such as `brew cleanup`, its `RUN` line comes
   after the command finishes and gives the space it freed. In a dry run, the
   pruning of Git LFS objects is printed like any other command, as

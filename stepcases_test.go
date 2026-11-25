@@ -19,21 +19,26 @@ import (
 
 	"github.com/botforge-pro/diskcleaner/internal/config"
 	"github.com/botforge-pro/diskcleaner/internal/inuse"
+	"github.com/botforge-pro/diskcleaner/internal/process"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 	"github.com/botforge-pro/diskcleaner/internal/rule"
 )
 
 type stepCase struct {
-	Case    string            `yaml:"case"`
-	Env     map[string]string `yaml:"env"`
-	Running []fakeProcess     `yaml:"running"`
-	Files   map[string]string `yaml:"files"`
-	Open    []string          `yaml:"open"`
-	Tracked []string          `yaml:"tracked"`
-	Removes *[]string         `yaml:"removes"`
-	Says    []string          `yaml:"says"`
-	Shows   []string          `yaml:"shows"`
-	Fails   []string          `yaml:"fails"`
+	Case     string                 `yaml:"case"`
+	Env      map[string]string      `yaml:"env"`
+	Running  []fakeProcess          `yaml:"running"`
+	Commands map[string]fakeCommand `yaml:"commands"`
+	Files    map[string]string      `yaml:"files"`
+	Open     []string               `yaml:"open"`
+	Tracked  []string               `yaml:"tracked"`
+	Removes  *[]string              `yaml:"removes"`
+	Says     []string               `yaml:"says"`
+	Shows    []string               `yaml:"shows"`
+	Fails    []string               `yaml:"fails"`
+	DryRun   bool                   `yaml:"dry-run"`
+	Counts   *int                   `yaml:"counts"`
+	Frees    string                 `yaml:"frees"`
 }
 
 func TestEveryDeclaredStepHasATestFile(t *testing.T) {
@@ -78,7 +83,6 @@ func builtinFile(t *testing.T, name string) rule.File {
 
 func (c stepCase) run(t *testing.T, f rule.File) {
 	require.NotEmpty(t, c.Case, "every case is named")
-	require.NotEmpty(t, c.Files, "%s: files", c.Case)
 	require.NotNil(t, c.Removes, "%s: removes: name what goes, or [] for nothing", c.Case)
 	for _, path := range append(slices.Clone(c.Open), c.Tracked...) {
 		require.Contains(t, c.Files, path, "%s: open and tracked name paths under files", c.Case)
@@ -98,11 +102,12 @@ func (c stepCase) run(t *testing.T, f rule.File) {
 	}
 
 	var stdout, stderr bytes.Buffer
-	r := &report.Report{Out: &stdout, Err: &stderr}
+	r := &report.Report{Out: &stdout, Err: &stderr, DryRun: c.DryRun}
 	f.Rule(rule.Environment{
 		Home:      home,
 		Getenv:    func(key string) string { return c.variable(home, key) },
 		Processes: newProcessTable(home, c.Running).processes(),
+		Commands:  c.commands(t, home),
 		Duration:  func(key string) time.Duration { return settingsDefault(t, f.Name+"."+key) },
 		Now:       time.Now,
 		Lsof:      inuse.Lsof{Command: c.lsof(t, home), TimeoutSeconds: 5},
@@ -113,6 +118,12 @@ func (c stepCase) run(t *testing.T, f rule.File) {
 	}
 	for _, failed := range c.Fails {
 		assert.True(t, slices.ContainsFunc(r.Failures, func(f string) bool { return strings.Contains(f, failed) }), "fails: %q not among %q", failed, r.Failures)
+	}
+	if c.Counts != nil {
+		assert.Equal(t, *c.Counts, r.Count, "counts")
+	}
+	if c.Frees != "" {
+		assert.Equal(t, c.Frees, report.FormatKB(r.KB), "frees")
 	}
 	for _, shown := range c.Shows {
 		assert.Contains(t, stdout.String(), shown)
@@ -149,6 +160,43 @@ func (c stepCase) variable(home, key string) string {
 		return filepath.Join(home, rest)
 	}
 	return value
+}
+
+type fakeCommand struct {
+	Stdout  string   `yaml:"stdout"`
+	Stderr  string   `yaml:"stderr"`
+	Exit    int      `yaml:"exit"`
+	Hangs   bool     `yaml:"hangs"`
+	Removes []string `yaml:"removes"`
+}
+
+func (c stepCase) commands(t *testing.T, home string) rule.Commands {
+	inHome := strings.NewReplacer("~/", home+"/")
+	return rule.Commands{
+		LookPath: func(name string) (string, error) {
+			for line := range c.Commands {
+				if line == name || strings.HasPrefix(line, name+" ") {
+					return "/usr/bin/" + name, nil
+				}
+			}
+			return "", exec.ErrNotFound
+		},
+		Run: func(_ time.Duration, name string, args ...string) process.Result {
+			line := strings.Join(append([]string{name}, args...), " ")
+			fake, ok := c.Commands[line]
+			if !ok {
+				return process.Result{Err: fmt.Errorf("exit status 127"), Stderr: "not expected in this case: " + line}
+			}
+			for _, path := range fake.Removes {
+				require.NoError(t, os.RemoveAll(filepath.Join(home, path)))
+			}
+			result := process.Result{Stdout: inHome.Replace(fake.Stdout), Stderr: inHome.Replace(fake.Stderr), TimedOut: fake.Hangs}
+			if fake.Exit != 0 || fake.Hangs {
+				result.Err = fmt.Errorf("exit status %d", fake.Exit)
+			}
+			return result
+		},
+	}
 }
 
 type fakeProcess struct {

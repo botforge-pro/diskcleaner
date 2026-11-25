@@ -3,6 +3,7 @@ package rule
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -27,6 +28,7 @@ type Environment struct {
 	Home      string
 	Getenv    func(string) string
 	Processes Processes
+	Commands  Commands
 	Duration  func(key string) time.Duration
 	Now       func() time.Time
 	Lsof      inuse.Lsof
@@ -57,22 +59,58 @@ type Rule struct {
 }
 
 func (f File) Rule(env Environment) Rule {
-	return Rule{file: f, root: f.root(env.Home, env.Getenv), env: env}
+	return Rule{file: f, env: env}
 }
 
 func (s Rule) Root() string {
-	return s.root
+	root, _ := s.resolve(&report.Report{Out: io.Discard, Err: io.Discard}, s.file.Root)
+	return root
+}
+
+type headed struct {
+	w     io.Writer
+	start func()
+}
+
+func (h headed) Write(p []byte) (int, error) {
+	h.start()
+	return h.w.Write(p)
 }
 
 func (s Rule) Run(r *report.Report) {
-	if !r.Directory(s.root) {
+	out, errs := r.Out, r.Err
+	started := false
+	where := s.file.Describes
+	start := func() {
+		if !started {
+			started = true
+			fmt.Fprintf(out, "%-8s %s\n", s.file.Label(), where)
+		}
+	}
+	r.Out, r.Err = headed{out, start}, headed{errs, start}
+	defer func() {
+		r.Out, r.Err = out, errs
+		if started {
+			fmt.Fprintln(out)
+		}
+	}()
+
+	if !s.needed(r) {
 		return
 	}
-	fmt.Fprintf(r.Out, "%-8s %s\n", s.file.Label(), s.root)
-	defer fmt.Fprintln(r.Out)
-
-	if pattern := s.file.BusyPattern(); pattern != "" && r.Busy(s.env.Processes.Running, pattern) {
-		r.Skip("%s: %s", s.root, s.file.Busy.Says)
+	if !s.file.Root.empty() {
+		root, ok := s.resolve(r, s.file.Root)
+		if !ok || !r.Directory(root) {
+			return
+		}
+		s.root = root
+		if resolved, err := filepath.EvalSymlinks(root); err == nil {
+			where = resolved
+		} else {
+			where = root
+		}
+	}
+	if !s.ready(r) || s.busy(r) {
 		return
 	}
 	if s.file.Stop.given() && !s.stopIdle(r) {
@@ -88,6 +126,24 @@ func (s Rule) Run(r *report.Report) {
 	case len(remove.Files) > 0:
 		s.removeFiles(r)
 	}
+	for _, c := range s.file.Remove.Commands {
+		if !s.runCommand(r, c, s.root) {
+			return
+		}
+	}
+}
+
+func (s Rule) busy(r *report.Report) bool {
+	pattern := s.file.BusyPattern()
+	if pattern == "" || !r.Busy(s.env.Processes.Running, pattern) {
+		return false
+	}
+	subject := s.root
+	if subject == "" {
+		subject = s.file.Name
+	}
+	r.Skip("%s: %s", subject, s.file.Busy.Says)
+	return true
 }
 
 func (s Rule) stopIdle(r *report.Report) bool {

@@ -1,0 +1,91 @@
+- case: go cleans both caches where go env puts them
+  files:
+    go/pkg/mod/example.com/module@v1.0.0/module.go:
+    Library/Caches/go-build/00/entry-d:
+  commands:
+    go env GOMODCACHE: {stdout: ~/go/pkg/mod}
+    go env GOCACHE: {stdout: ~/Library/Caches/go-build}
+    go clean -modcache: {removes: [go/pkg/mod]}
+    go clean -cache: {removes: [Library/Caches/go-build/00]}
+  removes: [go/pkg/mod, Library/Caches/go-build/00]
+  counts: 2
+
+- case: a dry run counts both caches and cleans nothing
+  dry-run: true
+  files:
+    go/pkg/mod/example.com/module@v1.0.0/module.go:
+    Library/Caches/go-build/00/entry-d:
+  commands:
+    go env GOMODCACHE: {stdout: ~/go/pkg/mod}
+    go env GOCACHE: {stdout: ~/Library/Caches/go-build}
+  removes: []
+  shows: ['WOULD RUN     go clean -modcache', 'WOULD RUN     go clean -cache']
+  counts: 2
+
+- case: a running go command keeps both caches
+  running: [/usr/local/go/bin/go test ./...]
+  files:
+    go/pkg/mod/example.com/module@v1.0.0/module.go:
+  commands:
+    go env GOMODCACHE: {stdout: ~/go/pkg/mod}
+    go env GOCACHE: {stdout: ~/Library/Caches/go-build}
+  removes: []
+  says: [a go command is running]
+
+- case: without go the step is quiet
+  files:
+    go/pkg/mod/example.com/module@v1.0.0/module.go:
+  removes: []
+  counts: 0
+
+- case: a cache that does not exist is passed over quietly
+  files:
+    Library/Caches/go-build/00/entry-d:
+  commands:
+    go env GOMODCACHE: {stdout: ~/go/pkg/mod}
+    go env GOCACHE: {stdout: ~/Library/Caches/go-build}
+    go clean -cache: {removes: [Library/Caches/go-build/00]}
+  removes: [Library/Caches/go-build/00]
+  counts: 1
+
+- case: a failing go env fails
+  files:
+    go/pkg/mod/example.com/module@v1.0.0/module.go:
+  commands:
+    go env GOMODCACHE: {stderr: 'go: cannot find GOROOT directory', exit: 2}
+    go env GOCACHE: {stdout: ~/Library/Caches/go-build}
+  removes: []
+  fails: ['go env GOMODCACHE: exit status 2: go: cannot find GOROOT directory']
+
+- case: what go env says on stderr stays out of the path
+  files:
+    go/pkg/mod/example.com/module@v1.0.0/module.go:
+  commands:
+    go env GOMODCACHE: {stdout: ~/go/pkg/mod, stderr: 'go: downloading go1.99.0 (darwin/arm64)'}
+    go env GOCACHE: {stdout: ''}
+    go clean -modcache: {removes: [go/pkg/mod]}
+  removes: [go/pkg/mod]
+  says: ['go: downloading go1.99.0']
+
+- case: go env printing more than one line fails
+  files:
+    go/pkg/mod/example.com/module@v1.0.0/module.go:
+  commands:
+    go env GOMODCACHE: {stdout: "first\n~/go/pkg/mod"}
+    go env GOCACHE: {stdout: ''}
+  removes: []
+  fails: ['go env GOMODCACHE: expected one line']
+
+- case: a clean that fails midway counts only what it freed and goes on
+  files:
+    go/pkg/mod/example.com/module@v1.0.0/module.go:
+    go/pkg/mod/example.com/kept@v1.0.0/kept.go:
+    Library/Caches/go-build/00/entry-d:
+  commands:
+    go env GOMODCACHE: {stdout: ~/go/pkg/mod}
+    go env GOCACHE: {stdout: ~/Library/Caches/go-build}
+    go clean -modcache: {removes: [go/pkg/mod/example.com/module@v1.0.0], stderr: permission denied, exit: 3}
+    go clean -cache: {removes: [Library/Caches/go-build/00]}
+  removes: [go/pkg/mod/example.com/module@v1.0.0, Library/Caches/go-build/00]
+  counts: 1
+  fails: ['go clean -modcache: exit status 3: permission denied']

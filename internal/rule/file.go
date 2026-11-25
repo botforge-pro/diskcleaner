@@ -36,12 +36,13 @@ type File struct {
 	Readme     Readme    `yaml:"readme"`
 	Settings   []Setting `yaml:"settings"`
 	Run        string    `yaml:"run"`
-	Root       string    `yaml:"root"`
+	Needs      []string  `yaml:"needs"`
+	Root       Root      `yaml:"root"`
+	Ready      Ready     `yaml:"ready"`
 	Busy       BusyWhen  `yaml:"busy"`
 	Stop       StopWhen  `yaml:"stop"`
 	Remove     Removal   `yaml:"remove"`
 	Keep       KeepWhen  `yaml:"keep"`
-	places     []place
 }
 
 type Readme struct {
@@ -62,8 +63,8 @@ func (f File) Explain(text string) string {
 var globals = config.NewTable(nil)
 
 func (f File) mentioned(key string) (string, bool) {
-	if key == "root" && f.Root != "" {
-		return f.rootInWords(), true
+	if key == "root" && !f.Root.empty() {
+		return f.Root.words(), true
 	}
 	if i := slices.IndexFunc(f.Settings, func(s Setting) bool { return s.Key == key }); i >= 0 {
 		return fmt.Sprintf("`%s.%s` (`%s`)", f.Name, key, f.Settings[i].Default), true
@@ -79,21 +80,6 @@ func (f File) Removes() string {
 		return f.Explain(f.Describes)
 	}
 	return f.Explain(f.Readme.Removes)
-}
-
-func (f File) rootInWords() string {
-	words := make([]string, len(f.places))
-	for i, p := range f.places {
-		switch {
-		case p.variable == "":
-			words[i] = "`" + p.path + "`"
-		case p.path == "":
-			words[i] = "`$" + p.variable + "`"
-		default:
-			words[i] = "`$" + p.variable + "/" + p.path + "`"
-		}
-	}
-	return strings.Join(words, ", else ")
 }
 
 func (f File) checkReadme() error {
@@ -197,20 +183,39 @@ type KeepWhen struct {
 }
 
 type Removal struct {
-	Root    bool
-	Folders []string
-	Files   []string
-	given   bool
+	Root     bool
+	Folders  []string
+	Files    []string
+	Commands []Command
+	given    bool
 }
 
 func (m *Removal) UnmarshalYAML(node *yaml.Node) error {
 	m.given = true
-	want := fmt.Errorf("line %d: remove: want root, or one of folders: [patterns] and files: [patterns]", node.Line)
+	want := fmt.Errorf("line %d: remove: want root, one of folders: [patterns] and files: [patterns], or run: [command] or a list of these", node.Line)
 	if node.Kind == yaml.ScalarNode {
 		if node.Value != "root" {
 			return want
 		}
 		m.Root = true
+		return nil
+	}
+	if node.Kind == yaml.SequenceNode {
+		for _, item := range node.Content {
+			var c Command
+			if err := strict(item, &c); err != nil {
+				return fmt.Errorf("remove: %w", err)
+			}
+			m.Commands = append(m.Commands, c)
+		}
+		return nil
+	}
+	if node.Kind == yaml.MappingNode && slices.ContainsFunc(node.Content, func(key *yaml.Node) bool { return key.Value == "run" }) {
+		var c Command
+		if err := strict(node, &c); err != nil {
+			return fmt.Errorf("remove: %w", err)
+		}
+		m.Commands = []Command{c}
 		return nil
 	}
 	if node.Kind != yaml.MappingNode || len(node.Content) != 2 {
@@ -229,11 +234,6 @@ func (m *Removal) UnmarshalYAML(node *yaml.Node) error {
 		return want
 	}
 	return nil
-}
-
-type place struct {
-	variable string
-	path     string
 }
 
 const TestSuffix = "_test.yaml"
@@ -303,16 +303,17 @@ func (f *File) check() error {
 	switch {
 	case f.Run != "" && f.Run != "code":
 		return fmt.Errorf("run %q: want code, for a step whose work is written in Go", f.Run)
-	case f.Run == "code" && (f.Root != "" || f.Busy.Says != "" || len(f.Busy.Processes) > 0 || len(f.Busy.Groups) > 0 || f.Stop.given() || f.Remove.given || f.Keep != (KeepWhen{})):
-		return errors.New("run: code: the step is written in Go, so root, busy, stop, remove and keep belong to it there")
+	case f.Run == "code" && (!f.Root.empty() || len(f.Needs) > 0 || len(f.Ready.Run) > 0 || f.Busy.Says != "" || len(f.Busy.Processes) > 0 || len(f.Busy.Groups) > 0 || f.Stop.given() || f.Remove.given || f.Keep != (KeepWhen{})):
+		return errors.New("run: code: the step is written in Go, so needs, root, ready, busy, stop, remove and keep belong to it there")
 	case f.Run == "code":
 		return nil
 	}
-	places, err := parseRoot(f.Root)
-	if err != nil {
+	if err := f.Root.check(len(f.Remove.Commands) == 0); err != nil {
 		return err
 	}
-	f.places = places
+	if err := f.checkReady(); err != nil {
+		return err
+	}
 	busy := f.Busy
 	if (len(busy.Processes) > 0 || len(busy.Groups) > 0) != (busy.Says != "") {
 		return errors.New("busy: want processes or groups together with says")
@@ -333,8 +334,13 @@ func (f *File) check() error {
 	switch {
 	case !f.Remove.given:
 		return errors.New("remove: want root, or one of folders: [patterns] and files: [patterns] inside the root")
-	case !f.Remove.Root && len(f.Remove.Folders) == 0 && len(f.Remove.Files) == 0:
+	case !f.Remove.Root && len(f.Remove.Folders) == 0 && len(f.Remove.Files) == 0 && len(f.Remove.Commands) == 0:
 		return errors.New("remove: want at least one pattern")
+	}
+	for _, c := range f.Remove.Commands {
+		if err := f.checkCommand(c); err != nil {
+			return err
+		}
 	}
 	for _, pattern := range f.Remove.Folders {
 		if !inside(pattern) || strings.Contains(pattern, "**") {
@@ -385,28 +391,23 @@ func (s Setting) check() error {
 	return nil
 }
 
-func parseRoot(root string) ([]place, error) {
-	if strings.TrimSpace(root) == "" {
-		return nil, errors.New("root: want a folder, like ~/Library/Caches/tool or $TOOL_HOME/cache or ~/.tool/cache")
-	}
-	parts := strings.Split(root, " or ")
-	places := make([]place, len(parts))
-	for i, part := range parts {
-		part = strings.TrimSpace(part)
-		last := i == len(parts)-1
-		if match := variable.FindStringSubmatch(part); match != nil {
-			if last {
-				return nil, fmt.Errorf("root: %q: the last choice must be a path, so that a root is always found", part)
-			}
-			places[i] = place{variable: match[1], path: strings.TrimPrefix(match[2], "/")}
-			continue
+func (f File) checkReady() error {
+	ready := f.Ready
+	if len(ready.Run) == 0 {
+		if ready.Timeout != "" || ready.Hung != "" || len(ready.Down.Processes) > 0 || ready.Down.Says != "" {
+			return errors.New("ready: want run, the command that must answer first")
 		}
-		if !strings.HasPrefix(part, "~/") && !filepath.IsAbs(part) {
-			return nil, fmt.Errorf("root: %q: want $VARIABLE, $VARIABLE/subfolder, a path starting with ~/ or /", part)
-		}
-		places[i] = place{path: part}
+		return nil
 	}
-	return places, nil
+	if ready.Hung == "" || len(ready.Down.Processes) == 0 || ready.Down.Says == "" {
+		return errors.New("ready: want run with hung, what to do when it does not answer, and down: {processes, says}, what tells that it is not running")
+	}
+	for _, pattern := range ready.Down.Processes {
+		if _, err := regexp.Compile(pattern); err != nil {
+			return fmt.Errorf("ready: down: processes %q: %w", pattern, err)
+		}
+	}
+	return f.checkTimeout(ready.Timeout)
 }
 
 func (f File) BusyPattern() string {
@@ -415,23 +416,4 @@ func (f File) BusyPattern() string {
 		patterns = append(patterns, groups[group])
 	}
 	return strings.Join(patterns, "|")
-}
-
-func (f File) root(home string, getenv func(string) string) string {
-	for _, p := range f.places {
-		if p.variable == "" {
-			return expand(home, p.path)
-		}
-		if value := getenv(p.variable); value != "" {
-			return filepath.Join(value, p.path)
-		}
-	}
-	return ""
-}
-
-func expand(home, place string) string {
-	if under, ok := strings.CutPrefix(place, "~/"); ok {
-		return filepath.Join(home, under)
-	}
-	return place
 }

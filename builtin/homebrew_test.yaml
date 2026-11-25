@@ -1,0 +1,57 @@
+- case: brew cleans and what it freed is counted
+  commands:
+    brew cleanup --prune=all:
+      stdout: ==> This operation has freed approximately 1.5GB of disk space.
+  removes: []
+  shows: ['RUN           brew cleanup --prune=all  (1.5GB)']
+  counts: 1
+  frees: 1.5 GiB
+
+- case: a dry run asks brew what it would free
+  dry-run: true
+  commands:
+    brew cleanup --prune=all --dry-run:
+      stdout: ==> This operation would free approximately 120MB of disk space.
+  removes: []
+  shows: ['WOULD RUN     brew cleanup --prune=all  (120MB)']
+  counts: 1
+  frees: 120 MiB
+
+- case: nothing to free counts nothing and says nothing
+  commands:
+    brew cleanup --prune=all: {}
+  removes: []
+  counts: 0
+
+- case: a size brew prints that cannot be read fails
+  commands:
+    brew cleanup --prune=all:
+      stdout: ==> This operation has freed approximately lots of disk space.
+  removes: []
+  fails: ['cannot read the size from: ==> This operation has freed approximately lots of disk space.']
+
+- case: a failed cleanup fails
+  commands:
+    brew cleanup --prune=all:
+      stderr: 'Error: Permission denied @ apply2files'
+      exit: 1
+  removes: []
+  fails: ['brew cleanup --prune=all: exit status 1: Error: Permission denied @ apply2files']
+  counts: 0
+
+- case: a cleanup past its timeout fails
+  commands:
+    brew cleanup --prune=all: {hangs: true}
+  removes: []
+  fails: [brew cleanup --prune=all did not finish within 15m0s]
+
+- case: a running brew keeps everything
+  running: [/opt/homebrew/Library/Homebrew/brew.sh install wget]
+  commands:
+    brew cleanup --prune=all: {}
+  removes: []
+  says: [a brew command is running]
+
+- case: without brew the step is quiet
+  removes: []
+  counts: 0

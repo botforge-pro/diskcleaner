@@ -83,6 +83,7 @@ func constructor(f rule.File) construct {
 			Home:      home,
 			Getenv:    os.Getenv,
 			Processes: rule.SystemProcesses(),
+			Commands:  rule.SystemCommands(),
 			Duration:  func(key string) time.Duration { return c.Duration(f.Name + "." + key) },
 			Now:       time.Now,
 			Lsof:      inuse.DefaultLsof(),

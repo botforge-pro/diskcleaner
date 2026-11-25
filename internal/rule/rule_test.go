@@ -43,6 +43,12 @@ func run(s Rule, dryRun bool) (*report.Report, string, string) {
 
 func idle(string) (bool, error) { return false, nil }
 
+func resolved(t *testing.T, path string) string {
+	real, err := filepath.EvalSymlinks(path)
+	require.NoError(t, err)
+	return real
+}
+
 func environment(running func(string) (bool, error)) Environment {
 	return Environment{
 		Home:      "/nowhere",
@@ -66,7 +72,7 @@ func TestRemoveRootTakesItWhole(t *testing.T) {
 
 	assert.NoDirExists(t, root)
 	assert.Equal(t, 1, r.Count)
-	assert.Contains(t, stdout, "SWIFTPM  "+root+"\n")
+	assert.Contains(t, stdout, "SWIFTPM  "+resolved(t, filepath.Dir(root))+"/cache\n")
 }
 
 func TestFolderPatternsRemoveTheFoldersTheyMatchAndNothingElse(t *testing.T) {
@@ -79,7 +85,7 @@ func TestFolderPatternsRemoveTheFoldersTheyMatchAndNothingElse(t *testing.T) {
 	assert.FileExists(t, filepath.Join(avd, "snapshots", "snapshots.pb"), "a file a folder pattern matches stays")
 	assert.FileExists(t, filepath.Join(avd, "userdata-qemu.img.qcow2"))
 	assert.Equal(t, 1, r.Count)
-	assert.Contains(t, stdout, "EMULATOR "+devices+"\n")
+	assert.Contains(t, stdout, "EMULATOR "+resolved(t, devices)+"\n")
 }
 
 func TestDryRunRemovesNothing(t *testing.T) {

@@ -1,0 +1,69 @@
+- case: unused images are pruned and what Docker's data shrank by is counted
+  files:
+    Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw:
+  commands:
+    docker info: {stdout: 'Server Version: 27.3.1'}
+    "docker system df --format {{.Type}}\t{{.Reclaimable}}": {stdout: "Images\t2.5GB (99%)\nLocal Volumes\t0B (0%)"}
+    docker image prune --all --force:
+      stdout: "Deleted Images:\nTotal reclaimed space: 2.5GB"
+      removes: [Library/Containers/com.docker.docker/Data/vms]
+  removes: [Library/Containers/com.docker.docker/Data/vms]
+  shows: ['RUN           docker image prune --all --force  (2.5GB)', 'Total reclaimed space: 2.5GB']
+  counts: 1
+
+- case: a dry run counts what Docker says is reclaimable and prunes nothing
+  dry-run: true
+  commands:
+    docker info: {stdout: 'Server Version: 27.3.1'}
+    "docker system df --format {{.Type}}\t{{.Reclaimable}}": {stdout: "Images\t2.5GB (99%)"}
+  removes: []
+  shows: ['WOULD RUN     docker image prune --all --force  (2.5GB)']
+  counts: 1
+  frees: 2.3 GiB
+
+- case: nothing reclaimable runs nothing
+  commands:
+    docker info: {stdout: 'Server Version: 27.3.1'}
+    "docker system df --format {{.Type}}\t{{.Reclaimable}}": {stdout: "Images\t0B (0%)"}
+  removes: []
+  counts: 0
+
+- case: a Docker Desktop that is not running is passed over
+  commands:
+    docker info: {stderr: failed to connect to the docker API at unix:///var/run/docker.sock, exit: 1}
+  removes: []
+  says: [Docker Desktop is not running]
+  counts: 0
+
+- case: a Docker that runs but does not answer fails
+  running: [/Applications/Docker.app/Contents/MacOS/com.docker.backend]
+  commands:
+    docker info: {stderr: failed to connect to the docker API at unix:///var/run/docker.sock, exit: 1}
+  removes: []
+  fails: ['docker info: exit status 1: failed to connect to the docker API']
+
+- case: a hung Docker fails with what to do
+  commands:
+    docker info: {hangs: true}
+  removes: []
+  fails: ['docker info did not answer within 30s: the Docker daemon is hung, restart Docker Desktop']
+
+- case: a failed prune fails and counts nothing
+  commands:
+    docker info: {stdout: 'Server Version: 27.3.1'}
+    "docker system df --format {{.Type}}\t{{.Reclaimable}}": {stdout: "Images\t2.5GB (99%)"}
+    docker image prune --all --force: {stderr: 'Error response from daemon: a prune operation is already running', exit: 1}
+  removes: []
+  fails: ['docker image prune --all --force: exit status 1: Error response from daemon: a prune operation is already running']
+  counts: 0
+
+- case: a reclaimable size that cannot be read fails
+  commands:
+    docker info: {stdout: 'Server Version: 27.3.1'}
+    "docker system df --format {{.Type}}\t{{.Reclaimable}}": {stdout: "Images\tplenty"}
+  removes: []
+  fails: ['cannot read the size from: Images']
+
+- case: without docker the step is quiet
+  removes: []
+  counts: 0

@@ -3,9 +3,6 @@ package main
 import (
 	"github.com/botforge-pro/diskcleaner/internal/clones"
 	"github.com/botforge-pro/diskcleaner/internal/config"
-	"github.com/botforge-pro/diskcleaner/internal/docker"
-	"github.com/botforge-pro/diskcleaner/internal/gocache"
-	"github.com/botforge-pro/diskcleaner/internal/homebrew"
 	"github.com/botforge-pro/diskcleaner/internal/ide"
 	"github.com/botforge-pro/diskcleaner/internal/leftovers"
 	"github.com/botforge-pro/diskcleaner/internal/projects"
@@ -21,15 +18,6 @@ var written = map[string]construct{
 	"projects": func(_ string, c *config.Config) (step, error) {
 		s, err := projects.Default(c.Dirs("project-dirs"), c.Duration("min-age"), c.Duration("projects.git-tmp-min-age"), c.Duration("projects.lfs-timeout"))
 		return s, err
-	},
-	"docker-images": func(home string, c *config.Config) (step, error) {
-		return docker.Default(home, c.Duration("docker-images.timeout"), c.Duration("docker-images.prune-timeout")), nil
-	},
-	"go-cache": func(string, *config.Config) (step, error) {
-		return gocache.Default(), nil
-	},
-	"homebrew": func(_ string, c *config.Config) (step, error) {
-		return homebrew.Default(c.Duration("homebrew.timeout")), nil
 	},
 	"xcode-derived-data": func(home string, _ *config.Config) (step, error) {
 		return xcode.Default(home), nil

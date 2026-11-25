@@ -2,4 +2,7 @@ order: 110
 describes: copies of Chrome and other apps no running app was started from
 reversible: true
 
+readme:
+  keeps: a copy made within {min-age}
+
 run: code

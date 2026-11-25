@@ -4,5 +4,6 @@ reversible: true
 
 readme:
   removes: work folders of killed Go builds, Xcode export leftovers
+  keeps: a folder written within {min-age}, held open by a process, holding a socket or a mounted volume
 
 run: code

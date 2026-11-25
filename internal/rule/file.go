@@ -55,13 +55,24 @@ var mention = regexp.MustCompile(`\{([^{}]*)\}`)
 
 func (f File) Explain(text string) string {
 	return mention.ReplaceAllStringFunc(text, func(found string) string {
-		key := found[1 : len(found)-1]
-		if key == "root" {
-			return f.rootInWords()
-		}
-		i := slices.IndexFunc(f.Settings, func(s Setting) bool { return s.Key == key })
-		return fmt.Sprintf("`%s.%s` (`%s`)", f.Name, key, f.Settings[i].Default)
+		words, _ := f.mentioned(found[1 : len(found)-1])
+		return words
 	})
+}
+
+var globals = config.NewTable(nil)
+
+func (f File) mentioned(key string) (string, bool) {
+	if key == "root" && f.Root != "" {
+		return f.rootInWords(), true
+	}
+	if i := slices.IndexFunc(f.Settings, func(s Setting) bool { return s.Key == key }); i >= 0 {
+		return fmt.Sprintf("`%s.%s` (`%s`)", f.Name, key, f.Settings[i].Default), true
+	}
+	if global, ok := globals.Find(key); ok && global.Kind == config.Duration {
+		return fmt.Sprintf("`%s` (`%s`)", key, global.Default), true
+	}
+	return "", false
 }
 
 func (f File) Removes() string {
@@ -93,11 +104,8 @@ func (f File) checkReadme() error {
 	mentioned := map[string]bool{}
 	for _, text := range []string{f.Describes, f.Readme.Removes, f.Readme.Keeps, f.Readme.CanLose} {
 		for _, found := range mention.FindAllStringSubmatch(text, -1) {
-			if found[1] == "root" && f.Root != "" {
-				continue
-			}
-			if !slices.ContainsFunc(f.Settings, func(s Setting) bool { return s.Key == found[1] }) {
-				return fmt.Errorf("readme: {%s}: want {root} of a declared step or the key of one of this step's settings", found[1])
+			if _, ok := f.mentioned(found[1]); !ok {
+				return fmt.Errorf("readme: {%s}: want {root} of a declared step, the key of one of this step's settings or min-age", found[1])
 			}
 			mentioned[found[1]] = true
 		}

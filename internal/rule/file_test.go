@@ -97,6 +97,14 @@ run: code
 	assert.Equal(t, "archives older than `xcode-archives.min-age` (`15d`)", f.Explain(f.Readme.Removes))
 }
 
+func TestAStepsOwnSettingWinsOverTheGlobalOfTheSameKey(t *testing.T) {
+	own := parse(t, "some-logs.yaml", "order: 1\ndescribes: logs older than {min-age}\nsettings: [{key: min-age, kind: duration, default: 20d, help: x}]\nrun: code\n")
+	global := parse(t, "some-builds.yaml", "order: 1\ndescribes: builds\nreadme: {keeps: 'anything written within {min-age}'}\nrun: code\n")
+
+	assert.Equal(t, "logs older than `some-logs.min-age` (`20d`)", own.Removes())
+	assert.Equal(t, "anything written within `min-age` (`1h`)", global.Explain(global.Readme.Keeps))
+}
+
 func TestTheRootMentionedInTheREADMEReadsAsItsChoicesInOrder(t *testing.T) {
 	f := parse(t, "some-cache.yaml", valid)
 
@@ -124,8 +132,9 @@ func TestAMistakeInAFileIsNamed(t *testing.T) {
 		{"setting with a bad default", "a.yaml", code + "settings: [{key: wait, kind: duration, default: soon, help: x}]\n", "settings: wait: default: want a duration"},
 		{"setting named enabled", "a.yaml", code + "settings: [{key: enabled, kind: count, default: '1', help: x}]\n", "other than enabled"},
 		{"setting without help", "a.yaml", code + "settings: [{key: wait, kind: duration, default: 1h}]\n", "settings: wait: help: want"},
+		{"readme names a global that is not an age", "a.yaml", bare + "readme: {keeps: 'in {project-dirs}'}\n", "readme: {project-dirs}: want"},
 		{"readme says what describes says", "a.yaml", bare + "readme: {removes: x}\n", "leave it out and the README takes describes"},
-		{"readme mentions a setting it lacks", "a.yaml", bare + "readme: {removes: 'older than {min-age}'}\n", "readme: {min-age}: want"},
+		{"readme mentions a setting it lacks", "a.yaml", bare + "readme: {removes: 'older than {max-age}'}\n", "readme: {max-age}: want"},
 		{"readme mentions the root of code", "a.yaml", bare + "readme: {removes: 'in {root}'}\n", "readme: {root}: want"},
 		{"no root", "a.yaml", head + "remove: root\n", "root: want a folder"},
 		{"variable last", "a.yaml", head + "root: ~/a or $A_HOME\nremove: root\n", "the last choice must be a path"},

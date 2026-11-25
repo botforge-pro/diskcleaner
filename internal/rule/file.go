@@ -64,6 +64,13 @@ func (f File) Explain(text string) string {
 	})
 }
 
+func (f File) Removes() string {
+	if f.Readme.Removes == "" {
+		return f.Explain(f.Describes)
+	}
+	return f.Explain(f.Readme.Removes)
+}
+
 func (f File) rootInWords() string {
 	words := make([]string, len(f.places))
 	for i, p := range f.places {
@@ -80,11 +87,11 @@ func (f File) rootInWords() string {
 }
 
 func (f File) checkReadme() error {
-	if f.Readme.Removes == "" {
-		return errors.New("readme: removes: want what the step removes, for the README")
+	if f.Readme.Removes == f.Describes {
+		return errors.New("readme: removes: it says what describes says; leave it out and the README takes describes")
 	}
 	mentioned := map[string]bool{}
-	for _, text := range []string{f.Readme.Removes, f.Readme.Keeps, f.Readme.CanLose} {
+	for _, text := range []string{f.Describes, f.Readme.Removes, f.Readme.Keeps, f.Readme.CanLose} {
 		for _, found := range mention.FindAllStringSubmatch(text, -1) {
 			if found[1] == "root" && f.Root != "" {
 				continue

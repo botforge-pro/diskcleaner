@@ -1,8 +1,5 @@
 order: 110
-describes: copies of Chrome and other apps no running app uses
+describes: copies of Chrome and other apps no running app was started from
 reversible: true
-
-readme:
-  removes: copies of Chrome and other apps no running app was started from
 
 run: code

@@ -17,7 +17,7 @@ func stepsTable() string {
 			name = "**" + name + "**"
 		}
 		f := info.file
-		fmt.Fprintf(&b, "| %s | %s | %s | %s |\n", name, f.Explain(f.Readme.Removes), f.Explain(f.Readme.Keeps), f.Explain(f.Readme.CanLose))
+		fmt.Fprintf(&b, "| %s | %s | %s | %s |\n", name, f.Removes(), f.Explain(f.Readme.Keeps), f.Explain(f.Readme.CanLose))
 	}
 	return b.String()
 }

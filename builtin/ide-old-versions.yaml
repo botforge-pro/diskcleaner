@@ -3,7 +3,6 @@ describes: settings, caches and logs of IDE versions older than the installed on
 reversible: false
 
 readme:
-  removes: settings, caches and logs of IDE versions older than the installed one
   keeps: data of every installed version
   can-lose: settings the new version did not copy
 

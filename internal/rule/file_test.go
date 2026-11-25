@@ -62,7 +62,7 @@ func TestTheRootIsTheFirstChoiceWhoseVariableIsSet(t *testing.T) {
 }
 
 func TestRemoveRootTakesTheRootWhole(t *testing.T) {
-	r := parse(t, "tmp.yaml", "order: 1\ndescribes: x\nreadme: {removes: x}\nroot: /private/tmp/tool\nremove: root\n").Rule(at("/Users/me", nil))
+	r := parse(t, "tmp.yaml", "order: 1\ndescribes: x\nroot: /private/tmp/tool\nremove: root\n").Rule(at("/Users/me", nil))
 
 	assert.Equal(t, "/private/tmp/tool", r.Root)
 	assert.Empty(t, r.Folders)
@@ -104,8 +104,8 @@ func TestTheRootMentionedInTheREADMEReadsAsItsChoicesInOrder(t *testing.T) {
 }
 
 func TestAMistakeInAFileIsNamed(t *testing.T) {
-	head := "order: 1\ndescribes: x\nreadme: {removes: x}\n"
-	code := "order: 1\ndescribes: x\nreadme: {removes: x}\nrun: code\n"
+	head := "order: 1\ndescribes: x\n"
+	code := "order: 1\ndescribes: x\nrun: code\n"
 	bare := "order: 1\ndescribes: x\nrun: code\n"
 	cases := []struct {
 		name, file, body, want string
@@ -116,7 +116,7 @@ func TestAMistakeInAFileIsNamed(t *testing.T) {
 		{"file name not in words", "A_b.yaml", head + "root: ~/a\nremove: root\n", "the name of the file: want lowercase words"},
 		{"no describes", "a.yaml", "order: 1\nroot: ~/a\nremove: root\n", "describes: want"},
 		{"no order", "a.yaml", "describes: x\nroot: ~/a\nremove: root\n", "order: want a whole number above 0"},
-		{"run something else", "a.yaml", "order: 1\ndescribes: x\nreadme: {removes: x}\nrun: a\n", `run "a": want code`},
+		{"run something else", "a.yaml", "order: 1\ndescribes: x\nrun: a\n", `run "a": want code`},
 		{"code with a root", "a.yaml", code + "root: ~/a\n", "belong to it there"},
 		{"code with keep", "a.yaml", bare + "readme: {removes: 'older than {min-age}'}\nsettings: [{key: min-age, kind: duration, default: 1h, help: x}]\nkeep: {written-within: min-age}\n", "belong to it there"},
 		{"a setting the readme does not name", "a.yaml", code + "settings: [{key: min-age, kind: duration, default: 1h, help: x}]\n", "want {min-age} in its text"},
@@ -124,7 +124,7 @@ func TestAMistakeInAFileIsNamed(t *testing.T) {
 		{"setting with a bad default", "a.yaml", code + "settings: [{key: wait, kind: duration, default: soon, help: x}]\n", "settings: wait: default: want a duration"},
 		{"setting named enabled", "a.yaml", code + "settings: [{key: enabled, kind: count, default: '1', help: x}]\n", "other than enabled"},
 		{"setting without help", "a.yaml", code + "settings: [{key: wait, kind: duration, default: 1h}]\n", "settings: wait: help: want"},
-		{"no readme", "a.yaml", bare, "readme: removes: want"},
+		{"readme says what describes says", "a.yaml", bare + "readme: {removes: x}\n", "leave it out and the README takes describes"},
 		{"readme mentions a setting it lacks", "a.yaml", bare + "readme: {removes: 'older than {min-age}'}\n", "readme: {min-age}: want"},
 		{"readme mentions the root of code", "a.yaml", bare + "readme: {removes: 'in {root}'}\n", "readme: {root}: want"},
 		{"no root", "a.yaml", head + "remove: root\n", "root: want a folder"},

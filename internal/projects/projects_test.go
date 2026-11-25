@@ -100,7 +100,7 @@ func step(t *testing.T, repos string) Step {
 			MinAge: time.Hour, Now: func() time.Time { return time.Now().Add(2 * time.Hour) },
 			Open: lsofScript(script(t, "lsof", "printf 'p1\\nfcwd\\nn/\\n'\n")),
 		},
-		Garbage: GitGarbage{MinAge: time.Hour, LsofTimeoutSeconds: 5, Now: time.Now, Lsof: script(t, "lsof", "exit 1\n")},
+		Garbage: GitGarbage{MinAge: time.Hour, Now: time.Now, Lsof: inuse.Lsof{Command: "../process/testdata/lsof-none-open", TimeoutSeconds: 5}},
 		LFS:     LFS{Git: "git", GitLFS: "diskcleaner-test-absent-git-lfs"},
 	}
 }
@@ -309,7 +309,7 @@ func TestLsofDecidesTheGitGarbage(t *testing.T) {
 		skip    string
 		fail    string
 	}{
-		{"open", "exit 0\n", 5, "tmp_pack_died: a process still has it open", ""},
+		{"open", "printf 'p1\\nnFILE\\n'\n", 5, "tmp_pack_died: a process still has it open", ""},
 		{"error", "echo \"lsof: status error on $2: Permission denied\" >&2\nexit 1\n", 5, "", "tmp_pack_died: exit 1: lsof: status error on"},
 		{"hung", "exec sleep 30\n", 1, "", "tmp_pack_died: no answer within 1s"},
 		{"hung in a child", "sleep 30 &\necho $! >\"$0.pid\"\nwait\n", 1, "", "tmp_pack_died: no answer within 1s"},
@@ -319,15 +319,15 @@ func TestLsofDecidesTheGitGarbage(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			repos := newRepos(t)
 			s := step(t, repos)
-			s.Garbage.Lsof = script(t, "lsof", tc.body)
-			s.Garbage.LsofTimeoutSeconds = tc.timeout
+			died := filepath.Join(repos, "swiftapp", ".git", "objects", "pack", "tmp_pack_died")
+			s.Garbage.Lsof = inuse.Lsof{Command: script(t, "lsof", strings.ReplaceAll(tc.body, "FILE", died)), TimeoutSeconds: tc.timeout}
 			started := time.Now()
 
 			r, _, stderr := run(s, false)
 
 			assert.Less(t, time.Since(started), 30*time.Second)
 			assert.FileExists(t, filepath.Join(repos, "swiftapp", ".git", "objects", "pack", "tmp_pack_died"))
-			if pidText, err := os.ReadFile(s.Garbage.Lsof + ".pid"); err == nil {
+			if pidText, err := os.ReadFile(s.Garbage.Lsof.Command + ".pid"); err == nil {
 				pid, err := strconv.Atoi(strings.TrimSpace(string(pidText)))
 				require.NoError(t, err)
 				assert.Eventually(t, func() bool { return syscall.Kill(pid, 0) != nil },

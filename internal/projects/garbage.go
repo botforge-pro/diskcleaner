@@ -4,7 +4,6 @@ import (
 	"errors"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -14,21 +13,20 @@ import (
 	"time"
 
 	"github.com/botforge-pro/diskcleaner/internal/candidates"
-	"github.com/botforge-pro/diskcleaner/internal/process"
+	"github.com/botforge-pro/diskcleaner/internal/inuse"
 	"github.com/botforge-pro/diskcleaner/internal/report"
 )
 
 var repackPid = regexp.MustCompile(`^\.tmp-([0-9]+)-`)
 
 type GitGarbage struct {
-	MinAge             time.Duration
-	LsofTimeoutSeconds int
-	Now                func() time.Time
-	Lsof               string
+	MinAge time.Duration
+	Now    func() time.Time
+	Lsof   inuse.Lsof
 }
 
 func DefaultGitGarbage(minAge time.Duration) GitGarbage {
-	return GitGarbage{MinAge: minAge, LsofTimeoutSeconds: 30, Now: time.Now, Lsof: "lsof"}
+	return GitGarbage{MinAge: minAge, Now: time.Now, Lsof: inuse.DefaultLsof()}
 }
 
 func (g GitGarbage) Collect(r *report.Report, set *candidates.Set, repo string) {
@@ -63,12 +61,13 @@ func (g GitGarbage) Collect(r *report.Report, set *candidates.Set, repo string) 
 		}
 	}
 	slices.Sort(files)
+	open := g.Lsof.Once()
 	for _, file := range files {
-		g.check(r, set, file)
+		g.check(r, set, open, file)
 	}
 }
 
-func (g GitGarbage) check(r *report.Report, set *candidates.Set, file string) {
+func (g GitGarbage) check(r *report.Report, set *candidates.Set, open *inuse.Listing, file string) {
 	info, err := os.Lstat(file)
 	if errors.Is(err, fs.ErrNotExist) {
 		return
@@ -90,31 +89,18 @@ func (g GitGarbage) check(r *report.Report, set *candidates.Set, file string) {
 			return
 		}
 	}
-	lsof := process.RunGroup(g.LsofTimeoutSeconds, g.Lsof, "--", file)
-	var exit *exec.ExitError
+	held, err := open.HoldsAny(file)
 	switch {
-	case lsof.TimedOut:
-		r.Fail("lsof %s: no answer within %ds", file, g.LsofTimeoutSeconds)
-	case lsof.Leftover:
-		r.Fail("lsof %s: exited but left a process running, which was stopped: %v", file, lsof.Err)
-	case lsof.Err == nil:
+	case err != nil:
+		r.Fail("lsof %s: %v", file, err)
+	case held:
 		r.Skip("%s: a process still has it open", file)
-	case !exists(file):
-	case errors.As(lsof.Err, &exit) && exit.ExitCode() == 1 && lsof.Output() == "":
-		set.Add(r, file)
-	case errors.As(lsof.Err, &exit):
-		r.Fail("lsof %s: exit %d: %s", file, exit.ExitCode(), lsof.Output())
 	default:
-		r.Fail("lsof %s: %v", file, lsof.Err)
+		set.Add(r, file)
 	}
 }
 
 func alive(pid int) bool {
 	err := syscall.Kill(pid, 0)
 	return err == nil || errors.Is(err, syscall.EPERM)
-}
-
-func exists(path string) bool {
-	_, err := os.Lstat(path)
-	return err == nil
 }

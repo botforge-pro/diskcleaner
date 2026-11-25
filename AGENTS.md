@@ -14,8 +14,12 @@ to use it.
 
 - It works out of the box, on any developer's Mac, with no configuration: where
   a tool keeps its data is asked of the tool, not written in.
-- Every setting lives in one table in the code, which gives its config key, its
-  flag and its help line; the config file and the flags set the same keys.
+- Every setting has one entry that gives its config key, its flag and its help
+  line: a step's own settings in its `builtin/<step>.yaml`, the settings of all
+  steps in `internal/config`. The config file and the flags set the same keys.
+- Each step is described by `builtin/<step>.yaml`, and the README's table of
+  steps is made from these files by `make readme`. A step whose work is written
+  in Go says `run: code` and is constructed in `steps.go`.
 - The config selects which steps run, where projects are and the thresholds.
 - Every step runs unless turned off, a step that deletes what cannot come back
   included; such a step is marked as one in `--help` and in the README.

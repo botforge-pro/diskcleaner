@@ -10,7 +10,7 @@ require (
 	github.com/spf13/pflag v1.1.0
 	github.com/stretchr/testify v1.12.1
 	go.yaml.in/yaml/v3 v3.0.5
-	golang.org/x/sys v0.32.0
+	golang.org/x/sys v0.50.0
 )
 
 require (

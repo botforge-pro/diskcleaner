@@ -18,7 +18,7 @@
     yarn --version: {stdout: '1.22.22'}
     yarn cache dir: {stdout: ~/Library/Caches/Yarn/v6}
   removes: []
-  shows: ['WOULD RUN     yarn cache clean  (8.0 KiB in ']
+  shows: ['WOULD RUN     yarn cache clean  (', '/Library/Caches/Yarn)']
   counts: 1
 
 - case: a running yarn keeps the cache

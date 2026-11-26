@@ -5,29 +5,43 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
-## [Unreleased]
+## [0.26.0] - 2026-11-26
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.26.0`.
 
 ### Added
 
-- Three new steps, on by default like every step, each running after
-  `go-cache`. Each asks its tool where the cache is, empties it with the tool's
-  own command and leaves it alone while the tool is installing:
-  - `npm-cache` runs `npm cache clean --force`, and waits while any npm
-    command that fetches packages runs, whatever its name (`install`, `ci`,
-    `it`, `cit` and the like). The packages that `npx` and `npm exec` run from
-    stay, and a server started with `npm exec` does not stop the step.
-  - `pip-cache` runs `pip3 cache purge`, and waits while any pip installs,
-    `pip3.14` or `python3 -m pip` with options included.
-  - `yarn-cache` runs `yarn cache clean` for Yarn 1, which removes the cache
-    of every Yarn 1 version at once; the size it shows counts them all. Yarn 2
-    and later keep their cache in each project, and the step leaves them
-    alone. If Yarn 1 cannot tell where its cache is, for instance because a
-    `yarn-offline-mirror` in `~/.yarnrc` points nowhere, the step fails with
-    Yarn's own message and `clean` exits 1.
+- Three new steps empty the caches of package managers: `npm-cache`,
+  `pip-cache` and `yarn-cache`, run in that order right after `go-cache`. Like
+  every step they are on by default. Each asks its tool where its cache is and
+  empties it with the tool's own command. While that tool is downloading or
+  installing packages, the step removes nothing and prints a `SKIPPED` line
+  saying so.
+  - `npm-cache` runs `npm cache clean --force`. It skips while npm installs
+    packages under any of the command's names, such as `npm install`,
+    `npm ci`, `npm install-test` (short `npm it`) or `npm install-ci-test`
+    (short `npm cit`). The packages that `npx` and `npm exec` run lie in
+    another folder, `_npx`, which this command does not touch, so a server
+    that `npm exec` keeps running does not make the step skip.
+  - `pip-cache` runs `pip3 cache purge`. It skips while pip installs,
+    downloads or builds a package, however pip was started: `pip3 install`,
+    `pip3.14 install`, `python3 -m pip install`, with options before the
+    command or not.
+  - `yarn-cache` runs `yarn cache clean`, only for Yarn 1, which keeps one
+    shared cache folder with a subfolder for each of its cache formats, such
+    as `v6`. The command empties all of them, and the size in the step's line
+    counts all of them. Yarn 2 and later keep their cache inside each project,
+    and the step leaves it alone. If Yarn 1 cannot tell where its cache is,
+    the step fails with Yarn's own message and `clean` exits 1. This happens
+    when `yarn-offline-mirror`, the folder Yarn copies packages to for
+    installing offline, is set in `~/.yarnrc` to a folder that cannot be made.
 
-  What goes is downloaded again the next time a package is installed, so
-  installing without a connection waits until then. Turn a step off with
-  `--npm-cache.enabled=false` and the like.
+  What these steps remove is downloaded again the next time a package is
+  installed; until then, installing a package without a connection fails. To
+  keep a cache, turn its step off with `--npm-cache.enabled=false`,
+  `--pip-cache.enabled=false` or `--yarn-cache.enabled=false`, or in the
+  config file with `enabled = false` under `[npm-cache]`, `[pip-cache]` or
+  `[yarn-cache]`.
 
 ## [0.25.0] - 2026-11-26
 
@@ -1037,6 +1051,7 @@ this release removes one kind of them. Install it with a Go toolchain:
   status 1.
 - `diskcleaner version` prints the installed version.
 
+[0.26.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.26.0
 [0.25.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.25.0
 [0.24.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.24.0
 [0.23.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.23.0

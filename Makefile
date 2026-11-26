@@ -48,6 +48,7 @@ release: lint test
 	@test -z "$$(git status --porcelain)" || { echo "Commit first: the release is the tag on what is in git."; exit 1; }
 	@git fetch -q origin main
 	@test "$$(git rev-parse HEAD)" = "$$(git rev-parse origin/main)" || { echo "Release from main as pushed."; exit 1; }
+	@test "$$(gh run list --workflow CI --commit "$$(git rev-parse HEAD)" --json conclusion -q '.[0].conclusion')" = success || { echo "Release what CI passed: wait for its run on this commit, or fix it."; exit 1; }
 	git tag -a 'v$(VERSION)' -m 'v$(VERSION)'
 	git push origin 'v$(VERSION)'
 	awk '/^## \[$(VERSION)\]/{f=1;next} /^## \[/{f=0} f' CHANGELOG.md | gh release create 'v$(VERSION)' --title 'v$(VERSION)' --notes-file -

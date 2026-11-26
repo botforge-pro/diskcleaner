@@ -11,15 +11,19 @@ Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.26.1`.
 
 ### Fixed
 
-- `npm-cache` could empty npm's cache while npm was installing packages, if
-  the install was started with a shortened command name, such as `npm u` or
-  `npm upd` for `npm update` and `npm install-cl` for `npm install-clean`, or
-  with a name in camelCase, such as `npm installTest`. npm accepts any such
-  form, and the step now skips while any of them runs.
-- The notes of 0.26.0 and the README said that Yarn 2 and later keep their
-  cache inside each project. They may keep one cache shared by all projects as
-  well. `yarn-cache` cleans only the cache of Yarn 1; the cache of Yarn 2 and
-  later stays, wherever it is.
+- `npm-cache` could empty npm's cache while npm was downloading packages into
+  it, so that install or update could fail and had to be run again. This
+  happened when the command was typed in a form npm accepts but the step did
+  not know: a shortened name, such as `npm u` or `npm upd` for `npm update`
+  and `npm install-cl` for `npm ci`, or a name in camelCase, such as
+  `npm installTest`. The step now knows every shortened and camelCase form of
+  the commands that download packages (install, ci, update, dedupe, rebuild
+  and their kin) and skips while any of them runs.
+- Only the wording changed here, not what the step does: the 0.26.0 notes
+  said that Yarn 2 and later keep their cache inside each project, but they
+  can also keep one cache that all projects share. `yarn-cache` cleans the
+  cache of Yarn 1 only. When the `yarn` installed is version 2 or later, the
+  step does nothing and prints nothing, and that cache stays wherever it is.
 
 ## [0.26.0] - 2026-11-26
 

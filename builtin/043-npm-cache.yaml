@@ -1,0 +1,12 @@
+describes: the npm package cache
+reversible: true
+
+readme:
+  removes: the npm package cache, where npm keeps every package it has downloaded
+  keeps: the packages that `npx` and `npm exec` run from; all while npm installs
+  can-lose: installing packages without a connection until npm downloads them again
+
+when: [{program: npm}]
+unless: [{running: ['(^|/)npm(-cli\.js)? (install|i|ci|add|update|up|upgrade|dedupe|rebuild)( |$)'], says: an npm install is running}]
+do:
+  - {root: {run: [npm, config, get, cache]}, run: [npm, cache, clean, --force], size: _cacache}

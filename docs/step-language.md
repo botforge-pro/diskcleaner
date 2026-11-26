@@ -1,9 +1,9 @@
 # The step language
 
-Every cleanup step of diskcleaner is one YAML file, `builtin/<step>.yaml`, and
-its cases are in `builtin/<step>_test.yaml` beside it. This document is the
-language of those files: seven concepts, the invariants the engine keeps for
-every step and the format of the cases. The 17 built-in steps in `builtin/`
+Every cleanup step of diskcleaner is one YAML file, `builtin/NNN-<step>.yaml`,
+and its cases are in `builtin/NNN-<step>_test.yaml` beside it. This document is
+the language of those files: seven concepts, the invariants the engine keeps
+for every step and the format of the cases. The built-in steps in `builtin/`
 are written in it.
 
 A step says *where* to look, *when* to leave things alone and *what* may go.
@@ -14,7 +14,7 @@ it off.
 ## A step file
 
 ```yaml
-order: 60                         # place in a run, lowest first; unique
+# builtin/060-swiftpm-cache.yaml
 describes: the Swift Package Manager cache
 reversible: true                  # what it removes is rebuilt or downloaded again on demand
 readme:                           # cells of the README's table of steps
@@ -29,7 +29,9 @@ unless: [{running: [{group: swiftpm}, {group: xcode}], says: a Swift package bui
 remove: .
 ```
 
-The step's name is the file's name. A setting `keep` of the step
+A file's name is three digits, a dash and the step's name. Steps run in the
+order of their files' names, so the digits are a step's place in a run, and
+two files may not name one step. A setting `keep` of the step
 `xcode-archives` is the config key `xcode-archives.keep` and the flag
 `--xcode-archives.keep`. Kinds: `duration` (`20d`, `1h`), `timeout` (`30s`)
 and `count` (`1`).

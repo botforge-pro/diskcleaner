@@ -1,4 +1,3 @@
-order: 30
 describes: Docker images not used by any container
 reversible: true
 

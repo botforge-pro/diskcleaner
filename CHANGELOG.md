@@ -5,6 +5,26 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [Unreleased]
+
+### Added
+
+- Three new steps, on by default like every step, each running after
+  `go-cache`. Each asks its tool where the cache is, empties it with the tool's
+  own command and leaves it alone while the tool is installing:
+  - `npm-cache` runs `npm cache clean --force`. The packages that `npx` and
+    `npm exec` run from stay, and a server started with `npm exec` does not
+    stop the step.
+  - `pip-cache` runs `pip3 cache purge`.
+  - `yarn-cache` runs `yarn cache clean`. If Yarn cannot tell where its
+    cache is, for instance because a `yarn-offline-mirror` in `~/.yarnrc`
+    points nowhere, the step fails with Yarn's own message and `clean`
+    exits 1.
+
+  What goes is downloaded again the next time a package is installed, so
+  installing without a connection waits until then. Turn a step off with
+  `--npm-cache.enabled=false` and the like.
+
 ## [0.25.0] - 2026-11-26
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.25.0`.

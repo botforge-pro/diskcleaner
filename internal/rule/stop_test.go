@@ -71,10 +71,10 @@ func newCaches(t *testing.T) string {
 }
 
 func stopping(t *testing.T, caches string, p Processes) Rule {
-	body := "order: 1\ndescribes: x\nroot: " + caches + "\nunless: [{running: [client], says: a client runs}]\nstop: {running: [daemon], idle-for: 2s, timeout: 10s, names: idle daemons, says: a daemon is using the CPU}\nremove: .\n"
+	body := "describes: x\nroot: " + caches + "\nunless: [{running: [client], says: a client runs}]\nstop: {running: [daemon], idle-for: 2s, timeout: 10s, names: idle daemons, says: a daemon is using the CPU}\nremove: .\n"
 	env := environment("/nowhere")
 	env.Processes = p
-	return parse(t, "gradle-caches.yaml", body).Rule(env)
+	return parse(t, "020-gradle-caches.yaml", body).Rule(env)
 }
 
 func TestADryRunSaysItWouldStopAndDoesNotWait(t *testing.T) {

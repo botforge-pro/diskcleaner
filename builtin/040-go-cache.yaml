@@ -1,4 +1,3 @@
-order: 40
 describes: the Go module and build caches
 reversible: true
 

@@ -23,11 +23,14 @@ const (
 	enabledName = "enabled"
 )
 
-var stepName = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`)
+var (
+	stepName = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`)
+	stepFile = regexp.MustCompile(`^[0-9]{3}-(.*)$`)
+)
 
 type File struct {
 	Name       string    `yaml:"-"`
-	Order      int       `yaml:"order"`
+	Base       string    `yaml:"-"`
 	Describes  string    `yaml:"describes"`
 	Reversible bool      `yaml:"reversible"`
 	Readme     Readme    `yaml:"readme"`
@@ -99,7 +102,12 @@ func Parse(name string, data []byte, groups Groups) (File, error) {
 	if err := decoder.Decode(&f); err != nil {
 		return File{}, fmt.Errorf("%s: %w", name, err)
 	}
-	f.Name = strings.TrimSuffix(path.Base(name), fileSuffix)
+	f.Base = strings.TrimSuffix(path.Base(name), fileSuffix)
+	match := stepFile.FindStringSubmatch(f.Base)
+	if match == nil {
+		return File{}, fmt.Errorf("%s: the name of the file: want three digits, the step's place in a run, a dash and the step's name, like 070-xcode-derived-data.yaml", name)
+	}
+	f.Name = match[1]
 	if err := f.check(); err != nil {
 		return File{}, fmt.Errorf("%s: %w", name, err)
 	}
@@ -173,9 +181,7 @@ func (f File) configKey(key string) string {
 func (f *File) check() error {
 	switch {
 	case !stepName.MatchString(f.Name):
-		return errors.New("the name of the file: want lowercase words joined by -, like xcode-derived-data.yaml")
-	case f.Order <= 0:
-		return errors.New("order: want a whole number above 0; steps run from the lowest")
+		return errors.New("the name of the file: want lowercase words joined by - after the digits, like 070-xcode-derived-data.yaml")
 	case f.Describes == "":
 		return errors.New("describes: want what the step removes, for --help")
 	case f.Readme.Removes == f.Describes:

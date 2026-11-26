@@ -1,4 +1,3 @@
-order: 120
 describes: settings, caches and logs of IDE versions older than the installed one
 reversible: false
 

@@ -49,8 +49,8 @@ type stepCase struct {
 
 func TestEveryDeclaredStepHasATestFile(t *testing.T) {
 	for _, info := range catalog {
-		_, err := fs.Stat(builtinFiles, "builtin/"+info.Name+rule.TestSuffix)
-		assert.NoError(t, err, "%s: its cases belong in %s%s", info.Name, info.Name, rule.TestSuffix)
+		_, err := fs.Stat(builtinFiles, "builtin/"+info.file.Base+rule.TestSuffix)
+		assert.NoError(t, err, "%s: its cases belong in %s%s", info.Name, info.file.Base, rule.TestSuffix)
 	}
 }
 

@@ -79,7 +79,7 @@ func fakeLsof(t *testing.T, script string) string {
 }
 
 func step(t *testing.T, home, body string) Rule {
-	return parse(t, "tool-cache.yaml", "order: 1\ndescribes: x\n"+body).Rule(environment(home))
+	return parse(t, "001-tool-cache.yaml", "describes: x\n"+body).Rule(environment(home))
 }
 
 func TestRemoveDotTakesTheFolderWhole(t *testing.T) {
@@ -134,7 +134,7 @@ func TestAMissingRootIsQuiet(t *testing.T) {
 func TestARunningToolKeepsEverythingAndSaysWhy(t *testing.T) {
 	root := filepath.Join(temp(t), "cache")
 	write(t, filepath.Join(root, "x"))
-	s := parse(t, "tool-cache.yaml", "order: 1\ndescribes: x\nroot: "+root+"\nunless: [{running: [{group: tools}], says: a tool build is running}]\nremove: .\n")
+	s := parse(t, "001-tool-cache.yaml", "describes: x\nroot: "+root+"\nunless: [{running: [{group: tools}], says: a tool build is running}]\nremove: .\n")
 	env := environment("/nowhere")
 	var asked []string
 	env.Processes.Running = func(pattern string) (bool, error) {
@@ -153,7 +153,7 @@ func TestARunningToolKeepsEverythingAndSaysWhy(t *testing.T) {
 func TestAFailedProcessCheckKeepsEverythingAndFails(t *testing.T) {
 	root := filepath.Join(temp(t), "cache")
 	write(t, filepath.Join(root, "x"))
-	s := parse(t, "tool-cache.yaml", "order: 1\ndescribes: x\nroot: "+root+"\nunless: [{running: [tool]}]\nremove: .\n")
+	s := parse(t, "001-tool-cache.yaml", "describes: x\nroot: "+root+"\nunless: [{running: [tool]}]\nremove: .\n")
 	env := environment("/nowhere")
 	env.Processes.Running = func(string) (bool, error) { return false, errors.New("exit status 2") }
 
@@ -168,7 +168,7 @@ func TestNeverRemovesOutsideWhenAFolderBecomesALink(t *testing.T) {
 	sub := filepath.Join(root, "sub")
 	write(t, filepath.Join(sub, "data.json"))
 	outside := write(t, filepath.Join(temp(t), "data.json"))
-	s := parse(t, "tool-cache.yaml", "order: 1\ndescribes: x\nroot: "+root+"\nremove: [{files: '**/*.json'}]\nkeep: {open: true}\n")
+	s := parse(t, "001-tool-cache.yaml", "describes: x\nroot: "+root+"\nremove: [{files: '**/*.json'}]\nkeep: {open: true}\n")
 	env := environment("/nowhere")
 	env.Lsof = inuse.Lsof{Command: fakeLsof(t, "mv '"+sub+"' '"+sub+".moved'\nln -s '"+filepath.Dir(outside)+"' '"+sub+"'\nprintf 'p1\\nn/elsewhere\\n'\n"), TimeoutSeconds: 5}
 
@@ -275,7 +275,7 @@ func TestAFailedLsofKeepsEverythingAndFails(t *testing.T) {
 	root := temp(t)
 	first := write(t, filepath.Join(root, "a.log"))
 	second := write(t, filepath.Join(root, "b.log"))
-	s := parse(t, "tool-cache.yaml", "order: 1\ndescribes: x\nroot: "+root+"\nremove: [{files: '*.log'}]\nkeep: {open: true}\n")
+	s := parse(t, "001-tool-cache.yaml", "describes: x\nroot: "+root+"\nremove: [{files: '*.log'}]\nkeep: {open: true}\n")
 	env := environment("/nowhere")
 	env.Lsof = inuse.Lsof{Command: fakeLsof(t, "echo broken >&2\nexit 2\n"), TimeoutSeconds: 5}
 
@@ -293,7 +293,7 @@ func TestAFileWrittenAgainAfterTheScanStays(t *testing.T) {
 	file := write(t, filepath.Join(root, "a.log"))
 	old := time.Now().Add(-48 * time.Hour)
 	require.NoError(t, os.Chtimes(file, old, old))
-	s := parse(t, "tool-cache.yaml", "order: 1\ndescribes: x\nroot: "+root+"\nremove: [{files: '*.log'}]\nkeep: {age: {of: mtime, within: 1d}, open: true}\n")
+	s := parse(t, "001-tool-cache.yaml", "describes: x\nroot: "+root+"\nremove: [{files: '*.log'}]\nkeep: {age: {of: mtime, within: 1d}, open: true}\n")
 	env := environment("/nowhere")
 	env.Lsof = inuse.Lsof{Command: fakeLsof(t, "touch '"+file+"'\nprintf 'p1\\nn/elsewhere\\n'\n"), TimeoutSeconds: 5}
 
@@ -386,7 +386,7 @@ func TestASkipKeepsALaterEntryOutOfWhatItNames(t *testing.T) {
 func TestANodeThatFindsNothingAsksNothing(t *testing.T) {
 	root := temp(t)
 	write(t, filepath.Join(root, "x"))
-	s := parse(t, "tool-cache.yaml", "order: 1\ndescribes: x\nroot: "+root+"\nunless: [{running: [tool], says: a tool runs}]\nremove: [{folders: '*.cache'}]\n")
+	s := parse(t, "001-tool-cache.yaml", "describes: x\nroot: "+root+"\nunless: [{running: [tool], says: a tool runs}]\nremove: [{folders: '*.cache'}]\n")
 	env := environment("/nowhere")
 	env.Processes.Running = func(string) (bool, error) {
 		t.Fatal("asked although nothing was found")

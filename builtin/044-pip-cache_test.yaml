@@ -1,0 +1,42 @@
+- case: pip purges its cache where pip cache dir puts it
+  files:
+    Library/Caches/pip/http-v2/0/entry:
+    Library/Caches/pip/wheels/ab/package.whl:
+  commands:
+    pip3 cache dir: {stdout: ~/Library/Caches/pip}
+    pip3 cache purge: {removes: [Library/Caches/pip/http-v2, Library/Caches/pip/wheels]}
+  removes: [Library/Caches/pip/http-v2, Library/Caches/pip/wheels]
+  counts: 1
+
+- case: a dry run counts the cache and purges nothing
+  dry-run: true
+  files:
+    Library/Caches/pip/http-v2/0/entry:
+  commands:
+    pip3 cache dir: {stdout: ~/Library/Caches/pip}
+  removes: []
+  shows: ['WOULD RUN     pip3 cache purge']
+  counts: 1
+
+- case: a running pip install keeps the cache
+  running: [/usr/bin/python3 -m pip install requests]
+  files:
+    Library/Caches/pip/http-v2/0/entry:
+  commands:
+    pip3 cache dir: {stdout: ~/Library/Caches/pip}
+  removes: []
+  says: [a pip install is running]
+
+- case: a pip with its cache turned off fails with pip's words
+  files:
+    Library/Caches/pip/http-v2/0/entry:
+  commands:
+    pip3 cache dir: {stderr: 'ERROR: pip cache commands can not function since cache is disabled.', exit: 1}
+  removes: []
+  fails: ['pip3 cache dir: exit status 1: ERROR: pip cache commands can not function since cache is disabled.']
+
+- case: without pip3 the step is quiet
+  files:
+    Library/Caches/pip/http-v2/0/entry:
+  removes: []
+  counts: 0

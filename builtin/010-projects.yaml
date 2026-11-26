@@ -1,4 +1,3 @@
-order: 10
 describes: build output, Python caches, node_modules and Git leftovers in your projects
 reversible: true
 

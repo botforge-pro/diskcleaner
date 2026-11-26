@@ -1,0 +1,41 @@
+- case: yarn cleans its cache where yarn cache dir puts it
+  files:
+    Library/Caches/Yarn/v6/npm-left-pad-1.3.0/package.json:
+  commands:
+    yarn cache dir: {stdout: ~/Library/Caches/Yarn/v6}
+    yarn cache clean: {removes: [Library/Caches/Yarn/v6/npm-left-pad-1.3.0]}
+  removes: [Library/Caches/Yarn/v6/npm-left-pad-1.3.0]
+  counts: 1
+
+- case: a dry run counts the cache and cleans nothing
+  dry-run: true
+  files:
+    Library/Caches/Yarn/v6/npm-left-pad-1.3.0/package.json:
+  commands:
+    yarn cache dir: {stdout: ~/Library/Caches/Yarn/v6}
+  removes: []
+  shows: ['WOULD RUN     yarn cache clean']
+  counts: 1
+
+- case: a running yarn keeps the cache
+  running: [node /opt/homebrew/bin/yarn install]
+  files:
+    Library/Caches/Yarn/v6/npm-left-pad-1.3.0/package.json:
+  commands:
+    yarn cache dir: {stdout: ~/Library/Caches/Yarn/v6}
+  removes: []
+  says: [a yarn command is running]
+
+- case: a yarn whose configuration is broken fails with yarn's words
+  files:
+    Library/Caches/Yarn/v6/npm-left-pad-1.3.0/package.json:
+  commands:
+    yarn cache dir: {stderr: "error Error: EROFS: read-only file system, mkdir '/npm-packages-offline-cache'", exit: 1}
+  removes: []
+  fails: ["yarn cache dir: exit status 1: error Error: EROFS: read-only file system"]
+
+- case: without yarn the step is quiet
+  files:
+    Library/Caches/Yarn/v6/npm-left-pad-1.3.0/package.json:
+  removes: []
+  counts: 0

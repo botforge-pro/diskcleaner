@@ -1,0 +1,44 @@
+- case: npm cleans its cache where npm config puts it, and npx packages stay
+  files:
+    .npm/_cacache/content-v2/sha512/00/entry:
+    .npm/_npx/1a2b/node_modules/chrome-devtools-mcp/package.json:
+  commands:
+    npm config get cache: {stdout: ~/.npm}
+    npm cache clean --force: {removes: [.npm/_cacache]}
+  removes: [.npm/_cacache]
+  counts: 1
+
+- case: a dry run counts the cache and cleans nothing
+  dry-run: true
+  files:
+    .npm/_cacache/content-v2/sha512/00/entry:
+  commands:
+    npm config get cache: {stdout: ~/.npm}
+  removes: []
+  shows: ['WOULD RUN     npm cache clean --force']
+  counts: 1
+
+- case: a running npm install keeps the cache
+  running: [node /opt/homebrew/bin/npm install]
+  files:
+    .npm/_cacache/content-v2/sha512/00/entry:
+  commands:
+    npm config get cache: {stdout: ~/.npm}
+  removes: []
+  says: [an npm install is running]
+
+- case: a server npm exec keeps running does not keep the cache
+  running: [npm exec chrome-devtools-mcp@latest --browser-url http://127.0.0.1:9222]
+  files:
+    .npm/_cacache/content-v2/sha512/00/entry:
+  commands:
+    npm config get cache: {stdout: ~/.npm}
+    npm cache clean --force: {removes: [.npm/_cacache]}
+  removes: [.npm/_cacache]
+  counts: 1
+
+- case: without npm the step is quiet
+  files:
+    .npm/_cacache/content-v2/sha512/00/entry:
+  removes: []
+  counts: 0

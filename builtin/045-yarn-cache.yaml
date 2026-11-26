@@ -1,0 +1,12 @@
+describes: the Yarn package cache
+reversible: true
+
+readme:
+  removes: the cache of packages Yarn has downloaded
+  keeps: all while Yarn runs
+  can-lose: installing packages without a connection until Yarn downloads them again
+
+when: [{program: yarn}]
+unless: [{running: ['(^|/)yarn(\.js)?( |$)'], says: a yarn command is running}]
+do:
+  - {root: {run: [yarn, cache, dir]}, run: [yarn, cache, clean], size: '{path}'}

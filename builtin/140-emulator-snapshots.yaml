@@ -1,4 +1,3 @@
-order: 140
 describes: saved quick-boot states of Android emulators that are not running
 reversible: true
 

@@ -3,6 +3,7 @@ package main
 import (
 	"io/fs"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -28,16 +29,16 @@ func TestEveryBuiltinFileLoadsAndIsInTheCatalog(t *testing.T) {
 		if strings.HasSuffix(name, rule.TestSuffix) || filepath.Base(name) == rule.GroupsFile {
 			continue
 		}
-		step := filepath.Base(name[:len(name)-len(".yaml")])
-		assert.Contains(t, stepNames(), step, "%s is loaded but no step runs it", name)
+		base := filepath.Base(name[:len(name)-len(".yaml")])
+		assert.True(t, slices.ContainsFunc(catalog, func(info stepInfo) bool { return info.file.Base == base }), "%s is loaded but no step runs it", name)
 	}
 }
 
-func TestTwoStepsOfOneOrderAreRefused(t *testing.T) {
-	files := []rule.File{{Name: "a", Order: 10}, {Name: "b", Order: 10}}
+func TestTwoFilesOfOneStepAreRefused(t *testing.T) {
+	files := []rule.File{{Name: "a", Base: "010-a"}, {Name: "a", Base: "020-a"}}
 
 	err := checkCatalog(files)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "b.yaml: order 10: a.yaml has it too")
+	assert.Contains(t, err.Error(), "020-a.yaml: the step a is 010-a.yaml already")
 }

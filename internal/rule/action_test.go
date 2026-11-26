@@ -42,7 +42,7 @@ func (a answers) commands(ran *[]string) Commands {
 func commanding(t *testing.T, body string, a answers, ran *[]string) Rule {
 	env := environment("/nowhere")
 	env.Commands = a.commands(ran)
-	return parse(t, "tool-cache.yaml", "order: 1\ndescribes: x\n"+body).Rule(env)
+	return parse(t, "001-tool-cache.yaml", "describes: x\n"+body).Rule(env)
 }
 
 func TestAProcessStartingBetweenCommandsKeepsTheRest(t *testing.T) {

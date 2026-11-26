@@ -1,13 +1,11 @@
 package main
 
 import (
-	"cmp"
 	"embed"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
-	"slices"
 	"time"
 
 	"github.com/botforge-pro/diskcleaner/internal/config"
@@ -57,7 +55,6 @@ func mustCatalog() []stepInfo {
 	if err != nil {
 		panic(fmt.Sprintf("the built-in steps do not load: %v", err))
 	}
-	slices.SortFunc(files, func(a, b rule.File) int { return cmp.Compare(a.Order, b.Order) })
 	steps := make([]stepInfo, len(files))
 	for i, f := range files {
 		steps[i] = stepInfo{f.Step(), f}
@@ -67,12 +64,12 @@ func mustCatalog() []stepInfo {
 
 func checkCatalog(files []rule.File) error {
 	var errs []error
-	orders := map[int]string{}
+	bases := map[string]string{}
 	for _, f := range files {
-		if other, taken := orders[f.Order]; taken {
-			errs = append(errs, fmt.Errorf("%s.yaml: order %d: %s.yaml has it too", f.Name, f.Order, other))
+		if other, taken := bases[f.Name]; taken {
+			errs = append(errs, fmt.Errorf("%s.yaml: the step %s is %s.yaml already", f.Base, f.Name, other))
 		}
-		orders[f.Order] = f.Name
+		bases[f.Name] = f.Base
 	}
 	return errors.Join(errs...)
 }

@@ -6,7 +6,7 @@ readme:
   keeps: all while pip installs
   can-lose: installing packages without a connection until pip downloads them again
 
-when: [{program: pip3}]
-unless: [{running: ['(^|/)pip3? (install|download|wheel)( |$)', ' -m pip (install|download|wheel)( |$)'], says: a pip install is running}]
-do:
-  - {root: {run: [pip3, cache, dir]}, run: [pip3, cache, purge], size: '{path}'}
+root: {run: [pip3, cache, dir]}
+unless: [{running: ['(^|/)pip[0-9.]*( [^ ]+)* (install|download|wheel)( |$)', ' -m pip( [^ ]+)* (install|download|wheel)( |$)'], says: a pip install is running}]
+run: [pip3, cache, purge]
+size: '{path}'

@@ -1,20 +1,24 @@
-- case: yarn cleans its cache where yarn cache dir puts it
+- case: yarn cleans its whole cache, older versions of it included
   files:
     Library/Caches/Yarn/v6/npm-left-pad-1.3.0/package.json:
+    Library/Caches/Yarn/v4/npm-left-pad-1.1.0/package.json:
   commands:
+    yarn --version: {stdout: '1.22.22'}
     yarn cache dir: {stdout: ~/Library/Caches/Yarn/v6}
-    yarn cache clean: {removes: [Library/Caches/Yarn/v6/npm-left-pad-1.3.0]}
-  removes: [Library/Caches/Yarn/v6/npm-left-pad-1.3.0]
+    yarn cache clean: {removes: [Library/Caches/Yarn/v6, Library/Caches/Yarn/v4]}
+  removes: [Library/Caches/Yarn/v6, Library/Caches/Yarn/v4]
   counts: 1
 
-- case: a dry run counts the cache and cleans nothing
+- case: a dry run counts every version of the cache and cleans nothing
   dry-run: true
   files:
     Library/Caches/Yarn/v6/npm-left-pad-1.3.0/package.json:
+    Library/Caches/Yarn/v4/npm-left-pad-1.1.0/package.json:
   commands:
+    yarn --version: {stdout: '1.22.22'}
     yarn cache dir: {stdout: ~/Library/Caches/Yarn/v6}
   removes: []
-  shows: ['WOULD RUN     yarn cache clean']
+  shows: ['WOULD RUN     yarn cache clean  (8.0 KiB in ']
   counts: 1
 
 - case: a running yarn keeps the cache
@@ -22,14 +26,24 @@
   files:
     Library/Caches/Yarn/v6/npm-left-pad-1.3.0/package.json:
   commands:
+    yarn --version: {stdout: '1.22.22'}
     yarn cache dir: {stdout: ~/Library/Caches/Yarn/v6}
   removes: []
   says: [a yarn command is running]
+
+- case: Yarn 2 and later keep their cache in each project and are passed over
+  files:
+    Library/Caches/Yarn/v6/npm-left-pad-1.3.0/package.json:
+  commands:
+    yarn --version: {stdout: '4.5.3'}
+  removes: []
+  counts: 0
 
 - case: a yarn whose configuration is broken fails with yarn's words
   files:
     Library/Caches/Yarn/v6/npm-left-pad-1.3.0/package.json:
   commands:
+    yarn --version: {stdout: '1.22.22'}
     yarn cache dir: {stderr: "error Error: EROFS: read-only file system, mkdir '/npm-packages-offline-cache'", exit: 1}
   removes: []
   fails: ["yarn cache dir: exit status 1: error Error: EROFS: read-only file system"]

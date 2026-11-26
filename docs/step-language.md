@@ -67,8 +67,10 @@ strings. Where a key wants a value, any form below is accepted.
 
 A `run` may add `then: rel` (join a relative path to the answer) and
 `absolute: true` (an answer that is not an absolute path is unset). A command
-that fails makes its value unset when a choice follows it, in an `or` or a
-`first`; otherwise the step fails with the command's output. A file that does
+that is not installed makes its value unset, so a root asked of a tool passes
+quietly where the tool is missing. A command that fails makes its value unset
+when a choice follows it, in an `or` or a `first`; otherwise the step fails
+with the command's output. A file that does
 not exist, or lacks every key, is unset; one that cannot be read is a failure,
 which at a candidate keeps the candidate and elsewhere stops the step.
 

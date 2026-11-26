@@ -2,11 +2,11 @@ describes: the Yarn package cache
 reversible: true
 
 readme:
-  removes: the cache of packages Yarn has downloaded
-  keeps: all while Yarn runs
+  removes: the cache of packages Yarn 1 has downloaded, every version of it
+  keeps: all while Yarn runs; Yarn 2 and later, which keep their cache in each project
   can-lose: installing packages without a connection until Yarn downloads them again
 
-when: [{program: yarn}]
+when: [{value: {run: [yarn, --version], match: '^([0-9]+)\.'}, is: '1'}]
 unless: [{running: ['(^|/)yarn(\.js)?( |$)'], says: a yarn command is running}]
 do:
-  - {root: {run: [yarn, cache, dir]}, run: [yarn, cache, clean], size: '{path}'}
+  - {root: {run: [yarn, cache, dir]}, run: [yarn, cache, clean], size: ..}

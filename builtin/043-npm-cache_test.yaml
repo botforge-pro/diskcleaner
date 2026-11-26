@@ -27,6 +27,24 @@
   removes: []
   says: [an npm install is running]
 
+- case: npm's other names for an install keep the cache too
+  running: [npm cit, npm it, npm clean-install, npm install-test]
+  files:
+    .npm/_cacache/content-v2/sha512/00/entry:
+  commands:
+    npm config get cache: {stdout: ~/.npm}
+  removes: []
+  says: [an npm install is running]
+
+- case: options before install do not hide a running npm install
+  running: [node /opt/homebrew/bin/npm --prefer-offline --no-audit ci]
+  files:
+    .npm/_cacache/content-v2/sha512/00/entry:
+  commands:
+    npm config get cache: {stdout: ~/.npm}
+  removes: []
+  says: [an npm install is running]
+
 - case: a server npm exec keeps running does not keep the cache
   running: [npm exec chrome-devtools-mcp@latest --browser-url http://127.0.0.1:9222]
   files:

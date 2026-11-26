@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -381,7 +382,7 @@ func (c *ctx) runValue(v *RunValue) ([]string, bool) {
 	case result.TimedOut:
 		c.r.Fail("%s did not answer within %s", words, c.within(v.Timeout))
 		return nil, false
-	case result.Err != nil && c.fallback:
+	case result.Err != nil && (c.fallback || errors.Is(result.Err, exec.ErrNotFound)):
 		return nil, true
 	case result.Err != nil:
 		c.r.Fail("%s: %v: %s", words, result.Err, result.Output())

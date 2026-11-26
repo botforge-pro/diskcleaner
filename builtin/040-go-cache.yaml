@@ -4,7 +4,6 @@ reversible: true
 readme:
   keeps: each cache when a Go command is detected before deletion
 
-when: [{program: go}]
 unless: [{running: ['(^|/)go (build|test|run|install|get|mod|generate|vet|list)( |$)'], says: a go command is running}]
 do:
   - {root: {run: [go, env, GOMODCACHE]}, run: [go, clean, -modcache], size: '{path}'}

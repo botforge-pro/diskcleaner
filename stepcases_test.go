@@ -319,17 +319,23 @@ type fakeCommand struct {
 
 func (c stepCase) commands(t *testing.T, home string) rule.Commands {
 	inHome := strings.NewReplacer("~/", home+"/")
+	installed := func(name string) bool {
+		return slices.ContainsFunc(slices.Collect(maps.Keys(c.Commands)), func(line string) bool {
+			return line == name || strings.HasPrefix(line, name+" ")
+		})
+	}
 	return rule.Commands{
 		LookPath: func(name string) (string, error) {
-			for line := range c.Commands {
-				if line == name || strings.HasPrefix(line, name+" ") {
-					return "/usr/bin/" + name, nil
-				}
+			if installed(name) {
+				return "/usr/bin/" + name, nil
 			}
 			return "", exec.ErrNotFound
 		},
 		Run: func(_ time.Duration, name string, args ...string) process.Result {
 			line := strings.ReplaceAll(strings.Join(append([]string{name}, args...), " "), home+"/", "~/")
+			if !installed(name) {
+				return process.Result{Err: &exec.Error{Name: name, Err: exec.ErrNotFound}}
+			}
 			fake, ok := c.Commands[line]
 			if !ok {
 				return process.Result{Err: fmt.Errorf("exit status 127"), Stderr: "not expected in this case: " + line}

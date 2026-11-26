@@ -100,7 +100,7 @@ with `/` or `~/`. Each step's own settings are under it below.
 | `go-cache` | the Go module and build caches | each cache when a Go command is detected before deletion |  |
 | `npm-cache` | the npm package cache, where npm keeps every package it has downloaded | the packages that `npx` and `npm exec` run from; all while npm installs | installing packages without a connection until npm downloads them again |
 | `pip-cache` | the cache of packages and wheels pip has downloaded and built | all while pip installs | installing packages without a connection until pip downloads them again |
-| `yarn-cache` | the cache of packages Yarn has downloaded | all while Yarn runs | installing packages without a connection until Yarn downloads them again |
+| `yarn-cache` | the cache of packages Yarn 1 has downloaded, every version of it | all while Yarn runs; Yarn 2 and later, which keep their cache in each project | installing packages without a connection until Yarn downloads them again |
 | **`homebrew`** | old versions of formulae and casks; every download, whatever its age, giving up after `homebrew.timeout` (`15m`) | installed versions | the old versions |
 | `swiftpm-cache` | the SwiftPM package cache | all while Swift or Xcode build |  |
 | `xcode-derived-data` | Xcode DerivedData | all while Xcode builds; in a folder you picked in Xcode, what Xcode did not make |  |

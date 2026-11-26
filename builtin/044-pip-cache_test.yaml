@@ -27,6 +27,24 @@
   removes: []
   says: [a pip install is running]
 
+- case: a pip named by its version keeps the cache while it installs
+  running: [/opt/homebrew/bin/python3.14 /opt/homebrew/bin/pip3.14 install requests]
+  files:
+    Library/Caches/pip/http-v2/0/entry:
+  commands:
+    pip3 cache dir: {stdout: ~/Library/Caches/pip}
+  removes: []
+  says: [a pip install is running]
+
+- case: options before install do not hide a running install
+  running: [python3 -m pip --isolated install requests]
+  files:
+    Library/Caches/pip/http-v2/0/entry:
+  commands:
+    pip3 cache dir: {stdout: ~/Library/Caches/pip}
+  removes: []
+  says: [a pip install is running]
+
 - case: a pip with its cache turned off fails with pip's words
   files:
     Library/Caches/pip/http-v2/0/entry:

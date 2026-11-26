@@ -12,14 +12,18 @@ is 0.x, commands and output may still change.
 - Three new steps, on by default like every step, each running after
   `go-cache`. Each asks its tool where the cache is, empties it with the tool's
   own command and leaves it alone while the tool is installing:
-  - `npm-cache` runs `npm cache clean --force`. The packages that `npx` and
-    `npm exec` run from stay, and a server started with `npm exec` does not
-    stop the step.
-  - `pip-cache` runs `pip3 cache purge`.
-  - `yarn-cache` runs `yarn cache clean`. If Yarn cannot tell where its
-    cache is, for instance because a `yarn-offline-mirror` in `~/.yarnrc`
-    points nowhere, the step fails with Yarn's own message and `clean`
-    exits 1.
+  - `npm-cache` runs `npm cache clean --force`, and waits while any npm
+    command that fetches packages runs, whatever its name (`install`, `ci`,
+    `it`, `cit` and the like). The packages that `npx` and `npm exec` run from
+    stay, and a server started with `npm exec` does not stop the step.
+  - `pip-cache` runs `pip3 cache purge`, and waits while any pip installs,
+    `pip3.14` or `python3 -m pip` with options included.
+  - `yarn-cache` runs `yarn cache clean` for Yarn 1, which removes the cache
+    of every Yarn 1 version at once; the size it shows counts them all. Yarn 2
+    and later keep their cache in each project, and the step leaves them
+    alone. If Yarn 1 cannot tell where its cache is, for instance because a
+    `yarn-offline-mirror` in `~/.yarnrc` points nowhere, the step fails with
+    Yarn's own message and `clean` exits 1.
 
   What goes is downloaded again the next time a package is installed, so
   installing without a connection waits until then. Turn a step off with

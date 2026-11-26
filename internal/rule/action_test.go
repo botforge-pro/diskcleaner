@@ -136,6 +136,24 @@ func TestACommandThatFailsMakesItsValueUnsetOnlyWhenAChoiceFollows(t *testing.T)
 	assert.Contains(t, r.Failures[0], "tool where: exit status 1: no such key")
 }
 
+func TestARootAskedOfAToolThatIsNotInstalledPassesQuietly(t *testing.T) {
+	var ran []string
+	s := commanding(t, "root: {run: [tool, cache, dir]}\nrun: [tool, cache, clean]\nsize: '{path}'\n", answers{}, &ran)
+	env := s.env
+	env.Commands.Run = func(_ time.Duration, name string, args ...string) process.Result {
+		ran = append(ran, name)
+		return process.Result{Err: &exec.Error{Name: name, Err: exec.ErrNotFound}}
+	}
+	s.env = env
+
+	r, stdout, stderr := run(s, false)
+
+	assert.Equal(t, []string{"tool"}, ran)
+	assert.Empty(t, r.Failures)
+	assert.Empty(t, stdout)
+	assert.Empty(t, stderr)
+}
+
 func TestACheckThatTimesOutFailsWithWhatToDo(t *testing.T) {
 	var ran []string
 	body := "when: [{succeeds: {run: [tool, info], timeout: 30s}, fails: restart the tool}]\nrun: [tool, prune]\ndry-run: [-n]\n"

@@ -27,14 +27,63 @@
   removes: []
   says: [an npm install is running]
 
-- case: npm's other names for an install keep the cache too
-  running: [npm cit, npm it, npm clean-install, npm install-test]
-  files:
-    .npm/_cacache/content-v2/sha512/00/entry:
-  commands:
-    npm config get cache: {stdout: ~/.npm}
+- case: npm cit keeps the cache
+  running: [npm cit]
+  files: {.npm/_cacache/content-v2/sha512/00/entry: }
+  commands: {npm config get cache: {stdout: ~/.npm}}
   removes: []
   says: [an npm install is running]
+
+- case: npm it keeps the cache
+  running: [npm it]
+  files: {.npm/_cacache/content-v2/sha512/00/entry: }
+  commands: {npm config get cache: {stdout: ~/.npm}}
+  removes: []
+  says: [an npm install is running]
+
+- case: npm clean-install keeps the cache
+  running: [npm clean-install]
+  files: {.npm/_cacache/content-v2/sha512/00/entry: }
+  commands: {npm config get cache: {stdout: ~/.npm}}
+  removes: []
+  says: [an npm install is running]
+
+- case: npm installTest keeps the cache
+  running: [npm installTest]
+  files: {.npm/_cacache/content-v2/sha512/00/entry: }
+  commands: {npm config get cache: {stdout: ~/.npm}}
+  removes: []
+  says: [an npm install is running]
+
+- case: npm install-cl, a short install-clean, keeps the cache
+  running: [npm install-cl]
+  files: {.npm/_cacache/content-v2/sha512/00/entry: }
+  commands: {npm config get cache: {stdout: ~/.npm}}
+  removes: []
+  says: [an npm install is running]
+
+- case: npm u keeps the cache
+  running: [npm u]
+  files: {.npm/_cacache/content-v2/sha512/00/entry: }
+  commands: {npm config get cache: {stdout: ~/.npm}}
+  removes: []
+  says: [an npm install is running]
+
+- case: npm upd keeps the cache
+  running: [npm upd]
+  files: {.npm/_cacache/content-v2/sha512/00/entry: }
+  commands: {npm config get cache: {stdout: ~/.npm}}
+  removes: []
+  says: [an npm install is running]
+
+- case: a dev server npm run keeps running does not keep the cache
+  running: [npm run dev]
+  files: {.npm/_cacache/content-v2/sha512/00/entry: }
+  commands:
+    npm config get cache: {stdout: ~/.npm}
+    npm cache clean --force: {removes: [.npm/_cacache]}
+  removes: [.npm/_cacache]
+  counts: 1
 
 - case: options before install do not hide a running npm install
   running: [node /opt/homebrew/bin/npm --prefer-offline --no-audit ci]

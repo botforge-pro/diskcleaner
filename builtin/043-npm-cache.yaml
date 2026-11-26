@@ -7,6 +7,6 @@ readme:
   can-lose: installing packages without a connection until npm downloads them again
 
 root: {run: [npm, config, get, cache]}
-unless: [{running: ['(^|/)npm(-cli\.js)?( -[^ ]+)* (install|i|in|ins|inst|insta|instal|isnt|isnta|isntal|isntall|add|ci|clean-install|ic|install-clean|isntall-clean|install-test|it|install-ci-test|cit|clean-install-test|sit|update|up|upgrade|udpate|dedupe|ddp|rebuild|rb|cache)( |$)'], says: an npm install is running}]
+unless: [{running: ['(^|/)npm(-cli\.js)?( -[^ ]+)* (i(n(s(t(a(l(l)?)?)?)?)?)?|isnt(a(l(l)?)?)?|add|ci|ic|cit|it|sit|clean-?[iI]nstall(-?[tT]est)?|install-?([cC]i-?)?[tT]est|install-?[cC]l(e(a(n)?)?)?|isntall-?[cC]lean|u(p(d(a(t(e)?)?)?)?)?|upgrade|udpate|dedupe|ddp|rebuild|rb|cache)( |$)'], says: an npm install is running}]
 run: [npm, cache, clean, --force]
 size: _cacache

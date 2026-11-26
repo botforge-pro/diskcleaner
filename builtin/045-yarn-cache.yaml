@@ -3,7 +3,7 @@ reversible: true
 
 readme:
   removes: the cache of packages Yarn 1 has downloaded, every version of it
-  keeps: all while Yarn runs; Yarn 2 and later, which keep their cache in each project
+  keeps: all while Yarn runs; the cache of Yarn 2 and later, which the step does not clean
   can-lose: installing packages without a connection until Yarn downloads them again
 
 when: [{value: {run: [yarn, --version], match: '^([0-9]+)\.'}, is: '1'}]

@@ -5,6 +5,22 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/); while the version
 is 0.x, commands and output may still change.
 
+## [0.26.1] - 2026-11-26
+
+Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.26.1`.
+
+### Fixed
+
+- `npm-cache` could empty npm's cache while npm was installing packages, if
+  the install was started with a shortened command name, such as `npm u` or
+  `npm upd` for `npm update` and `npm install-cl` for `npm install-clean`, or
+  with a name in camelCase, such as `npm installTest`. npm accepts any such
+  form, and the step now skips while any of them runs.
+- The notes of 0.26.0 and the README said that Yarn 2 and later keep their
+  cache inside each project. They may keep one cache shared by all projects as
+  well. `yarn-cache` cleans only the cache of Yarn 1; the cache of Yarn 2 and
+  later stays, wherever it is.
+
 ## [0.26.0] - 2026-11-26
 
 Upgrade with `go install github.com/botforge-pro/diskcleaner@v0.26.0`.
@@ -1051,6 +1067,7 @@ this release removes one kind of them. Install it with a Go toolchain:
   status 1.
 - `diskcleaner version` prints the installed version.
 
+[0.26.1]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.26.1
 [0.26.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.26.0
 [0.25.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.25.0
 [0.24.0]: https://github.com/botforge-pro/diskcleaner/releases/tag/v0.24.0
